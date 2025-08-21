@@ -75,16 +75,34 @@ export DB_MAX_CONNECTIONS=10
    mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
    ```
 
-3. **The server starts on http://localhost:8080**
+3. **The server starts on http://localhost:9000**
 
 ### Server Configuration
+
+#### Port Configuration
+
+The server runs on port **9000** by default. You can change this by setting the `OIDC_PORT` environment variable:
+
+```bash
+# Run on default port 9000
+mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
+
+# Run on custom port (e.g., 8080)
+export OIDC_PORT=8080
+mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
+
+# Or set inline
+OIDC_PORT=8080 mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
+```
+
+#### All Configuration Options
 
 Configure via environment variables:
 
 ```bash
 export OIDC_HOST=localhost
-export OIDC_PORT=8080
-export OIDC_ISSUER=http://localhost:8080
+export OIDC_PORT=9000
+export OIDC_ISSUER=http://localhost:9000
 export OIDC_KEY_ID=oidc-key-1
 export OIDC_TOKEN_EXPIRATION=3600
 export OIDC_CODE_EXPIRATION=600
@@ -148,7 +166,7 @@ From the database view:
 
 1. **Authorization Request:**
    ```
-   http://localhost:8080/auth?response_type=code&client_id=test-client&redirect_uri=https://example.com/callback&scope=openid%20profile%20email&state=abc123
+   http://localhost:9000/auth?response_type=code&client_id=test-client&redirect_uri=https://example.com/callback&scope=openid%20profile%20email&state=abc123
    ```
 
 2. **User Login:** Enter valid database user credentials
@@ -157,14 +175,14 @@ From the database view:
 
 4. **Token Exchange:**
    ```bash
-   curl -X POST http://localhost:8080/token \
+   curl -X POST http://localhost:9000/token \
      -H "Content-Type: application/x-www-form-urlencoded" \
      -d "grant_type=authorization_code&code=YOUR_CODE&redirect_uri=https://example.com/callback&client_id=test-client"
    ```
 
 5. **UserInfo Request:**
    ```bash
-   curl http://localhost:8080/userinfo \
+   curl http://localhost:9000/userinfo \
      -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
    ```
 

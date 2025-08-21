@@ -40,8 +40,8 @@ import org.typelevel.ci.CIString
 class OidcProviderIntegrationTest extends AnyFlatSpec with Matchers {
 
   val testConfig = OidcConfig(
-    issuer = "http://localhost:8080",
-    server = ServerConfig("localhost", 8080),
+    issuer = "http://localhost:9000",
+    server = ServerConfig("localhost", 9000),
     database = DatabaseConfig("localhost", 5432, "test", "test", "test"),
     keyId = "test-key-1",
     tokenExpirationSeconds = 3600,
