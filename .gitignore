@@ -1,0 +1,150 @@
+# Copyright (c) 2025 TESOBE
+#
+# This file is part of OBP-OIDC.
+# 
+# OBP-OIDC is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# OBP-OIDC is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with OBP-OIDC. If not, see <http://www.gnu.org/licenses/>.
+
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Compiled class files
+*.class
+
+# Log files
+*.log
+
+# Package Files
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Virtual machine crash logs
+hs_err_pid*
+
+# Scala-specific
+*.sc
+.scala_dependencies
+.worksheet
+.bsp/
+
+# SBT (in case it's used alongside Maven)
+.sbt
+project/project/
+project/target/
+.sbtserver/
+
+# Metals (Scala Language Server)
+.metals/
+.bloop/
+metals.sbt
+
+# IDEs
+## IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+## Eclipse
+.classpath
+.project
+.settings/
+bin/
+.metadata
+
+## VS Code
+.vscode/
+
+## NetBeans
+nbproject/private/
+build/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*~
+*.swp
+*.tmp
+
+# Configuration files (may contain sensitive data)
+application-local.conf
+application-dev.conf
+application-prod.conf
+*.properties.local
+
+# Database files
+*.db
+*.sqlite
+*.h2.db
+
+# SSL certificates and keys
+*.pem
+*.key
+*.crt
+*.jks
+*.p12
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.staging
+
+# Docker
+Dockerfile.local
+docker-compose.override.yml
+
+# Test reports
+**/surefire-reports/
+**/failsafe-reports/
+test-output/
+
+# Coverage reports
+jacoco.exec
+scoverage-data/
+scoverage-report/
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Logs
+logs/
+*.log.*
