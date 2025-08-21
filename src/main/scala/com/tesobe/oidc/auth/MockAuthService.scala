@@ -26,6 +26,7 @@ import com.tesobe.oidc.models.{User, OidcError}
 trait AuthService[F[_]] {
   def authenticate(username: String, password: String): F[Either[OidcError, User]]
   def getUserById(sub: String): F[Option[User]]
+  def validateClient(clientId: String, redirectUri: String): F[Boolean]
 }
 
 class MockAuthService extends AuthService[IO] {
@@ -71,6 +72,12 @@ class MockAuthService extends AuthService[IO] {
 
   def getUserById(sub: String): IO[Option[User]] = IO {
     users.values.find(_.sub == sub)
+  }
+
+  def validateClient(clientId: String, redirectUri: String): IO[Boolean] = IO {
+    // Mock implementation - accepts any client_id and redirect_uri for testing
+    // In production, this would check against the v_oidc_clients database view
+    true
   }
 }
 

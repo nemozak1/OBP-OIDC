@@ -22,7 +22,7 @@ package com.tesobe.oidc.auth
 import cats.effect.{IO, Resource}
 import cats.implicits._
 import com.tesobe.oidc.config.{DatabaseConfig, OidcConfig}
-import com.tesobe.oidc.models.{User, UserInfo, OidcError}
+import com.tesobe.oidc.models.{User, UserInfo, OidcError, OidcClient}
 import doobie._
 import doobie.hikari.HikariTransactor
 import doobie.implicits._
@@ -36,7 +36,7 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * Database-based authentication service using PostgreSQL view v_authuser_oidc
+ * Database-based authentication service using PostgreSQL view v_oidc_users
  * 
  * This service connects to the OBP database and authenticates users against
  * the authuser table via the read-only view created by the OIDC setup script.
@@ -93,7 +93,7 @@ class DatabaseAuthService(transactor: Transactor[IO]) extends AuthService[IO] {
       SELECT id, username, firstname, lastname, email, uniqueid, 
              validated, provider, password_pw, password_slt, 
              createdat, updatedat
-      FROM v_authuser_oidc 
+      FROM v_oidc_users 
       WHERE uniqueid = $uniqueId AND validated = true
     """.query[DatabaseUser]
     
@@ -111,7 +111,7 @@ class DatabaseAuthService(transactor: Transactor[IO]) extends AuthService[IO] {
       SELECT id, username, firstname, lastname, email, uniqueid, 
              validated, provider, password_pw, password_slt, 
              createdat, updatedat
-      FROM v_authuser_oidc 
+      FROM v_oidc_users 
       WHERE username = $username AND validated = true
     """.query[DatabaseUser]
     
@@ -122,8 +122,32 @@ class DatabaseAuthService(transactor: Transactor[IO]) extends AuthService[IO] {
   }
   
   /**
-   * Verify password using BCrypt - compatible with OBP-API implementation
+   * Find OIDC client by client_id
    */
+  def findClientById(clientId: String): IO[Option[OidcClient]] = {
+    val query = sql"""
+      SELECT client_id, client_secret, client_name, redirect_uris, 
+             grant_types, response_types, scopes, token_endpoint_auth_method, created_at
+      FROM v_oidc_clients 
+      WHERE client_id = $clientId
+    """.query[DatabaseClient]
+      
+    query.option.transact(transactor).map(_.map(_.toOidcClient))
+  }
+
+  /**
+   * Validate client and redirect URI
+   */
+  def validateClient(clientId: String, redirectUri: String): IO[Boolean] = {
+    findClientById(clientId).map {
+      case Some(client) => client.redirect_uris.contains(redirectUri)
+      case None => false
+    }
+  }
+
+/**
+ * Verify password using BCrypt - compatible with OBP-API implementation
+ */
   private def verifyPassword(plainPassword: String, storedHash: String, salt: String): IO[Boolean] = {
     IO {
       try {
@@ -142,7 +166,7 @@ class DatabaseAuthService(transactor: Transactor[IO]) extends AuthService[IO] {
 }
 
 /**
- * Database user representation matching the v_authuser_oidc view structure
+ * Database user representation matching the v_oidc_users view structure
  */
 case class DatabaseUser(
   id: Long,
@@ -176,6 +200,46 @@ case class DatabaseUser(
     email = Some(email),
     email_verified = Some(validated)
   )
+}
+
+/**
+ * Database client representation matching the v_oidc_clients view structure
+ */
+case class DatabaseClient(
+  client_id: String,
+  client_secret: Option[String],
+  client_name: String,
+  redirect_uris: String, // JSON array as string from database
+  grant_types: String,   // JSON array as string from database
+  response_types: String, // JSON array as string from database
+  scopes: String,        // JSON array as string from database
+  token_endpoint_auth_method: String,
+  created_at: Option[String]
+) {
+  def toOidcClient: OidcClient = OidcClient(
+    client_id = client_id,
+    client_secret = client_secret,
+    client_name = client_name,
+    redirect_uris = parseJsonArray(redirect_uris),
+    grant_types = parseJsonArray(grant_types),
+    response_types = parseJsonArray(response_types),
+    scopes = parseJsonArray(scopes),
+    token_endpoint_auth_method = token_endpoint_auth_method,
+    created_at = created_at
+  )
+
+  private def parseJsonArray(jsonStr: String): List[String] = {
+    try {
+      // Simple JSON array parsing - assumes format like ["item1","item2"]
+      jsonStr.stripPrefix("[").stripSuffix("]")
+        .split(",")
+        .map(_.trim.stripPrefix("\"").stripSuffix("\""))
+        .filter(_.nonEmpty)
+        .toList
+    } catch {
+      case _: Exception => List.empty
+    }
+  }
 }
 
 object DatabaseAuthService {
@@ -218,14 +282,33 @@ object DatabaseAuthService {
    */
   def testConnection(config: OidcConfig): IO[Either[String, String]] = {
     createTransactor(config.database).use { transactor =>
-      val testQuery = sql"SELECT COUNT(*) FROM v_authuser_oidc".query[Int]
+      val testQuery = sql"SELECT COUNT(*) FROM v_oidc_users".query[Int]
       
       testQuery.unique.transact(transactor).map { count =>
-        val message = s"Database connection successful. Found $count validated users in v_authuser_oidc view."
+        val message = s"Database connection successful. Found $count validated users in v_oidc_users view."
         logger.info(message)
         Right(message)
       }.handleErrorWith { error =>
         val message = s"Database connection failed: ${error.getMessage}"
+        logger.error(message, error)
+        IO.pure(Left(message))
+      }
+    }
+  }
+
+  /**
+   * Test client view access
+   */
+  def testClientConnection(config: OidcConfig): IO[Either[String, String]] = {
+    createTransactor(config.database).use { transactor =>
+      val testQuery = sql"SELECT COUNT(*) FROM v_oidc_clients".query[Int]
+      
+      testQuery.unique.transact(transactor).map { count =>
+        val message = s"Client database connection successful. Found $count registered clients in v_oidc_clients view."
+        logger.info(message)
+        Right(message)
+      }.handleErrorWith { error =>
+        val message = s"Client database connection failed: ${error.getMessage}"
         logger.error(message, error)
         IO.pure(Left(message))
       }

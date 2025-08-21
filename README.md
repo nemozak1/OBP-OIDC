@@ -259,21 +259,38 @@ Open these URLs in your browser:
 
 ## Authentication
 
-### Database Users
-This OIDC provider authenticates users from the PostgreSQL `v_authuser_oidc` view, which includes:
-- All validated users from the authuser table
-- BCrypt password verification
+### Database Views
+This OIDC provider uses two PostgreSQL database views:
+
+#### User Authentication (`v_oidc_users`)
+- Authenticates users from the validated authuser table
+- BCrypt password verification 
 - User profile information (name, email)
 
-### Supported User Fields
-From the database view:
+#### Client Registration (`v_oidc_clients`)
+- Validates registered OIDC clients
+- Controls allowed redirect URIs
+- Manages client permissions and scopes
+
+### Supported Database Fields
+
+#### User Fields (`v_oidc_users` view)
 - `username`: Login identifier
-- `firstname`, `lastname`: User's full name
+- `firstname`, `lastname`: User's full name  
 - `email`: User's email address
 - `uniqueid`: Used as OIDC subject identifier
 - `validated`: Must be true for authentication
 - `password_pw`: BCrypt password hash
 - `password_slt`: Password salt for verification
+
+#### Client Fields (`v_oidc_clients` view)
+- `client_id`: Unique client identifier
+- `client_secret`: Secret for confidential clients (optional)
+- `client_name`: Human-readable application name
+- `redirect_uris`: JSON array of allowed callback URLs
+- `grant_types`: Supported OAuth2 grant types (default: authorization_code)
+- `scopes`: Allowed access scopes (default: openid, profile, email)
+- `token_endpoint_auth_method`: Client authentication method
 
 ## Example OIDC Flow
 

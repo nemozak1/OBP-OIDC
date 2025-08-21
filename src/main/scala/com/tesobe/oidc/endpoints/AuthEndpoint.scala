@@ -70,8 +70,16 @@ class AuthEndpoint(authService: AuthService[IO], codeService: CodeService[IO]) {
       val error = OidcError("invalid_scope", Some("'openid' scope is required"), state = state)  
       redirectWithError(redirectUri, error)
     } else {
-      // Show login form
-      showLoginForm(clientId, redirectUri, scope, state, nonce)
+      // Validate client and redirect URI
+      authService.validateClient(clientId, redirectUri).flatMap { isValid =>
+        if (!isValid) {
+          val error = OidcError("invalid_client", Some("Invalid client_id or redirect_uri"), state = state)
+          redirectWithError(redirectUri, error)
+        } else {
+          // Show login form
+          showLoginForm(clientId, redirectUri, scope, state, nonce)
+        }
+      }
     }
   }
 

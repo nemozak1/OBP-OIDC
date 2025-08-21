@@ -107,6 +107,24 @@ object UserInfo {
   implicit val decoder: Decoder[UserInfo] = deriveDecoder
 }
 
+// OIDC Client Registration
+case class OidcClient(
+  client_id: String,
+  client_secret: Option[String] = None,
+  client_name: String,
+  redirect_uris: List[String],
+  grant_types: List[String] = List("authorization_code"),
+  response_types: List[String] = List("code"),
+  scopes: List[String] = List("openid", "profile", "email"),
+  token_endpoint_auth_method: String = "client_secret_post",
+  created_at: Option[String] = None
+)
+
+object OidcClient {
+  implicit val encoder: Encoder[OidcClient] = deriveEncoder
+  implicit val decoder: Decoder[OidcClient] = deriveDecoder
+}
+
 // Authorization request parameters
 case class AuthorizationRequest(
   response_type: String,

@@ -42,12 +42,22 @@ object OidcServer extends IOApp {
       _ <- IO(logger.info(s"Starting OIDC Provider on ${config.server.host}:${config.server.port}"))
       _ <- IO(logger.info(s"Issuer: ${config.issuer}"))
       
-      // Use MockAuthService for testing (no database required)
-      authService = MockAuthService()
+      // Test database connections
+      _ <- DatabaseAuthService.testConnection(config).flatMap {
+        case Right(msg) => IO(logger.info(msg))
+        case Left(error) => IO.raiseError(new RuntimeException(s"User database connection failed: $error"))
+      }
       
-      // Initialize services
-      codeService <- CodeService(config)
-      jwtService <- JwtService(config)
+      _ <- DatabaseAuthService.testClientConnection(config).flatMap {
+        case Right(msg) => IO(logger.info(msg))
+        case Left(error) => IO(logger.info(s"Client database warning: $error (using permissive mode)"))
+      }
+      
+      exitCode <- DatabaseAuthService.create(config).use { authService =>
+        for {
+          // Initialize services
+          codeService <- CodeService(config)
+          jwtService <- JwtService(config)
     
       // Initialize endpoints
       discoveryEndpoint = DiscoveryEndpoint(config)
@@ -139,6 +149,8 @@ object OidcServer extends IOApp {
               IO.never
             }
         } yield ExitCode.Success
+      }
+    } yield exitCode
   }.handleErrorWith { error =>
     IO(logger.error("Failed to start OIDC Provider", error)) >>
     IO.pure(ExitCode.Error)
