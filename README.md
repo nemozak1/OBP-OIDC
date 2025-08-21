@@ -77,6 +77,33 @@ export DB_MAX_CONNECTIONS=10
 
 3. **The server starts on http://localhost:9000**
 
+### Using the Run Script (Recommended)
+
+For easier configuration and running:
+
+1. **Copy the example script:**
+   ```bash
+   cp run-server.example.sh run-server.sh
+   ```
+
+2. **Edit your database credentials:**
+   ```bash
+   nano run-server.sh
+   # Edit the DB_* environment variables with your actual database settings
+   ```
+
+3. **Make it executable and run:**
+   ```bash
+   chmod +x run-server.sh
+   ./run-server.sh
+   ```
+
+The script will:
+- ✅ Set all necessary environment variables
+- ✅ Build the project
+- ✅ Start the server with helpful output
+- ✅ Show available endpoint URLs
+
 ### Server Configuration
 
 #### Port Configuration
@@ -107,6 +134,13 @@ export OIDC_KEY_ID=oidc-key-1
 export OIDC_TOKEN_EXPIRATION=3600
 export OIDC_CODE_EXPIRATION=600
 ```
+
+#### Security Note
+
+⚠️ **Important**: The `run-server.sh` file is in `.gitignore` to prevent accidentally committing database credentials. Always:
+- Keep your database passwords secure
+- Never commit `run-server.sh` with real credentials
+- Use the `run-server.example.sh` template for sharing configurations
 
 ## OIDC Endpoints
 
@@ -143,6 +177,85 @@ Returns user claims based on token scope.
 GET /jwks
 ```
 Returns JSON Web Key Set for token verification.
+
+## Testing the Server
+
+### Quick Health Check
+
+Once the server is running, test it with these curl commands:
+
+```bash
+# Health check
+curl -v http://localhost:9000/health
+# Expected: "OIDC Provider is running"
+
+# Root welcome page
+curl -v http://localhost:9000/
+# Expected: HTML page with endpoint documentation
+```
+
+### OIDC Discovery Document ⭐
+
+This is the standard OIDC well-known URL that clients use to discover your service:
+
+```bash
+curl http://localhost:9000/.well-known/openid-configuration
+```
+
+**Expected JSON response:**
+```json
+{
+  "issuer": "http://localhost:9000",
+  "authorization_endpoint": "http://localhost:9000/auth",
+  "token_endpoint": "http://localhost:9000/token",
+  "userinfo_endpoint": "http://localhost:9000/userinfo",
+  "jwks_uri": "http://localhost:9000/jwks",
+  "response_types_supported": ["code"],
+  "subject_types_supported": ["public"],
+  "id_token_signing_alg_values_supported": ["RS256"],
+  "scopes_supported": ["openid", "profile", "email"],
+  "token_endpoint_auth_methods_supported": ["client_secret_post"],
+  "claims_supported": ["sub", "name", "email", "email_verified"]
+}
+```
+
+### JSON Web Key Set (JWKS)
+
+```bash
+curl http://localhost:9000/jwks
+```
+
+**Expected JSON response:**
+```json
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "use": "sig",
+      "alg": "RS256", 
+      "kid": "your-key-id",
+      "n": "...",
+      "e": "AQAB"
+    }
+  ]
+}
+```
+
+### Authorization Endpoint (Login Form)
+
+```bash
+curl "http://localhost:9000/auth?response_type=code&client_id=test-client&redirect_uri=https://example.com/callback&scope=openid%20profile%20email&state=test123"
+```
+
+**Expected:** HTML login form
+
+### Browser Testing
+
+Open these URLs in your browser:
+- **Welcome Page**: `http://localhost:9000/`
+- **Discovery**: `http://localhost:9000/.well-known/openid-configuration`  
+- **JWKS**: `http://localhost:9000/jwks`
+- **Login Form**: `http://localhost:9000/auth?response_type=code&client_id=test-client&redirect_uri=https://example.com/callback&scope=openid&state=test123`
 
 ## Authentication
 

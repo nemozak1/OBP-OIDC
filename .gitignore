@@ -148,3 +148,6 @@ scoverage-report/
 # Logs
 logs/
 *.log.*
+
+# Local run scripts (allow customization)
+run-server.sh
