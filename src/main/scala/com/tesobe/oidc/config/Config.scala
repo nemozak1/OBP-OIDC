@@ -2,7 +2,7 @@
  * Copyright (c) 2025 TESOBE
  *
  * This file is part of OBP-OIDC.
- * 
+ *
  * OBP-OIDC is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -46,30 +46,30 @@ case class OidcConfig(
 )
 
 object Config {
-  
+
   def load: IO[OidcConfig] = IO {
     val host = sys.env.getOrElse("OIDC_HOST", "localhost")
     val port = sys.env.getOrElse("OIDC_PORT", "9000").toInt
     val issuer = sys.env.getOrElse("OIDC_ISSUER", s"http://$host:$port")
-    
+
     val dbConfig = DatabaseConfig(
       host = sys.env.getOrElse("DB_HOST", "localhost"),
       port = sys.env.getOrElse("DB_PORT", "5432").toInt,
       database = sys.env.getOrElse("DB_NAME", "sandbox"),
-      username = sys.env.getOrElse("DB_USERNAME", "oidc_user"),
-      password = sys.env.getOrElse("DB_PASSWORD", "CHANGE_THIS_TO_A_VERY_STRONG_PASSWORD_2024!"),
+      username = sys.env.getOrElse("OIDC_USER_USERNAME", "oidc_user"),
+      password = sys.env.getOrElse("OIDC_USER_PASSWORD", "CHANGE_THIS_TO_A_VERY_STRONG_PASSWORD_2024!"),
       maxConnections = sys.env.getOrElse("DB_MAX_CONNECTIONS", "10").toInt
     )
-    
+
     val adminDbConfig = DatabaseConfig(
       host = sys.env.getOrElse("DB_HOST", "localhost"), // Same host as read-only database
       port = sys.env.getOrElse("DB_PORT", "5432").toInt,
       database = sys.env.getOrElse("DB_NAME", "sandbox"), // Same database as read-only
-      username = sys.env.getOrElse("DB_ADMIN_USERNAME", "oidc_admin_user"),
-      password = sys.env.getOrElse("DB_ADMIN_PASSWORD", "CHANGE_THIS_TO_A_VERY_STRONG_ADMIN_PASSWORD_2024!"),
+      username = sys.env.getOrElse("OIDC_ADMIN_USERNAME", "oidc_admin_user"),
+      password = sys.env.getOrElse("OIDC_ADMIN_PASSWORD", "CHANGE_THIS_TO_A_VERY_STRONG_ADMIN_PASSWORD_2024!"),
       maxConnections = sys.env.getOrElse("DB_ADMIN_MAX_CONNECTIONS", "5").toInt
     )
-    
+
     OidcConfig(
       issuer = issuer,
       server = ServerConfig(host, port),

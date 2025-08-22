@@ -37,18 +37,18 @@ echo "==========================================="
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=sandbox
-DB_ADMIN_USER=oidc_admin_user
-DB_ADMIN_PASSWORD=CHANGE_THIS_TO_A_VERY_STRONG_ADMIN_PASSWORD_2024!
+OIDC_ADMIN_USER=oidc_admin_user
+OIDC_ADMIN_PASSWORD=CHANGE_THIS_TO_A_VERY_STRONG_ADMIN_PASSWORD_2024!
 
 echo "📋 Testing admin database connection:"
 echo "  Host: $DB_HOST:$DB_PORT"
 echo "  Database: $DB_NAME"
-echo "  Admin User: $DB_ADMIN_USER"
+echo "  Admin User: $OIDC_ADMIN_USER"
 echo ""
 
 # Test basic connection
 echo "🔌 Testing basic database connection..."
-if psql "postgresql://$DB_ADMIN_USER:$DB_ADMIN_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME" -c "SELECT version();" > /dev/null 2>&1; then
+if psql "postgresql://$OIDC_ADMIN_USER:$OIDC_ADMIN_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME" -c "SELECT version();" > /dev/null 2>&1; then
     echo "✅ Basic connection successful"
 else
     echo "❌ Basic connection failed"
@@ -59,8 +59,8 @@ fi
 # Test v_oidc_admin_clients view access
 echo ""
 echo "📊 Testing v_oidc_admin_clients view access..."
-if psql "postgresql://$DB_ADMIN_USER:$DB_ADMIN_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME" -c "SELECT COUNT(*) FROM v_oidc_admin_clients;" > /dev/null 2>&1; then
-    CLIENT_COUNT=$(psql "postgresql://$DB_ADMIN_USER:$DB_ADMIN_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME" -t -c "SELECT COUNT(*) FROM v_oidc_admin_clients;" | xargs)
+if psql "postgresql://$OIDC_ADMIN_USER:$OIDC_ADMIN_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME" -c "SELECT COUNT(*) FROM v_oidc_admin_clients;" > /dev/null 2>&1; then
+    CLIENT_COUNT=$(psql "postgresql://$OIDC_ADMIN_USER:$OIDC_ADMIN_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME" -t -c "SELECT COUNT(*) FROM v_oidc_admin_clients;" | xargs)
     echo "✅ v_oidc_admin_clients view accessible"
     echo "   Found $CLIENT_COUNT client(s) in the view"
 else
@@ -73,7 +73,7 @@ fi
 echo ""
 echo "✏️  Testing write permissions (INSERT)..."
 TEST_CLIENT_ID="test-client-$(date +%s)"
-INSERT_RESULT=$(psql "postgresql://$DB_ADMIN_USER:$DB_ADMIN_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME" -t -c "
+INSERT_RESULT=$(psql "postgresql://$OIDC_ADMIN_USER:$OIDC_ADMIN_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME" -t -c "
 INSERT INTO v_oidc_admin_clients (
     client_id, client_secret, client_name, redirect_uris, 
     grant_types, response_types, scopes, token_endpoint_auth_method
@@ -87,7 +87,7 @@ if echo "$INSERT_RESULT" | grep -q "$TEST_CLIENT_ID"; then
     
     # Test UPDATE permission
     echo "🔄 Testing UPDATE permission..."
-    UPDATE_RESULT=$(psql "postgresql://$DB_ADMIN_USER:$DB_ADMIN_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME" -t -c "
+    UPDATE_RESULT=$(psql "postgresql://$OIDC_ADMIN_USER:$OIDC_ADMIN_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME" -t -c "
     UPDATE v_oidc_admin_clients 
     SET client_name = 'Updated Test Client' 
     WHERE client_id = '$TEST_CLIENT_ID' 
@@ -101,7 +101,7 @@ if echo "$INSERT_RESULT" | grep -q "$TEST_CLIENT_ID"; then
     
     # Test DELETE permission
     echo "🗑️  Testing DELETE permission..."
-    DELETE_RESULT=$(psql "postgresql://$DB_ADMIN_USER:$DB_ADMIN_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME" -t -c "
+    DELETE_RESULT=$(psql "postgresql://$OIDC_ADMIN_USER:$OIDC_ADMIN_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME" -t -c "
     DELETE FROM v_oidc_admin_clients 
     WHERE client_id = '$TEST_CLIENT_ID' 
     RETURNING client_id;" 2>&1)

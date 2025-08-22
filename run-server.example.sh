@@ -45,15 +45,15 @@ export OIDC_CODE_EXPIRATION=600
 export DB_HOST=localhost
 export DB_PORT=5432
 export DB_NAME=sandbox
-export DB_USERNAME=oidc_user
-export DB_PASSWORD=CHANGE_THIS_TO_A_VERY_STRONG_PASSWORD_2024!
+export OIDC_USER_USERNAME=oidc_user
+export OIDC_USER_PASSWORD=CHANGE_THIS_TO_A_VERY_STRONG_PASSWORD_2024!
 export DB_MAX_CONNECTIONS=10
 
 # Admin Database Configuration (Write Access to v_oidc_admin_clients)
 # ⚠️  IMPORTANT: Edit these values for your admin database user
 # This user has write access to manage OIDC clients
-export DB_ADMIN_USERNAME=oidc_admin_user
-export DB_ADMIN_PASSWORD=CHANGE_THIS_TO_A_VERY_STRONG_ADMIN_PASSWORD_2024!
+export OIDC_ADMIN_USERNAME=oidc_admin_user
+export OIDC_ADMIN_PASSWORD=CHANGE_THIS_TO_A_VERY_STRONG_ADMIN_PASSWORD_2024!
 export DB_ADMIN_MAX_CONNECTIONS=5
 
 # OBP Ecosystem Client Configuration
@@ -79,8 +79,8 @@ echo "📋 Configuration:"
 echo "  Server: $OIDC_HOST:$OIDC_PORT"
 echo "  Issuer: $OIDC_ISSUER"
 echo "  Database: $DB_HOST:$DB_PORT/$DB_NAME"
-echo "  Read User: $DB_USERNAME"
-echo "  Admin User: $DB_ADMIN_USERNAME"
+echo "  Read User: $OIDC_USER_USERNAME"
+echo "  Admin User: $OIDC_ADMIN_USERNAME"
 echo "🔧 OBP Ecosystem Clients:"
 echo "  OBP-API: $OIDC_CLIENT_OBP_API_ID"
 echo "  Portal: $OIDC_CLIENT_PORTAL_ID"

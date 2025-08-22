@@ -57,15 +57,15 @@ Set environment variables for database connection:
 export DB_HOST=localhost
 export DB_PORT=5432
 export DB_NAME=sandbox
-export DB_USERNAME=oidc_user
-export DB_PASSWORD=CHANGE_THIS_TO_A_VERY_STRONG_PASSWORD_2024!
+export OIDC_USER_USERNAME=oidc_user
+export OIDC_USER_PASSWORD=CHANGE_THIS_TO_A_VERY_STRONG_PASSWORD_2024!
 export DB_MAX_CONNECTIONS=10
 ```
 
 **Admin Database User** (for client management via v_oidc_admin_clients):
 ```bash
-export DB_ADMIN_USERNAME=oidc_admin_user
-export DB_ADMIN_PASSWORD=CHANGE_THIS_TO_A_VERY_STRONG_ADMIN_PASSWORD_2024!
+export OIDC_ADMIN_USERNAME=oidc_admin_user
+export OIDC_ADMIN_PASSWORD=CHANGE_THIS_TO_A_VERY_STRONG_ADMIN_PASSWORD_2024!
 export DB_ADMIN_MAX_CONNECTIONS=5
 ```
 

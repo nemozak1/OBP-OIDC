@@ -88,7 +88,7 @@ src/main/scala/
 Requires PostgreSQL database with OBP authuser table and OIDC view:
 1. Run OBP database setup to create authuser table
 2. Execute `create_oidc_user_and_views.sql` to create read-only view and oidc_user
-3. Set environment variables: DB_HOST, DB_PORT, DB_NAME, DB_USERNAME, DB_PASSWORD
+3. Set environment variables: DB_HOST, DB_PORT, DB_NAME, OIDC_USER_USERNAME, OIDC_USER_PASSWORD
 4. Any validated user in the authuser table can authenticate
 
 Database View: `v_authuser_oidc` provides read-only access to validated users with BCrypt password verification.
