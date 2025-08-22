@@ -19,6 +19,7 @@
 
 package com.tesobe.oidc.auth
 
+import scala.language.higherKinds
 import cats.effect.{IO, Ref}
 import cats.syntax.either._
 import com.tesobe.oidc.models.{AuthorizationCode, OidcError}

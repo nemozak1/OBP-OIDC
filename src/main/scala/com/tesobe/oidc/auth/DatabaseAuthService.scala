@@ -33,7 +33,6 @@ import org.slf4j.LoggerFactory
 import com.tesobe.oidc.auth.DatabaseUserInstances._
 
 import java.time.Instant
-import java.util.UUID
 
 /**
  * Database-based authentication service using PostgreSQL view v_oidc_users
@@ -133,6 +132,20 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
     """.query[DatabaseClient]
       
     query.option.transact(transactor).map(_.map(_.toOidcClient))
+  }
+
+  /**
+   * Find raw DatabaseClient by client_id (for configuration printing)
+   */
+  def findDatabaseClientById(clientId: String): IO[Option[DatabaseClient]] = {
+    val query = sql"""
+      SELECT client_id, client_secret, client_name, redirect_uris, 
+             grant_types, response_types, scopes, token_endpoint_auth_method, created_at
+      FROM v_oidc_clients 
+      WHERE client_id = $clientId
+    """.query[DatabaseClient]
+      
+    query.option.transact(transactor)
   }
 
   /**

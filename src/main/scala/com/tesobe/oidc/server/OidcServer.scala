@@ -19,24 +19,23 @@
 
 package com.tesobe.oidc.server
 
+import scala.language.higherKinds
 import cats.effect.{ExitCode, IO, IOApp}
 import cats.syntax.all._
 import com.comcast.ip4s.{Host, Port}
-import com.tesobe.oidc.auth.{CodeService, DatabaseAuthService, MockAuthService}
+import com.tesobe.oidc.auth.{CodeService, DatabaseAuthService, DatabaseClient}
 import com.tesobe.oidc.bootstrap.ClientBootstrap
 import com.tesobe.oidc.config.Config
 import com.tesobe.oidc.endpoints._
 import com.tesobe.oidc.tokens.JwtService
 import org.http4s._
 import org.http4s.ember.server.EmberServerBuilder
-import scala.concurrent.duration._
 import org.http4s.implicits._
-import cats.implicits._
-import org.slf4j.LoggerFactory
+import org.http4s.server.Router
+
+import scala.concurrent.duration._
 
 object OidcServer extends IOApp {
-  
-  private val logger = LoggerFactory.getLogger(getClass)
 
   def run(args: List[String]): IO[ExitCode] = {
     for {
@@ -180,34 +179,59 @@ object OidcServer extends IOApp {
 
 
   /**
-   * Print OBP-API configuration for easy copy-paste
+   * Print configuration for all OBP projects using existing ClientBootstrap clients
    */
   private def printOBPConfiguration(baseUri: String, authService: DatabaseAuthService): IO[Unit] = {
-    val clientId = "obp-api-client"
-    val sampleSecret = java.util.UUID.randomUUID().toString.replace("-", "").substring(0, 32)
+    // Get client configurations from the bootstrap system
+    val obpApiClientId = sys.env.getOrElse("OIDC_CLIENT_OBP_API_ID", "obp-api-client")
+    val portalClientId = sys.env.getOrElse("OIDC_CLIENT_PORTAL_ID", "obp-portal-client")
+    val explorerClientId = sys.env.getOrElse("OIDC_CLIENT_EXPLORER_ID", "obp-explorer-ii-client")
+    val opeyClientId = sys.env.getOrElse("OIDC_CLIENT_OPEY_ID", "obp-opey-ii-client")
     
     for {
-      // Check if client already exists (with error handling)
-      existingClient <- authService.findClientById(clientId).handleErrorWith { error =>
-        IO(println(s"Warning: Could not check existing clients: ${error.getMessage}")) >>
-        IO.pure(None)
-      }
-      clientExists = existingClient.isDefined
+      // Fetch actual client configurations from database
+      obpApiClient <- authService.findDatabaseClientById(obpApiClientId)
+      portalClient <- authService.findDatabaseClientById(portalClientId)
+      explorerClient <- authService.findDatabaseClientById(explorerClientId)
+      opeyClient <- authService.findDatabaseClientById(opeyClientId)
+      
       _ <- IO(println())
-      _ <- IO(println("=" * 80))
-      _ <- IO(println("📋 OBP-API CONFIGURATION - Copy and paste into your props file:"))
-      _ <- IO(println("=" * 80))
+      _ <- IO(println("=" * 100))
+      _ <- IO(println("🚀 OBP PROJECT CONFIGURATIONS - Ready to copy & paste"))
+      _ <- IO(println("=" * 100))
       _ <- IO(println())
-      _ <- IO(println("# OIDC Configuration for OBP-OIDC Provider"))
+      
+      _ <- printOBPApiConfig(baseUri, obpApiClient)
+      _ <- printPortalConfig(baseUri, portalClient)
+      _ <- printApiExplorerConfig(baseUri, explorerClient)
+      _ <- printOpeyConfig(baseUri, opeyClient)
+      
+      _ <- IO(println("=" * 100))
+      _ <- IO(println("✅ All configurations printed above. Happy coding! 🎉"))
+      _ <- IO(println("💡 Note: Client secrets shown above are from your v_oidc_clients database"))
+      _ <- IO(println("=" * 100))
+      _ <- IO(println())
+    } yield ()
+  }
+
+  /**
+   * Print OBP-API configuration for props file
+   */
+  private def printOBPApiConfig(baseUri: String, client: Option[DatabaseClient]): IO[Unit] = {
+    val clientId = client.map(_.client_id).getOrElse("obp-api-client")
+    val clientSecret = client.flatMap(_.client_secret).getOrElse("CLIENT_NOT_REGISTERED")
+    
+    for {
+      _ <- IO(println("📋 1. OBP-API Configuration (props file):"))
+      _ <- IO(println("-" * 50))
+      _ <- IO(println("# Add to your OBP-API props file"))
       _ <- IO(println("openid_connect.scope=openid email profile"))
       _ <- IO(println())
       _ <- IO(println("# OBP-OIDC Provider Settings"))
       _ <- IO(println("openid_connect_1.button_text=OBP-OIDC"))
       _ <- IO(println(s"openid_connect_1.client_id=$clientId"))
-      _ <- IO(println(s"openid_connect_1.client_secret=$sampleSecret"))
-      _ <- IO(println("openid_connect_1.callback_url=http://127.0.0.1:8080/auth/openid-connect/callback"))
-      _ <- IO(println())
-      _ <- IO(println("# OIDC Endpoints"))
+      _ <- IO(println(s"openid_connect_1.client_secret=$clientSecret"))
+      _ <- IO(println("openid_connect_1.callback_url=http://localhost:8080/oauth/callback"))
       _ <- IO(println(s"openid_connect_1.endpoint.discovery=$baseUri/.well-known/openid-configuration"))
       _ <- IO(println(s"openid_connect_1.endpoint.authorization=$baseUri/auth"))
       _ <- IO(println(s"openid_connect_1.endpoint.userinfo=$baseUri/userinfo"))
@@ -215,47 +239,103 @@ object OidcServer extends IOApp {
       _ <- IO(println(s"openid_connect_1.endpoint.jwks_uri=$baseUri/jwks"))
       _ <- IO(println("openid_connect_1.access_type_offline=true"))
       _ <- IO(println())
-      _ <- if (clientExists) {
-        val actualSecret = existingClient.get.client_secret.getOrElse("NO_SECRET")
-        for {
-          _ <- IO(println("=" * 80))
-          _ <- IO(println("✅ CLIENT ALREADY REGISTERED"))
-          _ <- IO(println("=" * 80))
-          _ <- IO(println())
-          _ <- IO(println(s"Client '$clientId' is already registered in v_oidc_clients."))
-          _ <- IO(println(s"Use this client_secret in your props: $actualSecret"))
-          _ <- IO(println())
-          _ <- IO(println("Updated configuration:"))
-          _ <- IO(println(s"openid_connect_1.client_id=$clientId"))
-          _ <- IO(println(s"openid_connect_1.client_secret=$actualSecret"))
-          _ <- IO(println())
-          _ <- IO(println("=" * 80))
-          _ <- IO(println())
-        } yield ()
-      } else {
-        for {
-          _ <- IO(println("=" * 80))
-          _ <- IO(println("🔐 REQUIRED: Register client in v_oidc_clients database:"))
-          _ <- IO(println("=" * 80))
-          _ <- IO(println())
-          _ <- IO(println("INSERT INTO v_oidc_clients ("))
-          _ <- IO(println("  client_id, client_secret, client_name, redirect_uris,"))
-          _ <- IO(println("  grant_types, response_types, scopes, token_endpoint_auth_method"))
-          _ <- IO(println(") VALUES ("))
-          _ <- IO(println(s"  '$clientId',"))
-          _ <- IO(println(s"  '$sampleSecret',"))
-          _ <- IO(println("  'OBP-API',"))
-          _ <- IO(println("  'http://127.0.0.1:8080/auth/openid-connect/callback',"))
-          _ <- IO(println("  'authorization_code',"))
-          _ <- IO(println("  'code',"))
-          _ <- IO(println("  'openid profile email',"))
-          _ <- IO(println("  'client_secret_post'"))
-          _ <- IO(println(");"))
-          _ <- IO(println())
-          _ <- IO(println("=" * 80))
-          _ <- IO(println())
-        } yield ()
-      }
+      _ <- if (client.isEmpty) {
+        IO(println("⚠️  Client not found in database - check ClientBootstrap logs"))
+      } else IO.unit
+    } yield ()
+  }
+
+  /**
+   * Print Portal configuration for .env file
+   */
+  private def printPortalConfig(baseUri: String, client: Option[DatabaseClient]): IO[Unit] = {
+    val clientId = client.map(_.client_id).getOrElse("obp-portal-client")
+    val clientSecret = client.flatMap(_.client_secret).getOrElse("CLIENT_NOT_REGISTERED")
+    
+    for {
+      _ <- IO(println("🌐 2. OBP-Portal Configuration (.env file):"))
+      _ <- IO(println("-" * 50))
+      _ <- IO(println("# Add to OBP-Portal .env file"))
+      _ <- IO(println("OBP_API_HOST=localhost:8080"))
+      _ <- IO(println("OBP_API_URL=http://localhost:8080"))
+      _ <- IO(println(s"OIDC_ISSUER=$baseUri"))
+      _ <- IO(println(s"OIDC_AUTH_URL=$baseUri/auth"))
+      _ <- IO(println(s"OIDC_TOKEN_URL=$baseUri/token"))
+      _ <- IO(println(s"OIDC_USERINFO_URL=$baseUri/userinfo"))
+      _ <- IO(println(s"OIDC_JWKS_URL=$baseUri/jwks"))
+      _ <- IO(println(s"OIDC_CLIENT_ID=$clientId"))
+      _ <- IO(println(s"OIDC_CLIENT_SECRET=$clientSecret"))
+      _ <- IO(println("OIDC_REDIRECT_URI=http://localhost:3000/callback"))
+      _ <- IO(println("OIDC_SCOPE=openid profile email"))
+      _ <- IO(println("VITE_API_URL=http://localhost:8080"))
+      _ <- IO(println(s"VITE_OIDC_ISSUER=$baseUri"))
+      _ <- IO(println(s"VITE_CLIENT_ID=$clientId"))
+      _ <- IO(println())
+      _ <- if (client.isEmpty) {
+        IO(println("⚠️  Client not found in database - check ClientBootstrap logs"))
+      } else IO.unit
+    } yield ()
+  }
+
+  /**
+   * Print API Explorer II configuration for .env file
+   */
+  private def printApiExplorerConfig(baseUri: String, client: Option[DatabaseClient]): IO[Unit] = {
+    val clientId = client.map(_.client_id).getOrElse("explorer-ii-client")
+    val clientSecret = client.flatMap(_.client_secret).getOrElse("CLIENT_NOT_REGISTERED")
+    
+    for {
+      _ <- IO(println("🔍 3. API-Explorer-II Configuration (.env file):"))
+      _ <- IO(println("-" * 50))
+      _ <- IO(println("# Add to API-Explorer-II .env file"))
+      _ <- IO(println("REACT_APP_API_HOST=http://localhost:8080"))
+      _ <- IO(println(s"REACT_APP_OIDC_ISSUER=$baseUri"))
+      _ <- IO(println(s"REACT_APP_OIDC_AUTH_URL=$baseUri/auth"))
+      _ <- IO(println(s"REACT_APP_OIDC_TOKEN_URL=$baseUri/token"))
+      _ <- IO(println(s"REACT_APP_OIDC_USERINFO_URL=$baseUri/userinfo"))
+      _ <- IO(println(s"REACT_APP_OIDC_CLIENT_ID=$clientId"))
+      _ <- IO(println(s"REACT_APP_OIDC_CLIENT_SECRET=$clientSecret"))
+      _ <- IO(println("REACT_APP_OIDC_REDIRECT_URI=http://localhost:3001/callback"))
+      _ <- IO(println("REACT_APP_OIDC_SCOPE=openid profile email"))
+      _ <- IO(println("PORT=3001"))
+      _ <- IO(println("HTTPS=false"))
+      _ <- IO(println())
+      _ <- if (client.isEmpty) {
+        IO(println("⚠️  Client not found in database - check ClientBootstrap logs"))
+      } else IO.unit
+    } yield ()
+  }
+
+  /**
+   * Print Opey II configuration for .env file
+   */
+  private def printOpeyConfig(baseUri: String, client: Option[DatabaseClient]): IO[Unit] = {
+    val clientId = client.map(_.client_id).getOrElse("opey-ii-client")
+    val clientSecret = client.flatMap(_.client_secret).getOrElse("CLIENT_NOT_REGISTERED")
+    
+    for {
+      _ <- IO(println("🤖 4. Opey-II Configuration (.env file):"))
+      _ <- IO(println("-" * 50))
+      _ <- IO(println("# Add to Opey-II .env file"))
+      _ <- IO(println("OBP_API_HOST=localhost:8080"))
+      _ <- IO(println("NEXT_PUBLIC_API_URL=http://localhost:8080"))
+      _ <- IO(println(s"NEXT_PUBLIC_OIDC_ISSUER=$baseUri"))
+      _ <- IO(println(s"OIDC_ISSUER=$baseUri"))
+      _ <- IO(println(s"OIDC_AUTH_URL=$baseUri/auth"))
+      _ <- IO(println(s"OIDC_TOKEN_URL=$baseUri/token"))
+      _ <- IO(println(s"OIDC_USERINFO_URL=$baseUri/userinfo"))
+      _ <- IO(println(s"OIDC_CLIENT_ID=$clientId"))
+      _ <- IO(println(s"OIDC_CLIENT_SECRET=$clientSecret"))
+      _ <- IO(println(s"NEXT_PUBLIC_CLIENT_ID=$clientId"))
+      _ <- IO(println("OIDC_REDIRECT_URI=http://localhost:8082/callback"))
+      _ <- IO(println("NEXTAUTH_URL=http://localhost:8082"))
+      _ <- IO(println("NEXTAUTH_SECRET=opey-nextauth-secret-key"))
+      _ <- IO(println("OIDC_SCOPE=openid profile email"))
+      _ <- IO(println("PORT=8082"))
+      _ <- IO(println())
+      _ <- if (client.isEmpty) {
+        IO(println("⚠️  Client not found in database - check ClientBootstrap logs"))
+      } else IO.unit
     } yield ()
   }
 

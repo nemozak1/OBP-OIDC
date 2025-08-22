@@ -19,6 +19,7 @@
 
 package com.tesobe.oidc.tokens
 
+import scala.language.higherKinds
 import cats.effect.{IO, Ref}
 import cats.syntax.either._
 import com.auth0.jwt.JWT
