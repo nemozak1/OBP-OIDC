@@ -209,10 +209,10 @@ case class DatabaseClient(
   client_id: String,
   client_secret: Option[String],
   client_name: String,
-  redirect_uris: String, // JSON array as string from database
-  grant_types: String,   // JSON array as string from database
-  response_types: String, // JSON array as string from database
-  scopes: String,        // JSON array as string from database
+  redirect_uris: String, // Simple string from database
+  grant_types: String,   // Simple string from database  
+  response_types: String, // Simple string from database
+  scopes: String,        // Simple string from database
   token_endpoint_auth_method: String,
   created_at: Option[String]
 ) {
@@ -220,24 +220,20 @@ case class DatabaseClient(
     client_id = client_id,
     client_secret = client_secret,
     client_name = client_name,
-    redirect_uris = parseJsonArray(redirect_uris),
-    grant_types = parseJsonArray(grant_types),
-    response_types = parseJsonArray(response_types),
-    scopes = parseJsonArray(scopes),
+    redirect_uris = parseSimpleString(redirect_uris),
+    grant_types = parseSimpleString(grant_types),
+    response_types = parseSimpleString(response_types),
+    scopes = parseSimpleString(scopes),
     token_endpoint_auth_method = token_endpoint_auth_method,
     created_at = created_at
   )
 
-  private def parseJsonArray(jsonStr: String): List[String] = {
-    try {
-      // Simple JSON array parsing - assumes format like ["item1","item2"]
-      jsonStr.stripPrefix("[").stripSuffix("]")
-        .split(",")
-        .map(_.trim.stripPrefix("\"").stripSuffix("\""))
-        .filter(_.nonEmpty)
-        .toList
-    } catch {
-      case _: Exception => List.empty
+  private def parseSimpleString(str: String): List[String] = {
+    if (str == null || str.trim.isEmpty) {
+      List.empty
+    } else {
+      // Handle simple strings - split by comma or space, or treat as single value
+      str.split("[,\\s]+").map(_.trim).filter(_.nonEmpty).toList
     }
   }
 }
