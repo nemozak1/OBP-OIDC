@@ -23,6 +23,7 @@ import cats.effect.{ExitCode, IO, IOApp}
 import cats.syntax.all._
 import com.comcast.ip4s.{Host, Port}
 import com.tesobe.oidc.auth.{CodeService, DatabaseAuthService, MockAuthService}
+import com.tesobe.oidc.bootstrap.ClientBootstrap
 import com.tesobe.oidc.config.Config
 import com.tesobe.oidc.endpoints._
 import com.tesobe.oidc.tokens.JwtService
@@ -53,8 +54,16 @@ object OidcServer extends IOApp {
         case Left(error) => IO(println(s"Client database warning: $error (using permissive mode)"))
       }
       
+      _ <- DatabaseAuthService.testAdminConnection(config).flatMap {
+        case Right(msg) => IO(println(msg))
+        case Left(error) => IO(println(s"Admin database warning: $error (client management features disabled)"))
+      }
+      
       exitCode <- DatabaseAuthService.create(config).use { authService =>
         for {
+          // Initialize standard OBP ecosystem clients
+          _ <- ClientBootstrap.initialize(authService, config)
+          
           // Initialize services
           codeService <- CodeService(config)
           jwtService <- JwtService(config)

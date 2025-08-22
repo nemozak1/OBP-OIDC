@@ -43,6 +43,7 @@ class OidcProviderIntegrationTest extends AnyFlatSpec with Matchers {
     issuer = "http://localhost:9000",
     server = ServerConfig("localhost", 9000),
     database = DatabaseConfig("localhost", 5432, "test", "test", "test"),
+    adminDatabase = DatabaseConfig("localhost", 5432, "test", "test_admin", "test_admin"),
     keyId = "test-key-1",
     tokenExpirationSeconds = 3600,
     codeExpirationSeconds = 600

@@ -39,7 +39,7 @@ export OIDC_KEY_ID=oidc-key-1
 export OIDC_TOKEN_EXPIRATION=3600
 export OIDC_CODE_EXPIRATION=600
 
-# Database Configuration
+# Database Configuration (Read-Only User)
 # ⚠️  IMPORTANT: Edit these values for your database setup
 # These are example values - CHANGE THEM!
 export DB_HOST=localhost
@@ -49,11 +49,43 @@ export DB_USERNAME=oidc_user
 export DB_PASSWORD=CHANGE_THIS_TO_A_VERY_STRONG_PASSWORD_2024!
 export DB_MAX_CONNECTIONS=10
 
+# Admin Database Configuration (Write Access to v_oidc_admin_clients)
+# ⚠️  IMPORTANT: Edit these values for your admin database user
+# This user has write access to manage OIDC clients
+export DB_ADMIN_USERNAME=oidc_admin_user
+export DB_ADMIN_PASSWORD=CHANGE_THIS_TO_A_VERY_STRONG_ADMIN_PASSWORD_2024!
+export DB_ADMIN_MAX_CONNECTIONS=5
+
+# OBP Ecosystem Client Configuration
+# ⚠️  IMPORTANT: These are auto-generated if not set
+# Customize these values for your environment
+export OIDC_CLIENT_OBP_API_ID=obp-api-client
+export OIDC_CLIENT_OBP_API_SECRET=CHANGE_THIS_TO_OBP_API_SECRET_2024
+export OIDC_CLIENT_OBP_API_REDIRECTS=http://localhost:8080/oauth/callback
+
+export OIDC_CLIENT_PORTAL_ID=obp-portal-client
+export OIDC_CLIENT_PORTAL_SECRET=CHANGE_THIS_TO_PORTAL_SECRET_2024
+export OIDC_CLIENT_PORTAL_REDIRECTS=http://localhost:3000/callback,http://localhost:3000/oauth/callback
+
+export OIDC_CLIENT_EXPLORER_ID=obp-explorer-ii-client
+export OIDC_CLIENT_EXPLORER_SECRET=CHANGE_THIS_TO_EXPLORER_SECRET_2024
+export OIDC_CLIENT_EXPLORER_REDIRECTS=http://localhost:3001/callback,http://localhost:3001/oauth/callback
+
+export OIDC_CLIENT_OPEY_ID=obp-opey-ii-client
+export OIDC_CLIENT_OPEY_SECRET=CHANGE_THIS_TO_OPEY_SECRET_2024
+export OIDC_CLIENT_OPEY_REDIRECTS=http://localhost:3002/callback,http://localhost:3002/oauth/callback
+
 echo "📋 Configuration:"
 echo "  Server: $OIDC_HOST:$OIDC_PORT"
 echo "  Issuer: $OIDC_ISSUER"
 echo "  Database: $DB_HOST:$DB_PORT/$DB_NAME"
-echo "  User: $DB_USERNAME"
+echo "  Read User: $DB_USERNAME"
+echo "  Admin User: $DB_ADMIN_USERNAME"
+echo "🔧 OBP Ecosystem Clients:"
+echo "  OBP-API: $OIDC_CLIENT_OBP_API_ID"
+echo "  Portal: $OIDC_CLIENT_PORTAL_ID"
+echo "  Explorer II: $OIDC_CLIENT_EXPLORER_ID"
+echo "  Opey II: $OIDC_CLIENT_OPEY_ID"
 echo ""
 
 # Silence the threading warning
@@ -70,8 +102,8 @@ if [ $? -eq 0 ]; then
     echo "   Discovery: $OIDC_ISSUER/.well-known/openid-configuration"
     echo "   JWKS: $OIDC_ISSUER/jwks"
     echo ""
-    echo "📋 Note: OBP-API configuration will be printed on startup"
-    echo "   Copy the configuration from the server output to your OBP-API props file"
+    echo "📋 Note: OIDC client configurations will be printed on startup"
+    echo "   Copy the configurations from the server output to your service Props/env files"
     echo ""
     echo "Press Ctrl+C to stop the server"
     echo "================================="

@@ -39,6 +39,7 @@ case class OidcConfig(
   issuer: String,
   server: ServerConfig,
   database: DatabaseConfig,
+  adminDatabase: DatabaseConfig,
   keyId: String = "oidc-key-1",
   tokenExpirationSeconds: Long = 3600, // 1 hour
   codeExpirationSeconds: Long = 600     // 10 minutes
@@ -60,10 +61,20 @@ object Config {
       maxConnections = sys.env.getOrElse("DB_MAX_CONNECTIONS", "10").toInt
     )
     
+    val adminDbConfig = DatabaseConfig(
+      host = sys.env.getOrElse("DB_HOST", "localhost"), // Same host as read-only database
+      port = sys.env.getOrElse("DB_PORT", "5432").toInt,
+      database = sys.env.getOrElse("DB_NAME", "sandbox"), // Same database as read-only
+      username = sys.env.getOrElse("DB_ADMIN_USERNAME", "oidc_admin_user"),
+      password = sys.env.getOrElse("DB_ADMIN_PASSWORD", "CHANGE_THIS_TO_A_VERY_STRONG_ADMIN_PASSWORD_2024!"),
+      maxConnections = sys.env.getOrElse("DB_ADMIN_MAX_CONNECTIONS", "5").toInt
+    )
+    
     OidcConfig(
       issuer = issuer,
       server = ServerConfig(host, port),
       database = dbConfig,
+      adminDatabase = adminDbConfig,
       keyId = sys.env.getOrElse("OIDC_KEY_ID", "oidc-key-1"),
       tokenExpirationSeconds = sys.env.getOrElse("OIDC_TOKEN_EXPIRATION", "3600").toLong,
       codeExpirationSeconds = sys.env.getOrElse("OIDC_CODE_EXPIRATION", "600").toLong

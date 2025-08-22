@@ -8,6 +8,8 @@ A bare bones OpenID Connect (OIDC) provider built with http4s and functional pro
 - **Modern Scala**: Uses http4s, Circe for JSON, and functional error handling
 - **PostgreSQL Database**: Authenticates real users from OBP authuser table via read-only view
 - **Complete OIDC Support**: All essential endpoints for authorization code flow
+- **Client Management**: CRUD operations for OIDC clients via admin database user
+- **Automatic Client Creation**: Auto-creates OBP-API, Portal, Explorer II, and Opey II clients on startup
 - **JWT Tokens**: RS256 signed ID tokens and access tokens
 - **BCrypt Password Verification**: Compatible with OBP-API password hashing
 - **Integration Tests**: Comprehensive test suite demonstrating full OIDC flow
@@ -50,6 +52,7 @@ This script will:
 ### 3. Database Configuration
 Set environment variables for database connection:
 
+**Read-Only Database User** (for user authentication):
 ```bash
 export DB_HOST=localhost
 export DB_PORT=5432
@@ -59,7 +62,51 @@ export DB_PASSWORD=CHANGE_THIS_TO_A_VERY_STRONG_PASSWORD_2024!
 export DB_MAX_CONNECTIONS=10
 ```
 
+**Admin Database User** (for client management via v_oidc_admin_clients):
+```bash
+export DB_ADMIN_USERNAME=oidc_admin_user
+export DB_ADMIN_PASSWORD=CHANGE_THIS_TO_A_VERY_STRONG_ADMIN_PASSWORD_2024!
+export DB_ADMIN_MAX_CONNECTIONS=5
+```
+
+**OBP Ecosystem Client Configuration** (optional - auto-generated if not set):
+```bash
+export OIDC_CLIENT_OBP_API_ID=obp-api-client
+export OIDC_CLIENT_OBP_API_SECRET=YOUR_SECURE_SECRET_HERE
+export OIDC_CLIENT_OBP_API_REDIRECTS=http://localhost:8080/oauth/callback
+
+export OIDC_CLIENT_PORTAL_ID=obp-portal-client
+export OIDC_CLIENT_PORTAL_SECRET=YOUR_SECURE_SECRET_HERE
+export OIDC_CLIENT_PORTAL_REDIRECTS=http://localhost:3000/callback,http://localhost:3000/oauth/callback
+
+export OIDC_CLIENT_EXPLORER_ID=obp-explorer-ii-client
+export OIDC_CLIENT_EXPLORER_SECRET=YOUR_SECURE_SECRET_HERE
+export OIDC_CLIENT_EXPLORER_REDIRECTS=http://localhost:3001/callback,http://localhost:3001/oauth/callback
+
+export OIDC_CLIENT_OPEY_ID=obp-opey-ii-client
+export OIDC_CLIENT_OPEY_SECRET=YOUR_SECURE_SECRET_HERE
+export OIDC_CLIENT_OPEY_REDIRECTS=http://localhost:3002/callback,http://localhost:3002/oauth/callback
+```
+
 ⚠️ **Security Note**: Use a strong password and follow the security recommendations in the setup script.
+
+### 4. Test Admin Database Connection (Optional)
+Before running the server, you can test your admin database configuration:
+
+```bash
+# Copy and customize the test script
+cp test-admin-db.example.sh test-admin-db.sh
+nano test-admin-db.sh  # Edit with your admin database credentials
+chmod +x test-admin-db.sh
+
+# Run the test
+./test-admin-db.sh
+```
+
+This will verify:
+- Basic admin database connection
+- Access to `v_oidc_admin_clients` view  
+- INSERT, UPDATE, and DELETE permissions
 
 ## Quick Start
 
@@ -75,7 +122,10 @@ export DB_MAX_CONNECTIONS=10
    mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
    ```
 
-3. **The server starts on http://localhost:9000** and prints OBP-API configuration
+3. **The server starts on http://localhost:9000** and automatically:
+   - Creates OIDC clients for OBP-API, Portal, Explorer II, and Opey II
+   - Prints complete client configurations for easy integration
+   - Tests all database connections
 
 ### Using the Run Script (Recommended)
 
@@ -285,7 +335,7 @@ Open these URLs in your browser:
 ## Authentication
 
 ### Database Views
-This OIDC provider uses two PostgreSQL database views:
+This OIDC provider uses three PostgreSQL database views:
 
 #### User Authentication (`v_oidc_users`)
 - Authenticates users from the validated authuser table
@@ -297,6 +347,11 @@ This OIDC provider uses two PostgreSQL database views:
 - Controls allowed redirect URIs
 - Manages client permissions and scopes
 
+#### Client Management (`v_oidc_admin_clients`)
+- Provides write access for client administration
+- Used by admin database user for CRUD operations
+- Supports creating, updating, and deleting OIDC clients
+
 ### Supported Database Fields
 
 #### User Fields (`v_oidc_users` view)
@@ -305,6 +360,17 @@ This OIDC provider uses two PostgreSQL database views:
 - `email`: User's email address
 - `uniqueid`: Used as OIDC subject identifier
 - `validated`: Must be true for authentication
+
+#### Client Fields (`v_oidc_clients` and `v_oidc_admin_clients` views)
+- `client_id`: Unique client identifier
+- `client_secret`: Client authentication secret
+- `client_name`: Human-readable client name
+- `redirect_uris`: Comma-separated list of allowed redirect URIs
+- `grant_types`: Supported OAuth2 grant types
+- `response_types`: Supported OAuth2 response types
+- `scopes`: Available OAuth2 scopes
+- `token_endpoint_auth_method`: Client authentication method
+- `created_at`: Client registration timestamp
 - `password_pw`: BCrypt password hash
 - `password_slt`: Password salt for verification
 
@@ -387,6 +453,13 @@ src/main/scala/com/tesobe/oidc/
 
 - **Doobie**: Functional database access with connection pooling
 - **HikariCP**: Connection pool management with proper timeouts
+
+### Client Management
+
+- **Automatic Bootstrap**: Creates standard OBP ecosystem clients on startup
+- **Environment Configuration**: Fully customizable via environment variables
+- **Secure Secret Generation**: Auto-generates cryptographically secure client secrets
+- **Update Detection**: Intelligently updates clients when configuration changes
 - **BCrypt**: Password verification compatible with OBP-API
 - **Read-only Access**: Uses dedicated `oidc_user` with minimal permissions
 

@@ -43,7 +43,7 @@ import java.util.UUID
  * 
  * Password verification uses BCrypt to match the OBP-API implementation.
  */
-class DatabaseAuthService(transactor: Transactor[IO]) extends AuthService[IO] {
+class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Transactor[IO]] = None) extends AuthService[IO] {
   
   private val logger = LoggerFactory.getLogger(getClass)
   
@@ -142,6 +142,126 @@ class DatabaseAuthService(transactor: Transactor[IO]) extends AuthService[IO] {
     findClientById(clientId).map {
       case Some(client) => client.redirect_uris.contains(redirectUri)
       case None => false
+    }
+  }
+
+  // Admin client management methods using the admin transactor
+  
+  /**
+   * Create a new OIDC client using the admin database connection
+   * Requires write access to v_oidc_admin_clients view
+   */
+  def createClient(client: OidcClient): IO[Either[OidcError, OidcClient]] = {
+    adminTransactor match {
+      case Some(adminTx) =>
+        val insertQuery = sql"""
+          INSERT INTO v_oidc_admin_clients (
+            client_id, client_secret, client_name, redirect_uris, 
+            grant_types, response_types, scopes, token_endpoint_auth_method
+          ) VALUES (
+            ${client.client_id}, ${client.client_secret}, ${client.client_name},
+            ${client.redirect_uris.mkString(",")}, ${client.grant_types.mkString(",")},
+            ${client.response_types.mkString(",")}, ${client.scopes.mkString(",")},
+            ${client.token_endpoint_auth_method}
+          )
+        """.update
+        
+        insertQuery.run.transact(adminTx).map { rowsAffected =>
+          if (rowsAffected > 0) {
+            logger.info(s"Successfully created OIDC client: ${client.client_id}")
+            Right(client)
+          } else {
+            Left(OidcError("server_error", Some("Failed to create client")))
+          }
+        }.handleErrorWith { error =>
+          logger.error(s"Failed to create client ${client.client_id}", error)
+          IO.pure(Left(OidcError("server_error", Some(s"Database error: ${error.getMessage}"))))
+        }
+      case None =>
+        IO.pure(Left(OidcError("server_error", Some("Admin database connection not available"))))
+    }
+  }
+
+  /**
+   * Update an existing OIDC client using the admin database connection
+   */
+  def updateClient(clientId: String, client: OidcClient): IO[Either[OidcError, OidcClient]] = {
+    adminTransactor match {
+      case Some(adminTx) =>
+        val updateQuery = sql"""
+          UPDATE v_oidc_admin_clients SET
+            client_secret = ${client.client_secret},
+            client_name = ${client.client_name},
+            redirect_uris = ${client.redirect_uris.mkString(",")},
+            grant_types = ${client.grant_types.mkString(",")},
+            response_types = ${client.response_types.mkString(",")},
+            scopes = ${client.scopes.mkString(",")},
+            token_endpoint_auth_method = ${client.token_endpoint_auth_method}
+          WHERE client_id = $clientId
+        """.update
+        
+        updateQuery.run.transact(adminTx).map { rowsAffected =>
+          if (rowsAffected > 0) {
+            logger.info(s"Successfully updated OIDC client: $clientId")
+            Right(client)
+          } else {
+            Left(OidcError("invalid_client", Some(s"Client not found: $clientId")))
+          }
+        }.handleErrorWith { error =>
+          logger.error(s"Failed to update client $clientId", error)
+          IO.pure(Left(OidcError("server_error", Some(s"Database error: ${error.getMessage}"))))
+        }
+      case None =>
+        IO.pure(Left(OidcError("server_error", Some("Admin database connection not available"))))
+    }
+  }
+
+  /**
+   * Delete an OIDC client using the admin database connection
+   */
+  def deleteClient(clientId: String): IO[Either[OidcError, String]] = {
+    adminTransactor match {
+      case Some(adminTx) =>
+        val deleteQuery = sql"DELETE FROM v_oidc_admin_clients WHERE client_id = $clientId".update
+        
+        deleteQuery.run.transact(adminTx).map { rowsAffected =>
+          if (rowsAffected > 0) {
+            logger.info(s"Successfully deleted OIDC client: $clientId")
+            Right(s"Client $clientId deleted successfully")
+          } else {
+            Left(OidcError("invalid_client", Some(s"Client not found: $clientId")))
+          }
+        }.handleErrorWith { error =>
+          logger.error(s"Failed to delete client $clientId", error)
+          IO.pure(Left(OidcError("server_error", Some(s"Database error: ${error.getMessage}"))))
+        }
+      case None =>
+        IO.pure(Left(OidcError("server_error", Some("Admin database connection not available"))))
+    }
+  }
+
+  /**
+   * List all clients using the admin database connection
+   */
+  def listClients(): IO[Either[OidcError, List[OidcClient]]] = {
+    adminTransactor match {
+      case Some(adminTx) =>
+        val query = sql"""
+          SELECT client_id, client_secret, client_name, redirect_uris, 
+                 grant_types, response_types, scopes, token_endpoint_auth_method,
+                 created_at
+          FROM v_oidc_admin_clients
+          ORDER BY created_at DESC
+        """.query[DatabaseClient]
+        
+        query.to[List].transact(adminTx).map { clients =>
+          Right(clients.map(_.toOidcClient))
+        }.handleErrorWith { error =>
+          logger.error("Failed to list clients", error)
+          IO.pure(Left(OidcError("server_error", Some(s"Database error: ${error.getMessage}"))))
+        }
+      case None =>
+        IO.pure(Left(OidcError("server_error", Some("Admin database connection not available"))))
     }
   }
 
@@ -246,7 +366,10 @@ object DatabaseAuthService {
    * Create a DatabaseAuthService with HikariCP connection pooling
    */
   def create(config: OidcConfig): Resource[IO, DatabaseAuthService] = {
-    createTransactor(config.database).map(new DatabaseAuthService(_))
+    for {
+      readTransactor <- createTransactor(config.database)
+      adminTransactor <- createTransactor(config.adminDatabase)
+    } yield new DatabaseAuthService(readTransactor, Some(adminTransactor))
   }
   
   /**
@@ -305,6 +428,25 @@ object DatabaseAuthService {
         Right(message)
       }.handleErrorWith { error =>
         val message = s"Client database connection failed: ${error.getMessage}"
+        logger.error(message, error)
+        IO.pure(Left(message))
+      }
+    }
+  }
+
+  /**
+   * Test admin database connection and v_oidc_admin_clients view access
+   */
+  def testAdminConnection(config: OidcConfig): IO[Either[String, String]] = {
+    createTransactor(config.adminDatabase).use { transactor =>
+      val testQuery = sql"SELECT COUNT(*) FROM v_oidc_admin_clients".query[Int]
+      
+      testQuery.unique.transact(transactor).map { count =>
+        val message = s"Admin database connection successful. Found $count clients accessible via v_oidc_admin_clients view."
+        logger.info(message)
+        Right(message)
+      }.handleErrorWith { error =>
+        val message = s"Admin database connection failed: ${error.getMessage}"
         logger.error(message, error)
         IO.pure(Left(message))
       }
