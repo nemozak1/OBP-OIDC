@@ -75,7 +75,7 @@ export DB_MAX_CONNECTIONS=10
    mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
    ```
 
-3. **The server starts on http://localhost:9000**
+3. **The server starts on http://localhost:9000** and prints OBP-API configuration
 
 ### Using the Run Script (Recommended)
 
@@ -103,6 +103,7 @@ The script will:
 - ✅ Build the project
 - ✅ Start the server with helpful output
 - ✅ Show available endpoint URLs
+- ✅ Print ready-to-use OBP-API configuration
 
 ### Server Configuration
 
@@ -134,6 +135,30 @@ export OIDC_KEY_ID=oidc-key-1
 export OIDC_TOKEN_EXPIRATION=3600
 export OIDC_CODE_EXPIRATION=600
 ```
+
+#### OBP-API Configuration Output
+
+When the server starts, it automatically prints the complete OBP-API configuration:
+
+```
+📋 OBP-API CONFIGURATION - Copy and paste into your props file:
+================================================================================
+
+# OIDC Configuration for OBP-OIDC Provider
+openid_connect.scope=openid email profile
+
+# OBP-OIDC Provider Settings
+openid_connect_1.button_text=OBP-OIDC
+openid_connect_1.client_id=obp-api-client
+openid_connect_1.client_secret=generated-secret-here
+openid_connect_1.callback_url=http://127.0.0.1:8080/auth/openid-connect/callback
+
+# OIDC Endpoints
+openid_connect_1.endpoint.discovery=http://localhost:9000/.well-known/openid-configuration
+# ... plus SQL for client registration
+```
+
+Simply copy this output to your OBP-API props file!
 
 #### Security Note
 

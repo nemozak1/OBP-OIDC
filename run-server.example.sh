@@ -70,6 +70,9 @@ if [ $? -eq 0 ]; then
     echo "   Discovery: $OIDC_ISSUER/.well-known/openid-configuration"
     echo "   JWKS: $OIDC_ISSUER/jwks"
     echo ""
+    echo "📋 Note: OBP-API configuration will be printed on startup"
+    echo "   Copy the configuration from the server output to your OBP-API props file"
+    echo ""
     echo "Press Ctrl+C to stop the server"
     echo "================================="
     
