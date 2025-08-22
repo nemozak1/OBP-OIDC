@@ -39,6 +39,10 @@ export OIDC_KEY_ID=oidc-key-1
 export OIDC_TOKEN_EXPIRATION=3600
 export OIDC_CODE_EXPIRATION=600
 
+# Client Bootstrap Configuration
+# Set to 'true' to skip automatic client creation on startup
+export OIDC_SKIP_CLIENT_BOOTSTRAP=false
+
 # Database Configuration (Read-Only User)
 # ⚠️  IMPORTANT: Edit these values for your database setup
 # These are example values - CHANGE THEM!

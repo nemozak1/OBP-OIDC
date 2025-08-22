@@ -482,10 +482,41 @@ src/main/scala/com/tesobe/oidc/
 
 ## Troubleshooting
 
+### Server Startup Hanging
+
+If the server hangs during startup (especially after showing "🚀 Initializing OBP ecosystem OIDC clients..."):
+
+1. **Admin Database Issues**: The server may be waiting for admin database connection
+   ```bash
+   # Check if admin database user exists and has permissions
+   ./test-admin-db.sh
+   ```
+
+2. **Quick Fix**: The server has built-in timeouts (15 seconds) and will continue startup
+   - Wait up to 30 seconds for automatic recovery
+   - Look for timeout warnings in logs
+   - Server will provide manual SQL commands if admin DB unavailable
+
+3. **Manual Client Creation**: If admin database unavailable, copy SQL from server logs:
+   ```sql
+   INSERT INTO v_oidc_admin_clients (client_id, client_secret, client_name, ...)
+   VALUES ('obp-api-client', 'your-secret', 'OBP-API', ...);
+   ```
+
+4. **Disable Client Bootstrap**: Set environment variable to skip:
+   ```bash
+   export OIDC_SKIP_CLIENT_BOOTSTRAP=true
+   ```
+
 ### Database Connection Issues
 1. Verify PostgreSQL is running and accessible
-2. Check database credentials and permissions
-3. Ensure `v_authuser_oidc` view exists and is accessible
+2. Check database credentials and permissions:
+   - `OIDC_USER_USERNAME` and `OIDC_USER_PASSWORD` for read-only access
+   - `OIDC_ADMIN_USERNAME` and `OIDC_ADMIN_PASSWORD` for client management
+3. Ensure database views exist:
+   - `v_oidc_users` for user authentication
+   - `v_oidc_clients` for client validation  
+   - `v_oidc_admin_clients` for client management (optional)
 4. Review database logs for connection errors
 
 ### Authentication Failures

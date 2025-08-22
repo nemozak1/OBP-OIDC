@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory
 
 import java.security.SecureRandom
 import java.util.Base64
+import scala.concurrent.duration._
 
 /**
  * Client Bootstrap Service
@@ -47,16 +48,34 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
    * Initialize all standard OBP clients
    */
   def initializeClients(): IO[Unit] = {
-    logger.info("🚀 Initializing OBP ecosystem OIDC clients...")
+    // Check if client bootstrap is disabled
+    val skipBootstrap = sys.env.get("OIDC_SKIP_CLIENT_BOOTSTRAP").exists(_.toLowerCase == "true")
     
-    for {
-      _ <- ensureClient(createOBPAPIClient())
-      _ <- ensureClient(createPortalClient())
-      _ <- ensureClient(createExplorerIIClient())
-      _ <- ensureClient(createOpeyIIClient())
-      _ <- logClientConfiguration()
-    } yield {
-      logger.info("✅ All OBP ecosystem clients initialized successfully")
+    if (skipBootstrap) {
+      logger.info("⏭️  Client bootstrap disabled via OIDC_SKIP_CLIENT_BOOTSTRAP environment variable")
+      IO.unit
+    } else {
+      logger.info("🚀 Initializing OBP ecosystem OIDC clients...")
+      
+      // Check if admin database is available first
+      checkAdminDatabaseAvailability().flatMap { adminAvailable =>
+      if (adminAvailable) {
+        logger.info("✅ Admin database available - proceeding with client management")
+        for {
+          _ <- ensureClient(createOBPAPIClient())
+          _ <- ensureClient(createPortalClient())
+          _ <- ensureClient(createExplorerIIClient())
+          _ <- ensureClient(createOpeyIIClient())
+          _ <- logClientConfiguration()
+        } yield {
+          logger.info("✅ All OBP ecosystem clients initialized successfully")
+        }
+      } else {
+        logger.warn("⚠️ Admin database not available - skipping automatic client creation")
+        logger.info("📋 To create clients manually, use the following SQL:")
+        logManualClientCreationSQL()
+      }
+      }
     }
   }
 
@@ -145,9 +164,43 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
   }
 
   /**
+   * Check if admin database is available for client operations
+   */
+  private def checkAdminDatabaseAvailability(): IO[Boolean] = {
+    // Try a simple admin database operation with timeout
+    IO.race(
+      IO.sleep(5.seconds),
+      authService.listClients()
+    ).map {
+      case Left(_) => 
+        logger.warn("⚠️ Admin database check timed out after 5 seconds")
+        false
+      case Right(result) => 
+        result.isRight
+    }.handleErrorWith { error =>
+      logger.warn(s"⚠️ Admin database not available: ${error.getMessage}")
+      IO.pure(false)
+    }
+  }
+
+  /**
    * Ensure client exists, create if not found, update if different
    */
   private def ensureClient(clientConfig: OidcClient): IO[Unit] = {
+    // Add timeout to prevent hanging
+    IO.race(
+      IO.sleep(10.seconds),
+      performClientOperation(clientConfig)
+    ).flatMap {
+      case Left(_) =>
+        logger.error(s"⏱️ Client operation timed out for ${clientConfig.client_name}")
+        IO.unit
+      case Right(_) =>
+        IO.unit
+    }
+  }
+
+  private def performClientOperation(clientConfig: OidcClient): IO[Unit] = {
     authService.findClientById(clientConfig.client_id).flatMap {
       case Some(existingClient) =>
         if (needsUpdate(existingClient, clientConfig)) {
@@ -219,6 +272,43 @@ Client: ${client.client_name}
       
       logger.info("=" * 60)
       logger.info("💡 Use these configurations in your service Props/environment files")
+    }
+  }
+
+  /**
+   * Log manual client creation SQL when admin database is not available
+   */
+  private def logManualClientCreationSQL(): IO[Unit] = {
+    val clients = List(
+      createOBPAPIClient(),
+      createPortalClient(),
+      createExplorerIIClient(), 
+      createOpeyIIClient()
+    )
+
+    IO {
+      logger.info("📋 Manual Client Creation SQL:")
+      logger.info("=" * 60)
+      
+      clients.foreach { client =>
+        logger.info(s"""
+INSERT INTO v_oidc_admin_clients (
+  client_id, client_secret, client_name, redirect_uris,
+  grant_types, response_types, scopes, token_endpoint_auth_method
+) VALUES (
+  '${client.client_id}',
+  '${client.client_secret.getOrElse("GENERATE_SECURE_SECRET")}',
+  '${client.client_name}',
+  '${client.redirect_uris.mkString(",")}',
+  '${client.grant_types.mkString(",")}',
+  '${client.response_types.mkString(",")}',
+  '${client.scopes.mkString(",")}',
+  '${client.token_endpoint_auth_method}'
+);""")
+      }
+      
+      logger.info("=" * 60)
+      logger.info("💡 Run these SQL commands manually to create OIDC clients")
     }
   }
 

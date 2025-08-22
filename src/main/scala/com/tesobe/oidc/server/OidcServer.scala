@@ -29,6 +29,7 @@ import com.tesobe.oidc.endpoints._
 import com.tesobe.oidc.tokens.JwtService
 import org.http4s._
 import org.http4s.ember.server.EmberServerBuilder
+import scala.concurrent.duration._
 import org.http4s.implicits._
 import cats.implicits._
 import org.slf4j.LoggerFactory
@@ -61,8 +62,18 @@ object OidcServer extends IOApp {
       
       exitCode <- DatabaseAuthService.create(config).use { authService =>
         for {
-          // Initialize standard OBP ecosystem clients
-          _ <- ClientBootstrap.initialize(authService, config)
+          // Initialize standard OBP ecosystem clients with timeout
+          _ <- IO.race(
+            IO.sleep(15.seconds),
+            ClientBootstrap.initialize(authService, config)
+          ).flatMap {
+            case Left(_) =>
+              IO(println("⚠️ Client initialization timed out after 15 seconds - continuing server startup"))
+            case Right(_) =>
+              IO.unit
+          }.handleErrorWith { error =>
+            IO(println(s"⚠️ Client initialization failed: ${error.getMessage} - continuing server startup"))
+          }
           
           // Initialize services
           codeService <- CodeService(config)
