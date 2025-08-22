@@ -3,7 +3,7 @@
 # Copyright (c) 2025 TESOBE
 #
 # This file is part of OBP-OIDC.
-# 
+#
 # OBP-OIDC is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -18,7 +18,7 @@
 # along with OBP-OIDC. If not, see <http://www.gnu.org/licenses/>.
 
 # OBP-OIDC Server Runner Script Template
-# 
+#
 # SETUP INSTRUCTIONS:
 # 1. Copy this file to run-server.sh:
 #    cp run-server.example.sh run-server.sh
@@ -52,7 +52,7 @@ export DB_MAX_CONNECTIONS=10
 # Admin Database Configuration (Write Access to v_oidc_admin_clients)
 # ⚠️  IMPORTANT: Edit these values for your admin database user
 # This user has write access to manage OIDC clients
-export OIDC_ADMIN_USERNAME=oidc_admin_user
+export OIDC_ADMIN_USERNAME=oidc_admin
 export OIDC_ADMIN_PASSWORD=CHANGE_THIS_TO_A_VERY_STRONG_ADMIN_PASSWORD_2024!
 export DB_ADMIN_MAX_CONNECTIONS=5
 
@@ -107,7 +107,7 @@ if [ $? -eq 0 ]; then
     echo ""
     echo "Press Ctrl+C to stop the server"
     echo "================================="
-    
+
     # Run the server
     mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
 else

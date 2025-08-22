@@ -65,7 +65,7 @@ object Config {
       host = sys.env.getOrElse("DB_HOST", "localhost"), // Same host as read-only database
       port = sys.env.getOrElse("DB_PORT", "5432").toInt,
       database = sys.env.getOrElse("DB_NAME", "sandbox"), // Same database as read-only
-      username = sys.env.getOrElse("OIDC_ADMIN_USERNAME", "oidc_admin_user"),
+      username = sys.env.getOrElse("OIDC_ADMIN_USERNAME", "oidc_admin"),
       password = sys.env.getOrElse("OIDC_ADMIN_PASSWORD", "CHANGE_THIS_TO_A_VERY_STRONG_ADMIN_PASSWORD_2024!"),
       maxConnections = sys.env.getOrElse("DB_ADMIN_MAX_CONNECTIONS", "5").toInt
     )
