@@ -21,7 +21,7 @@ package com.tesobe.oidc.bootstrap
 
 import cats.effect.IO
 import cats.implicits._
-import com.tesobe.oidc.auth.DatabaseAuthService
+import com.tesobe.oidc.auth.{DatabaseAuthService, AdminDatabaseClient}
 import com.tesobe.oidc.config.OidcConfig
 import com.tesobe.oidc.models.OidcClient
 import org.slf4j.LoggerFactory
@@ -48,19 +48,32 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
    * Initialize all standard OBP clients
    */
   def initializeClients(): IO[Unit] = {
+    println("🎬 DEBUG: ClientBootstrap.initializeClients() called")
+    logger.info("🎬 ClientBootstrap.initializeClients() called")
     // Check if client bootstrap is disabled
     val skipBootstrap = sys.env.get("OIDC_SKIP_CLIENT_BOOTSTRAP").exists(_.toLowerCase == "true")
+    println(s"🔧 DEBUG: OIDC_SKIP_CLIENT_BOOTSTRAP = ${sys.env.get("OIDC_SKIP_CLIENT_BOOTSTRAP").getOrElse("not set")}")
+    logger.info(s"🔧 OIDC_SKIP_CLIENT_BOOTSTRAP = ${sys.env.get("OIDC_SKIP_CLIENT_BOOTSTRAP").getOrElse("not set")}")
     
     if (skipBootstrap) {
+      println("⏭️  DEBUG: Client bootstrap disabled via OIDC_SKIP_CLIENT_BOOTSTRAP environment variable")
       logger.info("⏭️  Client bootstrap disabled via OIDC_SKIP_CLIENT_BOOTSTRAP environment variable")
       IO.unit
     } else {
+      println("🚦 DEBUG: Bootstrap not disabled - proceeding with client initialization")
+      println("🚀 DEBUG: Initializing OBP ecosystem OIDC clients...")
+      logger.info("🚦 Bootstrap not disabled - proceeding with client initialization")
       logger.info("🚀 Initializing OBP ecosystem OIDC clients...")
+      logger.info("🔍 Step 1: Checking admin database availability...")
       
       // Check if admin database is available first
+      println("🔍 DEBUG: About to check admin database availability...")
       checkAdminDatabaseAvailability().flatMap { adminAvailable =>
+      println(s"📊 DEBUG: Admin database available = $adminAvailable")
       if (adminAvailable) {
-        logger.info("✅ Admin database available - proceeding with client management")
+        println("✅ DEBUG: Admin database available - proceeding with client management")
+        logger.info("✅ Step 2: Admin database available - proceeding with client management")
+        logger.info("🔧 Step 3: Creating/updating OBP ecosystem clients...")
         for {
           _ <- ensureClient(createOBPAPIClient())
           _ <- ensureClient(createPortalClient())
@@ -71,10 +84,11 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
           logger.info("✅ All OBP ecosystem clients initialized successfully")
         }
       } else {
-        logger.warn("⚠️ Admin database not available - skipping automatic client creation")
-        logger.info("📋 To create clients manually, use the following SQL:")
-        logManualClientCreationSQL()
-      }
+      println("❌ DEBUG: Admin database not available - skipping automatic client creation")
+      logger.warn("❌ Step 2: Admin database not available - skipping automatic client creation")
+      logger.info("📋 Step 3: Generating manual SQL commands instead...")
+      logManualClientCreationSQL()
+    }
       }
     }
   }
@@ -167,18 +181,31 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
    * Check if admin database is available for client operations
    */
   private def checkAdminDatabaseAvailability(): IO[Boolean] = {
+    println("   🔍 DEBUG: Testing admin database with listClients() operation...")
+    logger.info("   🔍 Testing admin database with listClients() operation...")
     // Try a simple admin database operation with timeout
     IO.race(
       IO.sleep(5.seconds),
       authService.listClients()
     ).map {
       case Left(_) => 
-        logger.warn("⚠️ Admin database check timed out after 5 seconds")
+        println("   ⏱️ DEBUG: Admin database check TIMED OUT after 5 seconds")
+        logger.warn("   ⏱️ Admin database check timed out after 5 seconds")
         false
       case Right(result) => 
-        result.isRight
+        result match {
+          case Right(clients) =>
+            println(s"   ✅ DEBUG: Admin database responds - found ${clients.length} existing clients")
+            logger.info(s"   ✅ Admin database responds - found ${clients.length} existing clients")
+            true
+          case Left(error) =>
+            println(s"   ❌ DEBUG: Admin database error: ${error.error} - ${error.error_description.getOrElse("No description")}")
+            logger.warn(s"   ❌ Admin database error: ${error.error} - ${error.error_description.getOrElse("No description")}")
+            false
+        }
     }.handleErrorWith { error =>
-      logger.warn(s"⚠️ Admin database not available: ${error.getMessage}")
+      println(s"   ❌ DEBUG: Admin database exception: ${error.getClass.getSimpleName}: ${error.getMessage}")
+      logger.warn(s"   ❌ Admin database exception: ${error.getMessage}")
       IO.pure(false)
     }
   }
@@ -201,30 +228,33 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
   }
 
   private def performClientOperation(clientConfig: OidcClient): IO[Unit] = {
+    logger.info(s"   🔍 Checking if client exists: ${clientConfig.client_name} (${clientConfig.client_id})")
     authService.findClientById(clientConfig.client_id).flatMap {
       case Some(existingClient) =>
+        logger.info(s"   ✅ Client exists: ${existingClient.client_name}")
         if (needsUpdate(existingClient, clientConfig)) {
-          logger.info(s"📝 Updating client: ${clientConfig.client_name} (${clientConfig.client_id})")
+          logger.info(s"   🔄 Client needs update: ${clientConfig.client_name} (${clientConfig.client_id})")
           authService.updateClient(clientConfig.client_id, clientConfig).flatMap {
             case Right(_) =>
-              logger.info(s"✅ Successfully updated client: ${clientConfig.client_name}")
+              logger.info(s"   ✅ Successfully updated client: ${clientConfig.client_name}")
               IO.unit
             case Left(error) =>
-              logger.error(s"❌ Failed to update client ${clientConfig.client_name}: ${error.error_description.getOrElse(error.error)}")
+              logger.error(s"   ❌ Failed to update client ${clientConfig.client_name}: ${error.error} - ${error.error_description.getOrElse("No description")}")
               IO.unit
           }
         } else {
-          logger.info(s"✅ Client already exists and up-to-date: ${clientConfig.client_name} (${clientConfig.client_id})")
+          logger.info(s"   ✅ Client already up-to-date: ${clientConfig.client_name} (${clientConfig.client_id})")
           IO.unit
         }
       case None =>
-        logger.info(s"📝 Creating new client: ${clientConfig.client_name} (${clientConfig.client_id})")
+        logger.info(s"   ➕ Client not found - creating new client: ${clientConfig.client_name} (${clientConfig.client_id})")
         authService.createClient(clientConfig).flatMap {
           case Right(_) =>
-            logger.info(s"✅ Successfully created client: ${clientConfig.client_name}")
+            logger.info(s"   ✅ Successfully created client: ${clientConfig.client_name}")
             IO.unit
           case Left(error) =>
-            logger.error(s"❌ Failed to create client ${clientConfig.client_name}: ${error.error_description.getOrElse(error.error)}")
+            logger.error(s"   ❌ Failed to create client ${clientConfig.client_name}: ${error.error} - ${error.error_description.getOrElse("No description")}")
+            logger.error(s"   💡 Hint: Check if admin user has write permissions to v_oidc_admin_clients")
             IO.unit
         }
     }
@@ -293,17 +323,22 @@ Client: ${client.client_name}
       clients.foreach { client =>
         logger.info(s"""
 INSERT INTO v_oidc_admin_clients (
-  client_id, client_secret, client_name, redirect_uris,
-  grant_types, response_types, scopes, token_endpoint_auth_method
+  name, apptype, description, developeremail, sub,
+  secret, azp, aud, iss, redirecturl, company, key_c, isactive
 ) VALUES (
+  '${client.client_name}',
+  'WEB',
+  'OIDC client for ${client.client_name}',
+  'admin@tesobe.com',
   '${client.client_id}',
   '${client.client_secret.getOrElse("GENERATE_SECURE_SECRET")}',
-  '${client.client_name}',
+  '${client.client_id}',
+  'obp-api',
+  'obp-oidc',
   '${client.redirect_uris.mkString(",")}',
-  '${client.grant_types.mkString(",")}',
-  '${client.response_types.mkString(",")}',
-  '${client.scopes.mkString(",")}',
-  '${client.token_endpoint_auth_method}'
+  'TESOBE',
+  '${client.client_id}',
+  true
 );""")
       }
       
@@ -324,10 +359,14 @@ INSERT INTO v_oidc_admin_clients (
 
 object ClientBootstrap {
   
+  private val logger = LoggerFactory.getLogger(getClass)
+  
   /**
    * Create and run client bootstrap
    */
   def initialize(authService: DatabaseAuthService, config: OidcConfig): IO[Unit] = {
+    println("🎯 DEBUG: ClientBootstrap.initialize() called from server")
+    logger.info("🎯 ClientBootstrap.initialize() called from server")
     new ClientBootstrap(authService, config).initializeClients()
   }
 }

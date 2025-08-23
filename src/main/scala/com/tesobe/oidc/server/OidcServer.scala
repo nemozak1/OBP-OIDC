@@ -62,16 +62,23 @@ object OidcServer extends IOApp {
       exitCode <- DatabaseAuthService.create(config).use { authService =>
         for {
           // Initialize standard OBP ecosystem clients with timeout
+          _ <- IO(println("🔧 DEBUG: About to start ClientBootstrap initialization..."))
+          _ <- IO(println("🔧 Starting ClientBootstrap initialization..."))
           _ <- IO.race(
             IO.sleep(15.seconds),
             ClientBootstrap.initialize(authService, config)
           ).flatMap {
             case Left(_) =>
+              IO(println("⚠️ DEBUG: Client initialization TIMED OUT after 15 seconds"))
               IO(println("⚠️ Client initialization timed out after 15 seconds - continuing server startup"))
             case Right(_) =>
+              IO(println("✅ DEBUG: Client initialization completed successfully"))
+              IO(println("✅ Client initialization completed successfully"))
               IO.unit
           }.handleErrorWith { error =>
+            IO(println(s"❌ DEBUG: Client initialization FAILED with error: ${error.getClass.getSimpleName}: ${error.getMessage}"))
             IO(println(s"⚠️ Client initialization failed: ${error.getMessage} - continuing server startup"))
+            IO(error.printStackTrace())
           }
           
           // Initialize services

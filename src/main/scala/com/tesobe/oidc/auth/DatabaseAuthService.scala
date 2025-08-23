@@ -165,32 +165,47 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
    * Requires write access to v_oidc_admin_clients view
    */
   def createClient(client: OidcClient): IO[Either[OidcError, OidcClient]] = {
+    logger.info(s"🔍 createClient() called for: ${client.client_name} (${client.client_id})")
     adminTransactor match {
       case Some(adminTx) =>
+        logger.info(s"✅ Admin transactor available, preparing INSERT for: ${client.client_id}")
+        val adminClient = AdminDatabaseClient.fromOidcClient(client)
+        logger.info(s"🔧 Mapped OIDC client to database format:")
+        logger.info(s"   name: ${adminClient.name}")
+        logger.info(s"   key_c: ${adminClient.key_c}")
+        logger.info(s"   secret: ${adminClient.secret.map(_.take(10)).getOrElse("None")}...")
+        logger.info(s"   redirecturl: ${adminClient.redirecturl}")
+        
         val insertQuery = sql"""
           INSERT INTO v_oidc_admin_clients (
-            client_id, client_secret, client_name, redirect_uris, 
-            grant_types, response_types, scopes, token_endpoint_auth_method
+            name, apptype, description, developeremail, sub,
+            secret, azp, aud, iss, redirecturl, company, key_c, isactive
           ) VALUES (
-            ${client.client_id}, ${client.client_secret}, ${client.client_name},
-            ${client.redirect_uris.mkString(",")}, ${client.grant_types.mkString(",")},
-            ${client.response_types.mkString(",")}, ${client.scopes.mkString(",")},
-            ${client.token_endpoint_auth_method}
+            ${adminClient.name}, ${adminClient.apptype}, ${adminClient.description},
+            ${adminClient.developeremail}, ${adminClient.sub},
+            ${adminClient.secret}, ${adminClient.azp}, ${adminClient.aud}, 
+            ${adminClient.iss}, ${adminClient.redirecturl}, ${adminClient.company},
+            ${adminClient.key_c}, ${adminClient.isactive}
           )
         """.update
         
+        logger.info(s"🔄 Executing INSERT query for client: ${client.client_id}")
         insertQuery.run.transact(adminTx).map { rowsAffected =>
+          logger.info(s"📊 INSERT result: $rowsAffected rows affected for client: ${client.client_id}")
           if (rowsAffected > 0) {
-            logger.info(s"Successfully created OIDC client: ${client.client_id}")
+            logger.info(s"✅ Successfully created OIDC client: ${client.client_id}")
             Right(client)
           } else {
-            Left(OidcError("server_error", Some("Failed to create client")))
+            logger.error(s"❌ INSERT returned 0 rows affected for client: ${client.client_id}")
+            Left(OidcError("server_error", Some("Failed to create client - no rows inserted")))
           }
         }.handleErrorWith { error =>
-          logger.error(s"Failed to create client ${client.client_id}", error)
+          logger.error(s"❌ Database error creating client ${client.client_id}: ${error.getMessage}", error)
+          logger.error(s"💡 Error type: ${error.getClass.getSimpleName}")
           IO.pure(Left(OidcError("server_error", Some(s"Database error: ${error.getMessage}"))))
         }
       case None =>
+        logger.error(s"❌ Admin database connection not available for client: ${client.client_id}")
         IO.pure(Left(OidcError("server_error", Some("Admin database connection not available"))))
     }
   }
@@ -201,16 +216,15 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
   def updateClient(clientId: String, client: OidcClient): IO[Either[OidcError, OidcClient]] = {
     adminTransactor match {
       case Some(adminTx) =>
+        val adminClient = AdminDatabaseClient.fromOidcClient(client)
         val updateQuery = sql"""
           UPDATE v_oidc_admin_clients SET
-            client_secret = ${client.client_secret},
-            client_name = ${client.client_name},
-            redirect_uris = ${client.redirect_uris.mkString(",")},
-            grant_types = ${client.grant_types.mkString(",")},
-            response_types = ${client.response_types.mkString(",")},
-            scopes = ${client.scopes.mkString(",")},
-            token_endpoint_auth_method = ${client.token_endpoint_auth_method}
-          WHERE client_id = $clientId
+            name = ${adminClient.name},
+            description = ${adminClient.description},
+            secret = ${adminClient.secret},
+            redirecturl = ${adminClient.redirecturl},
+            updatedat = ${adminClient.updatedat}
+          WHERE key_c = $clientId
         """.update
         
         updateQuery.run.transact(adminTx).map { rowsAffected =>
@@ -235,7 +249,7 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
   def deleteClient(clientId: String): IO[Either[OidcError, String]] = {
     adminTransactor match {
       case Some(adminTx) =>
-        val deleteQuery = sql"DELETE FROM v_oidc_admin_clients WHERE client_id = $clientId".update
+        val deleteQuery = sql"DELETE FROM v_oidc_admin_clients WHERE key_c = $clientId".update
         
         deleteQuery.run.transact(adminTx).map { rowsAffected =>
           if (rowsAffected > 0) {
@@ -257,23 +271,36 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
    * List all clients using the admin database connection
    */
   def listClients(): IO[Either[OidcError, List[OidcClient]]] = {
+    println("🔍 DEBUG: listClients() called")
+    logger.info("🔍 listClients() called")
     adminTransactor match {
       case Some(adminTx) =>
+        println("✅ DEBUG: Admin transactor available, executing SELECT query")
+        logger.info("✅ Admin transactor available, executing SELECT query")
         val query = sql"""
-          SELECT client_id, client_secret, client_name, redirect_uris, 
-                 grant_types, response_types, scopes, token_endpoint_auth_method,
-                 created_at
+          SELECT name, apptype, description, developeremail, sub, consumerid,
+                 createdat, updatedat, secret, azp, aud, iss, redirecturl,
+                 logourl, userauthenticationurl, clientcertificate, company, key_c, isactive
           FROM v_oidc_admin_clients
-          ORDER BY created_at DESC
-        """.query[DatabaseClient]
+          ORDER BY createdat DESC
+        """.query[AdminDatabaseClient]
         
+        println("🔄 DEBUG: Executing SELECT query on v_oidc_admin_clients")
+        logger.info("🔄 Executing SELECT query on v_oidc_admin_clients")
         query.to[List].transact(adminTx).map { clients =>
+          println(s"📊 DEBUG: SELECT result: Found ${clients.length} clients in v_oidc_admin_clients")
+          logger.info(s"📊 SELECT result: Found ${clients.length} clients in v_oidc_admin_clients")
+          clients.foreach(client => logger.info(s"   - ${client.name.getOrElse("No Name")} (key_c: ${client.key_c.getOrElse("No Key")})"))
           Right(clients.map(_.toOidcClient))
         }.handleErrorWith { error =>
-          logger.error("Failed to list clients", error)
+          println(s"❌ DEBUG: Database error listing clients: ${error.getClass.getSimpleName}: ${error.getMessage}")
+          logger.error(s"❌ Database error listing clients: ${error.getMessage}", error)
+          logger.error(s"💡 Error type: ${error.getClass.getSimpleName}")
           IO.pure(Left(OidcError("server_error", Some(s"Database error: ${error.getMessage}"))))
         }
       case None =>
+        logger.error("❌ Admin database connection not available for listClients")
+        println("❌ DEBUG: Admin database connection not available for listClients")
         IO.pure(Left(OidcError("server_error", Some("Admin database connection not available"))))
     }
   }
@@ -371,6 +398,75 @@ case class DatabaseClient(
   }
 }
 
+/**
+ * Admin database client representation matching the new v_oidc_admin_clients schema
+ */
+case class AdminDatabaseClient(
+  name: Option[String],          // client_name
+  apptype: Option[String],       // application type
+  description: Option[String],   // description
+  developeremail: Option[String], // developer email
+  sub: Option[String],           // subject (not used for client_id)
+  consumerid: Option[String],    // auto-generated ID
+  createdat: Option[String],     // created timestamp
+  updatedat: Option[String],     // updated timestamp
+  secret: Option[String],        // client_secret
+  azp: Option[String],           // authorized party
+  aud: Option[String],           // audience
+  iss: Option[String],           // issuer
+  redirecturl: Option[String],   // redirect_uris
+  logourl: Option[String],       // logo URL
+  userauthenticationurl: Option[String], // user auth URL
+  clientcertificate: Option[String],     // client certificate
+  company: Option[String],       // company name
+  key_c: Option[String],         // key
+  isactive: Option[Boolean]      // is active
+) {
+  def toOidcClient: OidcClient = OidcClient(
+    client_id = key_c.getOrElse(""),
+    client_secret = secret,
+    client_name = name.getOrElse(""),
+    redirect_uris = parseSimpleString(redirecturl.getOrElse("")),
+    grant_types = List("authorization_code", "refresh_token"), // Default values
+    response_types = List("code"),
+    scopes = List("openid", "profile", "email"),
+    token_endpoint_auth_method = "client_secret_basic",
+    created_at = createdat
+  )
+
+  private def parseSimpleString(str: String): List[String] = {
+    if (str == null || str.trim.isEmpty) {
+      List.empty
+    } else {
+      str.split("[,\\s]+").map(_.trim).filter(_.nonEmpty).toList
+    }
+  }
+}
+
+object AdminDatabaseClient {
+  def fromOidcClient(client: OidcClient): AdminDatabaseClient = AdminDatabaseClient(
+    name = Some(client.client_name),
+    apptype = Some("WEB"), // Default app type
+    description = Some(s"OIDC client for ${client.client_name}"),
+    developeremail = Some("admin@tesobe.com"), // Default email
+    sub = Some(client.client_name), // Use client name as sub
+    consumerid = None, // Will be auto-generated by sequence
+    createdat = client.created_at,
+    updatedat = Some(java.time.Instant.now().toString),
+    secret = client.client_secret,
+    azp = Some(client.client_id),
+    aud = Some("obp-api"),
+    iss = Some("obp-oidc"),
+    redirecturl = Some(client.redirect_uris.mkString(",")),
+    logourl = None,
+    userauthenticationurl = None,
+    clientcertificate = None,
+    company = Some("TESOBE"),
+    key_c = Some(client.client_id), // This is the OIDC client_id
+    isactive = Some(true)
+  )
+}
+
 object DatabaseAuthService {
   
   private val logger = LoggerFactory.getLogger(getClass)
@@ -380,9 +476,16 @@ object DatabaseAuthService {
    */
   def create(config: OidcConfig): Resource[IO, DatabaseAuthService] = {
     for {
+      _ <- Resource.eval(IO(logger.info("🔧 Creating DatabaseAuthService with read and admin transactors")))
+      _ <- Resource.eval(IO(logger.info(s"   Read DB: ${config.database.username}@${config.database.host}:${config.database.port}/${config.database.database}")))
+      _ <- Resource.eval(IO(logger.info(s"   Admin DB: ${config.adminDatabase.username}@${config.adminDatabase.host}:${config.adminDatabase.port}/${config.adminDatabase.database}")))
       readTransactor <- createTransactor(config.database)
+      _ <- Resource.eval(IO(logger.info("✅ Read transactor created successfully")))
       adminTransactor <- createTransactor(config.adminDatabase)
-    } yield new DatabaseAuthService(readTransactor, Some(adminTransactor))
+      _ <- Resource.eval(IO(logger.info("✅ Admin transactor created successfully")))
+      service = new DatabaseAuthService(readTransactor, Some(adminTransactor))
+      _ <- Resource.eval(IO(logger.info("✅ DatabaseAuthService created with admin capabilities")))
+    } yield service
   }
   
   /**
@@ -489,6 +592,32 @@ object DatabaseUserInstances {
           passwordSalt = passwordSlt,
           createdAt = createdAt,
           updatedAt = updatedAt
+        )
+      }
+
+  implicit val adminDatabaseClientRead: Read[AdminDatabaseClient] = 
+    Read[(Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[Boolean])]
+      .map { case (name, apptype, description, developeremail, sub, consumerid, createdat, updatedat, secret, azp, aud, iss, redirecturl, logourl, userauthenticationurl, clientcertificate, company, key_c, isactive) =>
+        AdminDatabaseClient(
+          name = name,
+          apptype = apptype,
+          description = description,
+          developeremail = developeremail,
+          sub = sub,
+          consumerid = consumerid,
+          createdat = createdat,
+          updatedat = updatedat,
+          secret = secret,
+          azp = azp,
+          aud = aud,
+          iss = iss,
+          redirecturl = redirecturl,
+          logourl = logourl,
+          userauthenticationurl = userauthenticationurl,
+          clientcertificate = clientcertificate,
+          company = company,
+          key_c = key_c,
+          isactive = isactive
         )
       }
 }
