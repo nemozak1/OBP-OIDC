@@ -75,12 +75,18 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
         logger.info("✅ Step 2: Admin database available - proceeding with client management")
         logger.info("🔧 Step 3: Creating/updating OBP ecosystem clients...")
         for {
+          _ <- IO(println("🔧 DEBUG: Starting individual client creation..."))
           _ <- ensureClient(createOBPAPIClient())
+          _ <- IO(println("🔧 DEBUG: OBP-API client processing completed"))
           _ <- ensureClient(createPortalClient())
+          _ <- IO(println("🔧 DEBUG: Portal client processing completed"))
           _ <- ensureClient(createExplorerIIClient())
+          _ <- IO(println("🔧 DEBUG: Explorer II client processing completed"))
           _ <- ensureClient(createOpeyIIClient())
+          _ <- IO(println("🔧 DEBUG: Opey II client processing completed"))
           _ <- logClientConfiguration()
         } yield {
+          println("✅ DEBUG: All OBP ecosystem clients initialized successfully")
           logger.info("✅ All OBP ecosystem clients initialized successfully")
         }
       } else {
@@ -228,31 +234,40 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
   }
 
   private def performClientOperation(clientConfig: OidcClient): IO[Unit] = {
+    println(s"   🔍 DEBUG: Checking if client exists: ${clientConfig.client_name} (${clientConfig.client_id})")
     logger.info(s"   🔍 Checking if client exists: ${clientConfig.client_name} (${clientConfig.client_id})")
     authService.findClientById(clientConfig.client_id).flatMap {
       case Some(existingClient) =>
+        println(s"   ✅ DEBUG: Client exists: ${existingClient.client_name}")
         logger.info(s"   ✅ Client exists: ${existingClient.client_name}")
         if (needsUpdate(existingClient, clientConfig)) {
+          println(s"   🔄 DEBUG: Client needs update: ${clientConfig.client_name} (${clientConfig.client_id})")
           logger.info(s"   🔄 Client needs update: ${clientConfig.client_name} (${clientConfig.client_id})")
           authService.updateClient(clientConfig.client_id, clientConfig).flatMap {
             case Right(_) =>
+              println(s"   ✅ DEBUG: Successfully updated client: ${clientConfig.client_name}")
               logger.info(s"   ✅ Successfully updated client: ${clientConfig.client_name}")
               IO.unit
             case Left(error) =>
+              println(s"   ❌ DEBUG: Failed to update client ${clientConfig.client_name}: ${error.error} - ${error.error_description.getOrElse("No description")}")
               logger.error(s"   ❌ Failed to update client ${clientConfig.client_name}: ${error.error} - ${error.error_description.getOrElse("No description")}")
               IO.unit
           }
         } else {
+          println(s"   ✅ DEBUG: Client already up-to-date: ${clientConfig.client_name} (${clientConfig.client_id})")
           logger.info(s"   ✅ Client already up-to-date: ${clientConfig.client_name} (${clientConfig.client_id})")
           IO.unit
         }
       case None =>
+        println(s"   ➕ DEBUG: Client not found - creating new client: ${clientConfig.client_name} (${clientConfig.client_id})")
         logger.info(s"   ➕ Client not found - creating new client: ${clientConfig.client_name} (${clientConfig.client_id})")
         authService.createClient(clientConfig).flatMap {
           case Right(_) =>
+            println(s"   ✅ DEBUG: Successfully created client: ${clientConfig.client_name}")
             logger.info(s"   ✅ Successfully created client: ${clientConfig.client_name}")
             IO.unit
           case Left(error) =>
+            println(s"   ❌ DEBUG: Failed to create client ${clientConfig.client_name}: ${error.error} - ${error.error_description.getOrElse("No description")}")
             logger.error(s"   ❌ Failed to create client ${clientConfig.client_name}: ${error.error} - ${error.error_description.getOrElse("No description")}")
             logger.error(s"   💡 Hint: Check if admin user has write permissions to v_oidc_admin_clients")
             IO.unit

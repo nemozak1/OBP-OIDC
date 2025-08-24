@@ -16,7 +16,7 @@ A bare bones OpenID Connect (OIDC) provider built with http4s and functional pro
 
 ## Technology Stack
 
-- **Language**: Scala 2.12 with functional programming principles
+- **Language**: Scala 2.13 with functional programming principles
 - **HTTP Framework**: http4s with Ember server
 - **Effect System**: Cats Effect IO
 - **Database**: PostgreSQL with Doobie for functional database access

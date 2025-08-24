@@ -24,6 +24,7 @@ import cats.effect.{ExitCode, IO, IOApp}
 import cats.syntax.all._
 import com.comcast.ip4s.{Host, Port}
 import com.tesobe.oidc.auth.{CodeService, DatabaseAuthService, DatabaseClient}
+import com.tesobe.oidc.models.OidcClient
 import com.tesobe.oidc.bootstrap.ClientBootstrap
 import com.tesobe.oidc.config.Config
 import com.tesobe.oidc.endpoints._
@@ -196,11 +197,24 @@ object OidcServer extends IOApp {
     val opeyClientId = sys.env.getOrElse("OIDC_CLIENT_OPEY_ID", "obp-opey-ii-client")
     
     for {
+      _ <- IO(println(s"🔍 DEBUG: Looking for clients with IDs:"))
+      _ <- IO(println(s"   OBP-API: $obpApiClientId"))
+      _ <- IO(println(s"   Portal: $portalClientId"))
+      _ <- IO(println(s"   Explorer: $explorerClientId"))
+      _ <- IO(println(s"   Opey: $opeyClientId"))
+      
       // Fetch actual client configurations from database
-      obpApiClient <- authService.findDatabaseClientById(obpApiClientId)
-      portalClient <- authService.findDatabaseClientById(portalClientId)
-      explorerClient <- authService.findDatabaseClientById(explorerClientId)
-      opeyClient <- authService.findDatabaseClientById(opeyClientId)
+      obpApiClient <- authService.findAdminClientById(obpApiClientId)
+      portalClient <- authService.findAdminClientById(portalClientId)
+      explorerClient <- authService.findAdminClientById(explorerClientId)
+      opeyClient <- authService.findAdminClientById(opeyClientId)
+      
+      _ <- IO(println(s"🔍 DEBUG: Client lookup results:"))
+      _ <- IO(println(s"   OBP-API: ${if (obpApiClient.isDefined) "FOUND" else "NOT FOUND"}"))
+      _ <- IO(println(s"   Portal: ${if (portalClient.isDefined) "FOUND" else "NOT FOUND"}"))
+      _ <- IO(println(s"   Explorer: ${if (explorerClient.isDefined) "FOUND" else "NOT FOUND"}"))
+      _ <- IO(println(s"   Opey: ${if (opeyClient.isDefined) "FOUND" else "NOT FOUND"}"))
+      _ <- IO(println())
       
       _ <- IO(println())
       _ <- IO(println("=" * 100))
@@ -224,9 +238,10 @@ object OidcServer extends IOApp {
   /**
    * Print OBP-API configuration for props file
    */
-  private def printOBPApiConfig(baseUri: String, client: Option[DatabaseClient]): IO[Unit] = {
+  private def printOBPApiConfig(baseUri: String, client: Option[OidcClient]): IO[Unit] = {
     val clientId = client.map(_.client_id).getOrElse("obp-api-client")
     val clientSecret = client.flatMap(_.client_secret).getOrElse("CLIENT_NOT_REGISTERED")
+    println(s"🔑 DEBUG: OBP-API client secret: ${clientSecret.take(20)}...")
     
     for {
       _ <- IO(println("📋 1. OBP-API Configuration (props file):"))
@@ -255,9 +270,10 @@ object OidcServer extends IOApp {
   /**
    * Print Portal configuration for .env file
    */
-  private def printPortalConfig(baseUri: String, client: Option[DatabaseClient]): IO[Unit] = {
+  private def printPortalConfig(baseUri: String, client: Option[OidcClient]): IO[Unit] = {
     val clientId = client.map(_.client_id).getOrElse("obp-portal-client")
     val clientSecret = client.flatMap(_.client_secret).getOrElse("CLIENT_NOT_REGISTERED")
+    println(s"🔑 DEBUG: Portal client secret: ${clientSecret.take(20)}...")
     
     for {
       _ <- IO(println("🌐 2. OBP-Portal Configuration (.env file):"))
@@ -287,9 +303,10 @@ object OidcServer extends IOApp {
   /**
    * Print API Explorer II configuration for .env file
    */
-  private def printApiExplorerConfig(baseUri: String, client: Option[DatabaseClient]): IO[Unit] = {
+  private def printApiExplorerConfig(baseUri: String, client: Option[OidcClient]): IO[Unit] = {
     val clientId = client.map(_.client_id).getOrElse("explorer-ii-client")
     val clientSecret = client.flatMap(_.client_secret).getOrElse("CLIENT_NOT_REGISTERED")
+    println(s"🔑 DEBUG: Explorer client secret: ${clientSecret.take(20)}...")
     
     for {
       _ <- IO(println("🔍 3. API-Explorer-II Configuration (.env file):"))
@@ -316,9 +333,10 @@ object OidcServer extends IOApp {
   /**
    * Print Opey II configuration for .env file
    */
-  private def printOpeyConfig(baseUri: String, client: Option[DatabaseClient]): IO[Unit] = {
+  private def printOpeyConfig(baseUri: String, client: Option[OidcClient]): IO[Unit] = {
     val clientId = client.map(_.client_id).getOrElse("opey-ii-client")
     val clientSecret = client.flatMap(_.client_secret).getOrElse("CLIENT_NOT_REGISTERED")
+    println(s"🔑 DEBUG: Opey client secret: ${clientSecret.take(20)}...")
     
     for {
       _ <- IO(println("🤖 4. Opey-II Configuration (.env file):"))
