@@ -113,6 +113,7 @@ object OidcServer extends IOApp {
             HttpRoutes.of[IO] {
               // Health check
               case GET -> Root / "health" =>
+                IO(println("🏥 Health check requested")) *>
                 Ok("OIDC Provider is running")
 
               // Root page
@@ -149,15 +150,26 @@ object OidcServer extends IOApp {
 
               // Delegate other requests to endpoints
               case req =>
+                IO(println(s"🌐 Incoming request: ${req.method} ${req.uri} - Content-Type: ${req.headers.get[headers.`Content-Type`].map(_.mediaType).getOrElse("MISSING")}")) *>
                 authEndpoint.routes.run(req).value.flatMap {
-                  case Some(resp) => IO.pure(resp)
+                  case Some(resp) =>
+                    IO(println(s"🔐 Request handled by AuthEndpoint")) *>
+                    IO.pure(resp)
                   case None =>
+                    IO(println(s"🔐 AuthEndpoint did not handle request, trying TokenEndpoint")) *>
                     tokenEndpoint.routes.run(req).value.flatMap {
-                      case Some(resp) => IO.pure(resp)
+                      case Some(resp) =>
+                        IO(println(s"🎫 Request handled by TokenEndpoint")) *>
+                        IO.pure(resp)
                       case None =>
+                        IO(println(s"🎫 TokenEndpoint did not handle request, trying UserInfoEndpoint")) *>
                         userInfoEndpoint.routes.run(req).value.flatMap {
-                          case Some(resp) => IO.pure(resp)
-                          case None => NotFound("Endpoint not found")
+                          case Some(resp) =>
+                            IO(println(s"👤 Request handled by UserInfoEndpoint")) *>
+                            IO.pure(resp)
+                          case None =>
+                            IO(println(s"❌ No endpoint handled the request: ${req.method} ${req.uri}")) *>
+                            NotFound("Endpoint not found")
                         }
                     }
                 }
