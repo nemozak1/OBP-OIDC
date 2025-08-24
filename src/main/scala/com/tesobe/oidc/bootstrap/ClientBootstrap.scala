@@ -45,6 +45,89 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
   private val secureRandom = new SecureRandom()
 
   /**
+   * Generate secure database passwords and print ready-to-use configuration
+   */
+  def generateDeveloperConfig(): IO[Unit] = {
+    IO {
+      val dbUserPassword = generateSecurePassword()
+      val dbAdminPassword = generateSecurePassword()
+      
+      println()
+      println("=" * 80)
+      println("🔐 DEVELOPER HELPER: Database Configuration")
+      println("=" * 80)
+      println()
+      println("📋 Database Setup Commands (copy & paste to terminal):")
+      println("-" * 50)
+      println("# Create database and users")
+      println("sudo -u postgres psql << EOF")
+      println("CREATE DATABASE sandbox;")
+      println(s"CREATE USER oidc_user WITH PASSWORD '$dbUserPassword';")
+      println(s"CREATE USER oidc_admin WITH PASSWORD '$dbAdminPassword';")
+      println("GRANT CONNECT ON DATABASE sandbox TO oidc_user;")
+      println("GRANT CONNECT ON DATABASE sandbox TO oidc_admin;")
+      println("\\q")
+      println("EOF")
+      println()
+      
+      println("📋 Environment Variables for OBP-OIDC (copy to your .env or export):")
+      println("-" * 50)
+      println("export DB_HOST=localhost")
+      println("export DB_PORT=5432")
+      println("export DB_NAME=sandbox")
+      println("export OIDC_USER_USERNAME=oidc_user")
+      println(s"export OIDC_USER_PASSWORD=$dbUserPassword")
+      println("export DB_MAX_CONNECTIONS=10")
+      println("export OIDC_ADMIN_USERNAME=oidc_admin")
+      println(s"export OIDC_ADMIN_PASSWORD=$dbAdminPassword")
+      println("export DB_ADMIN_MAX_CONNECTIONS=5")
+      println()
+      
+      // Write to file
+      val configContent = s"""# OBP-OIDC Database Configuration
+# Generated at: ${java.time.Instant.now()}
+
+# Database Setup Commands
+# Run these as postgres user:
+sudo -u postgres psql << EOF
+CREATE DATABASE sandbox;
+CREATE USER oidc_user WITH PASSWORD '$dbUserPassword';
+CREATE USER oidc_admin WITH PASSWORD '$dbAdminPassword';
+GRANT CONNECT ON DATABASE sandbox TO oidc_user;
+GRANT CONNECT ON DATABASE sandbox TO oidc_admin;
+\\q
+EOF
+
+# Environment Variables for OBP-OIDC
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_NAME=sandbox
+export OIDC_USER_USERNAME=oidc_user
+export OIDC_USER_PASSWORD=$dbUserPassword
+export DB_MAX_CONNECTIONS=10
+export OIDC_ADMIN_USERNAME=oidc_admin
+export OIDC_ADMIN_PASSWORD=$dbAdminPassword
+export DB_ADMIN_MAX_CONNECTIONS=5
+"""
+      
+      try {
+        val file = new java.io.PrintWriter("obp-oidc-database-config.txt")
+        file.write(configContent)
+        file.close()
+        println("📄 Database configuration also saved to: obp-oidc-database-config.txt")
+      } catch {
+        case e: Exception => 
+          println(s"⚠️  Could not write database config file: ${e.getMessage}")
+      }
+      
+      println("=" * 80)
+      println("✅ Database configuration ready! Set up your database first, then run OBP-OIDC.")
+      println("=" * 80)
+      println()
+    }
+  }
+
+  /**
    * Initialize all standard OBP clients
    */
   def initializeClients(): IO[Unit] = {
@@ -104,7 +187,7 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
    */
   private def createOBPAPIClient(): OidcClient = {
     val clientId = sys.env.getOrElse("OIDC_CLIENT_OBP_API_ID", "obp-api-client")
-    val clientSecret = sys.env.getOrElse("OIDC_CLIENT_OBP_API_SECRET", generateSecureSecret())
+    val clientSecret = generateFreshSecretIfPlaceholder(sys.env.get("OIDC_CLIENT_OBP_API_SECRET"))
     val redirectUris = sys.env.getOrElse("OIDC_CLIENT_OBP_API_REDIRECTS", "http://localhost:8080/oauth/callback").split(",").toList
     
     OidcClient(
@@ -125,7 +208,7 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
    */
   private def createPortalClient(): OidcClient = {
     val clientId = sys.env.getOrElse("OIDC_CLIENT_PORTAL_ID", "obp-portal-client")
-    val clientSecret = sys.env.getOrElse("OIDC_CLIENT_PORTAL_SECRET", generateSecureSecret())
+    val clientSecret = generateFreshSecretIfPlaceholder(sys.env.get("OIDC_CLIENT_PORTAL_SECRET"))
     val redirectUris = sys.env.getOrElse("OIDC_CLIENT_PORTAL_REDIRECTS", "http://localhost:3000/callback,http://localhost:3000/oauth/callback").split(",").toList
     
     OidcClient(
@@ -146,7 +229,7 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
    */
   private def createExplorerIIClient(): OidcClient = {
     val clientId = sys.env.getOrElse("OIDC_CLIENT_EXPLORER_ID", "obp-explorer-ii-client")
-    val clientSecret = sys.env.getOrElse("OIDC_CLIENT_EXPLORER_SECRET", generateSecureSecret())
+    val clientSecret = generateFreshSecretIfPlaceholder(sys.env.get("OIDC_CLIENT_EXPLORER_SECRET"))
     val redirectUris = sys.env.getOrElse("OIDC_CLIENT_EXPLORER_REDIRECTS", "http://localhost:3001/callback,http://localhost:3001/oauth/callback").split(",").toList
     
     OidcClient(
@@ -167,7 +250,7 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
    */
   private def createOpeyIIClient(): OidcClient = {
     val clientId = sys.env.getOrElse("OIDC_CLIENT_OPEY_ID", "obp-opey-ii-client")
-    val clientSecret = sys.env.getOrElse("OIDC_CLIENT_OPEY_SECRET", generateSecureSecret())
+    val clientSecret = generateFreshSecretIfPlaceholder(sys.env.get("OIDC_CLIENT_OPEY_SECRET"))
     val redirectUris = sys.env.getOrElse("OIDC_CLIENT_OPEY_REDIRECTS", "http://localhost:3002/callback,http://localhost:3002/oauth/callback").split(",").toList
     
     OidcClient(
@@ -289,7 +372,7 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
   }
 
   /**
-   * Log configuration for all clients
+   * Log configuration for all clients with ready-to-copy configs
    */
   private def logClientConfiguration(): IO[Unit] = {
     val clients = List(
@@ -300,23 +383,72 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
     )
 
     IO {
-      logger.info("📋 OIDC Client Configuration Summary:")
-      logger.info("=" * 60)
+      println()
+      println("=" * 80)
+      println("🚀 DEVELOPER HELPER: Ready-to-Copy OBP Project Configurations")
+      println("=" * 80)
+      println()
       
-      clients.foreach { client =>
-        logger.info(s"""
-Client: ${client.client_name}
-  ID: ${client.client_id}
-  Secret: ${client.client_secret.getOrElse("NOT_SET")}
-  Redirect URIs: ${client.redirect_uris.mkString(", ")}
-  Grant Types: ${client.grant_types.mkString(", ")}
-  Scopes: ${client.scopes.mkString(", ")}
-  Auth Method: ${client.token_endpoint_auth_method}
-""")
-      }
+      // OBP-API Configuration
+      val obpClient = clients.find(_.client_id.contains("api")).get
+      println("📋 1. OBP-API Configuration (Props file):")
+      println("-" * 50)
+      println("# Add to your OBP-API props file")
+      println("openid_connect.scope=openid email profile")
+      println()
+      println("# OBP-API OIDC Provider Settings")
+      println(s"openid_connect.endpoint=http://localhost:8080/.well-known/openid_configuration")
+      println(s"oauth2.client_id=${obpClient.client_id}")
+      println(s"oauth2.client_secret=${obpClient.client_secret.getOrElse("NOT_SET")}")
+      println(s"oauth2.callback_url=${obpClient.redirect_uris.head}")
+      println()
       
-      logger.info("=" * 60)
-      logger.info("💡 Use these configurations in your service Props/environment files")
+      // Portal Configuration
+      val portalClient = clients.find(_.client_id.contains("portal")).get
+      println("📋 2. OBP-Portal Configuration (.env file):")
+      println("-" * 50)
+      println("# Add to your OBP-Portal .env file")
+      println(s"NEXT_PUBLIC_OAUTH_CLIENT_ID=${portalClient.client_id}")
+      println(s"OAUTH_CLIENT_SECRET=${portalClient.client_secret.getOrElse("NOT_SET")}")
+      println("NEXT_PUBLIC_OAUTH_AUTHORIZATION_URL=http://localhost:8080/oauth/authorize")
+      println("OAUTH_TOKEN_URL=http://localhost:8080/oauth/token")
+      println("OAUTH_USERINFO_URL=http://localhost:8080/oauth/userinfo")
+      println(s"NEXT_PUBLIC_OAUTH_REDIRECT_URI=${portalClient.redirect_uris.head}")
+      println()
+      
+      // Explorer II Configuration  
+      val explorerClient = clients.find(_.client_id.contains("explorer")).get
+      println("📋 3. API-Explorer-II Configuration (environment variables):")
+      println("-" * 50)
+      println("# Add to your API-Explorer-II environment")
+      println(s"export REACT_APP_OAUTH_CLIENT_ID=${explorerClient.client_id}")
+      println(s"export REACT_APP_OAUTH_CLIENT_SECRET=${explorerClient.client_secret.getOrElse("NOT_SET")}")
+      println("export REACT_APP_OAUTH_AUTHORIZATION_URL=http://localhost:8080/oauth/authorize")
+      println("export REACT_APP_OAUTH_TOKEN_URL=http://localhost:8080/oauth/token")
+      println(s"export REACT_APP_OAUTH_REDIRECT_URI=${explorerClient.redirect_uris.head}")
+      println()
+      
+      // Opey II Configuration
+      val opeyClient = clients.find(_.client_id.contains("opey")).get
+      println("📋 4. Opey-II Configuration (environment variables):")
+      println("-" * 50)
+      println("# Add to your Opey-II environment") 
+      println(s"export VUE_APP_OAUTH_CLIENT_ID=${opeyClient.client_id}")
+      println(s"export VUE_APP_OAUTH_CLIENT_SECRET=${opeyClient.client_secret.getOrElse("NOT_SET")}")
+      println("export VUE_APP_OAUTH_AUTHORIZATION_URL=http://localhost:8080/oauth/authorize")
+      println("export VUE_APP_OAUTH_TOKEN_URL=http://localhost:8080/oauth/token")
+      println(s"export VUE_APP_OAUTH_REDIRECT_URI=${opeyClient.redirect_uris.head}")
+      println()
+      
+      println("=" * 80)
+      println("✅ All configurations ready! Copy & paste the sections you need.")
+      println("🔐 Fresh secure secrets have been generated and stored in database.")
+      println("💡 Server will be available at: http://localhost:8080")
+      println("=" * 80)
+      println()
+      
+      // Also write to config file for easy access
+      writeConfigurationFile(clients)
     }
   }
 
@@ -370,6 +502,114 @@ INSERT INTO v_oidc_admin_clients (
     secureRandom.nextBytes(bytes)
     Base64.getUrlEncoder.withoutPadding().encodeToString(bytes)
   }
+
+  /**
+   * Generate a secure database password (more user-friendly than base64)
+   */
+  private def generateSecurePassword(): String = {
+    val chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*"
+    val length = 24
+    (1 to length).map(_ => chars(secureRandom.nextInt(chars.length))).mkString
+  }
+
+  /**
+   * Generate fresh secret if environment variable contains placeholder
+   */
+  private def generateFreshSecretIfPlaceholder(envSecret: Option[String]): String = {
+    envSecret match {
+      case Some(secret) if secret.contains("CHANGE_THIS") => 
+        val fresh = generateSecureSecret()
+        println(s"🔐 Generated fresh secret (was placeholder): ${fresh.take(20)}...")
+        fresh
+      case Some(secret) if secret.nonEmpty => 
+        println(s"🔑 Using existing secret: ${secret.take(20)}...")
+        secret
+      case _ => 
+        val fresh = generateSecureSecret()
+        println(s"🔐 Generated fresh secret (none provided): ${fresh.take(20)}...")
+        fresh
+    }
+  }
+
+  /**
+   * Write configuration to file for easy access
+   */
+  private def writeConfigurationFile(clients: List[OidcClient]): Unit = {
+    try {
+      val configContent = generateConfigFileContent(clients)
+      val file = new java.io.PrintWriter("obp-oidc-generated-config.txt")
+      file.write(configContent)
+      file.close()
+      println("📄 Configuration also saved to: obp-oidc-generated-config.txt")
+    } catch {
+      case e: Exception => 
+        println(s"⚠️  Could not write config file: ${e.getMessage}")
+    }
+  }
+
+  /**
+   * Generate configuration file content
+   */
+  private def generateConfigFileContent(clients: List[OidcClient]): String = {
+    val obpClient = clients.find(_.client_id.contains("api")).get
+    val portalClient = clients.find(_.client_id.contains("portal")).get
+    val explorerClient = clients.find(_.client_id.contains("explorer")).get
+    val opeyClient = clients.find(_.client_id.contains("opey")).get
+    
+    s"""# OBP-OIDC Generated Configuration
+# Generated at: ${java.time.Instant.now()}
+# Copy the sections you need to your project configuration files
+
+# ============================================================================
+# 1. OBP-API Configuration (Props file)
+# ============================================================================
+# Add to your OBP-API props file
+openid_connect.scope=openid email profile
+
+# OBP-API OIDC Provider Settings
+openid_connect.endpoint=http://localhost:8080/.well-known/openid_configuration
+oauth2.client_id=${obpClient.client_id}
+oauth2.client_secret=${obpClient.client_secret.getOrElse("NOT_SET")}
+oauth2.callback_url=${obpClient.redirect_uris.head}
+
+# ============================================================================
+# 2. OBP-Portal Configuration (.env file)
+# ============================================================================
+# Add to your OBP-Portal .env file
+NEXT_PUBLIC_OAUTH_CLIENT_ID=${portalClient.client_id}
+OAUTH_CLIENT_SECRET=${portalClient.client_secret.getOrElse("NOT_SET")}
+NEXT_PUBLIC_OAUTH_AUTHORIZATION_URL=http://localhost:8080/oauth/authorize
+OAUTH_TOKEN_URL=http://localhost:8080/oauth/token
+OAUTH_USERINFO_URL=http://localhost:8080/oauth/userinfo
+NEXT_PUBLIC_OAUTH_REDIRECT_URI=${portalClient.redirect_uris.head}
+
+# ============================================================================
+# 3. API-Explorer-II Configuration (environment variables)
+# ============================================================================
+# Add to your API-Explorer-II environment
+export REACT_APP_OAUTH_CLIENT_ID=${explorerClient.client_id}
+export REACT_APP_OAUTH_CLIENT_SECRET=${explorerClient.client_secret.getOrElse("NOT_SET")}
+export REACT_APP_OAUTH_AUTHORIZATION_URL=http://localhost:8080/oauth/authorize
+export REACT_APP_OAUTH_TOKEN_URL=http://localhost:8080/oauth/token
+export REACT_APP_OAUTH_REDIRECT_URI=${explorerClient.redirect_uris.head}
+
+# ============================================================================
+# 4. Opey-II Configuration (environment variables)
+# ============================================================================
+# Add to your Opey-II environment
+export VUE_APP_OAUTH_CLIENT_ID=${opeyClient.client_id}
+export VUE_APP_OAUTH_CLIENT_SECRET=${opeyClient.client_secret.getOrElse("NOT_SET")}
+export VUE_APP_OAUTH_AUTHORIZATION_URL=http://localhost:8080/oauth/authorize
+export VUE_APP_OAUTH_TOKEN_URL=http://localhost:8080/oauth/token
+export VUE_APP_OAUTH_REDIRECT_URI=${opeyClient.redirect_uris.head}
+
+# ============================================================================
+# Database Client Information
+# ============================================================================
+# Client IDs and secrets are also stored in your v_oidc_admin_clients table
+# Use these for reference or manual configuration
+"""
+  }
 }
 
 object ClientBootstrap {
@@ -383,5 +623,12 @@ object ClientBootstrap {
     println("🎯 DEBUG: ClientBootstrap.initialize() called from server")
     logger.info("🎯 ClientBootstrap.initialize() called from server")
     new ClientBootstrap(authService, config).initializeClients()
+  }
+
+  /**
+   * Generate database configuration for developers
+   */
+  def generateDatabaseConfig(config: OidcConfig): IO[Unit] = {
+    new ClientBootstrap(null, config).generateDeveloperConfig()
   }
 }

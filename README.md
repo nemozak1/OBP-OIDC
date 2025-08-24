@@ -25,6 +25,48 @@ A bare bones OpenID Connect (OIDC) provider built with http4s and functional pro
 - **Build Tool**: Maven
 - **Testing**: ScalaTest
 
+## Quick Start for Developers 🚀
+
+**New to OBP-OIDC? Get up and running in 3 steps:**
+
+### Step 1: Generate Configuration
+```bash
+# Interactive configuration generator
+./generate-config.sh
+
+# Or generate directly
+mvn exec:java -Dexec.args="--generate-config"
+```
+
+### Step 2: Set Up Database
+Copy & paste the generated database setup commands from `obp-oidc-database-config.txt`:
+```bash
+# Example output (your passwords will be different):
+sudo -u postgres psql << EOF
+CREATE DATABASE sandbox;
+CREATE USER oidc_user WITH PASSWORD 'YourGeneratedPassword123!';
+CREATE USER oidc_admin WITH PASSWORD 'YourGeneratedAdminPass456#';
+GRANT CONNECT ON DATABASE sandbox TO oidc_user;
+GRANT CONNECT ON DATABASE sandbox TO oidc_admin;
+\q
+EOF
+```
+
+### Step 3: Start OBP-OIDC
+```bash
+# Export the generated environment variables
+export OIDC_USER_PASSWORD=YourGeneratedPassword123!
+export OIDC_ADMIN_PASSWORD=YourGeneratedAdminPass456#
+# ... (other exports from generated config)
+
+# Start the server
+./run-server.sh
+```
+
+**That's it!** 🎉 Copy the printed OIDC client configurations to your OBP projects.
+
+---
+
 ## Prerequisites
 
 - Java 11 or higher
@@ -197,7 +239,7 @@ When the server starts, it automatically prints the complete OBP-API configurati
 # OIDC Configuration for OBP-OIDC Provider
 openid_connect.scope=openid email profile
 
-# OBP-OIDC Provider Settings
+# OBP-API OIDC Provider Settings
 openid_connect_1.button_text=OBP-OIDC
 openid_connect_1.client_id=obp-api-client
 openid_connect_1.client_secret=generated-secret-here

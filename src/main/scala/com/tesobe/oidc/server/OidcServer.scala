@@ -39,6 +39,20 @@ import scala.concurrent.duration._
 object OidcServer extends IOApp {
 
   def run(args: List[String]): IO[ExitCode] = {
+    // Check for developer helper commands
+    args.headOption match {
+      case Some("--generate-config") | Some("--config") =>
+        generateDeveloperConfig()
+      case Some("--generate-db-config") | Some("--db-config") =>
+        generateDatabaseConfig()
+      case Some("--help") | Some("-h") =>
+        printHelp()
+      case _ =>
+        startServer(args)
+    }
+  }
+
+  private def startServer(args: List[String]): IO[ExitCode] = {
     for {
       config <- Config.load
       _ <- IO(println(s"Starting OIDC Provider on ${config.server.host}:${config.server.port}"))
@@ -185,6 +199,59 @@ object OidcServer extends IOApp {
     IO.pure(ExitCode.Error)
   }
 
+  /**
+   * Generate developer configuration (database + OIDC clients)
+   */
+  private def generateDeveloperConfig(): IO[ExitCode] = {
+    for {
+      config <- Config.load
+      _ <- IO(println("🚀 OBP-OIDC Developer Configuration Generator"))
+      _ <- IO(println())
+      _ <- ClientBootstrap.generateDatabaseConfig(config)
+      _ <- IO(println("📋 Next, run the database setup commands above, then start OBP-OIDC to generate OIDC client configurations."))
+      _ <- IO(println("💡 Or run: ./mvn exec:java to start the server and auto-generate everything."))
+    } yield ExitCode.Success
+  }
+
+  /**
+   * Generate only database configuration
+   */
+  private def generateDatabaseConfig(): IO[ExitCode] = {
+    for {
+      config <- Config.load
+      _ <- ClientBootstrap.generateDatabaseConfig(config)
+    } yield ExitCode.Success
+  }
+
+  /**
+   * Print help information
+   */
+  private def printHelp(): IO[ExitCode] = {
+    IO {
+      println()
+      println("🚀 OBP-OIDC Developer Helper")
+      println("=" * 50)
+      println()
+      println("Usage:")
+      println("  java -jar target/obp-oidc-1.0.0-SNAPSHOT.jar [COMMAND]")
+      println()
+      println("Commands:")
+      println("  --generate-config    Generate database + OIDC client configuration")
+      println("  --db-config         Generate only database configuration")
+      println("  --help, -h          Show this help")
+      println()
+      println("Default (no command): Start OIDC server")
+      println()
+      println("Examples:")
+      println("  # Generate all developer configuration")
+      println("  java -jar obp-oidc.jar --generate-config")
+      println()
+      println("  # Start server (auto-generates client configs)")
+      println("  java -jar obp-oidc.jar")
+      println()
+    } *> IO.pure(ExitCode.Success)
+  }
+
 
   /**
    * Print configuration for all OBP projects using existing ClientBootstrap clients
@@ -249,7 +316,7 @@ object OidcServer extends IOApp {
       _ <- IO(println("# Add to your OBP-API props file"))
       _ <- IO(println("openid_connect.scope=openid email profile"))
       _ <- IO(println())
-      _ <- IO(println("# OBP-OIDC Provider Settings"))
+      _ <- IO(println("# OBP-API OIDC Provider Settings"))
       _ <- IO(println("openid_connect_1.button_text=OBP-OIDC"))
       _ <- IO(println(s"openid_connect_1.client_id=$clientId"))
       _ <- IO(println(s"openid_connect_1.client_secret=$clientSecret"))
