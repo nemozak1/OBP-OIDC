@@ -34,6 +34,10 @@ class AuthEndpoint(authService: AuthService[IO], codeService: CodeService[IO]) {
 
   private val logger = LoggerFactory.getLogger(getClass)
 
+  // Test logging immediately when class is created
+  logger.info("🚀 AuthEndpoint created - logging is working!")
+  println("🚀 AuthEndpoint created - logging is working!")
+
   val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
     case GET -> Root / "auth" :?
       ResponseTypeQueryParamMatcher(responseType) +&
@@ -90,8 +94,11 @@ class AuthEndpoint(authService: AuthService[IO], codeService: CodeService[IO]) {
     val formData = form.values.mapValues(_.headOption.getOrElse(""))
 
     for {
+      _ <- IO(logger.info("🔥 LOGIN FORM SUBMISSION STARTED"))
+      _ <- IO(println("🔥 LOGIN FORM SUBMISSION STARTED"))
       username <- IO.fromOption(formData.get("username"))(new RuntimeException("Missing username"))
       _ <- IO(logger.info(s"📋 Auth form submitted for username: '$username'"))
+      _ <- IO(println(s"📋 Auth form submitted for username: '$username'"))
       password <- IO.fromOption(formData.get("password"))(new RuntimeException("Missing password"))
       _ <- IO(logger.debug(s"🔑 Password received (length: ${password.length})"))
       clientId <- IO.fromOption(formData.get("client_id"))(new RuntimeException("Missing client_id"))

@@ -46,27 +46,37 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
 
   private val logger = LoggerFactory.getLogger(getClass)
 
+  // Test logging immediately when class is created
+  logger.info("🚀 DatabaseAuthService created - logging is working!")
+  println("🚀 DatabaseAuthService created - logging is working!")
+
   /**
    * Authenticate a user by username and password
    * Returns the user information if authentication succeeds
    */
   def authenticate(username: String, password: String): IO[Either[OidcError, User]] = {
     logger.info(s"🔐 Starting authentication for username: '$username'")
+    println(s"🔐 Starting authentication for username: '$username'")
 
     findUserByUsername(username).flatMap {
       case None =>
         logger.warn(s"❌ User NOT FOUND in database: '$username'")
+        println(s"❌ User NOT FOUND in database: '$username'")
         IO.pure(Left(OidcError("invalid_grant", Some("Invalid username or password"))))
       case Some(dbUser) =>
         logger.info(s"✅ User FOUND in database: '$username' (id: ${dbUser.id})")
+        println(s"✅ User FOUND in database: '$username' (id: ${dbUser.id})")
         logger.debug(s"🔍 Password hash length: ${dbUser.passwordHash.length}, Salt length: ${dbUser.passwordSalt.length}")
+        println(s"🔍 Password hash length: ${dbUser.passwordHash.length}, Salt length: ${dbUser.passwordSalt.length}")
 
         verifyPassword(password, dbUser.passwordHash, dbUser.passwordSalt).flatMap { isValid =>
           if (isValid) {
             logger.info(s"✅ Password verification SUCCESSFUL for user: '$username'")
+            println(s"✅ Password verification SUCCESSFUL for user: '$username'")
             IO.pure(Right(dbUser.toUser))
           } else {
             logger.warn(s"❌ Password verification FAILED for user: '$username'")
+            println(s"❌ Password verification FAILED for user: '$username'")
             IO.pure(Left(OidcError("invalid_grant", Some("Invalid username or password"))))
           }
         }
@@ -361,26 +371,69 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
     IO {
       try {
         logger.info(s"🔐 Starting password verification...")
+        println(s"🔐 Starting password verification...")
         logger.debug(s"📝 Stored hash: '$storedHash'")
+        println(s"📝 Stored hash: '$storedHash'")
         logger.debug(s"🧂 Salt: '$salt'")
+        println(s"🧂 Salt: '$salt'")
         logger.debug(s"🔑 Plain password length: ${plainPassword.length}")
+        println(s"🔑 Plain password length: ${plainPassword.length}")
 
-        // OBP-API uses BCrypt.hashpw(password, salt).substring(0, 44)
-        val hashedInput = BCrypt.withDefaults().hashToString(12, plainPassword.toCharArray).substring(0, 44)
-        logger.debug(s"🔨 Generated hash: '$hashedInput'")
+        // Try different BCrypt approaches with the at.favre.lib.crypto.bcrypt.BCrypt library
 
-        val result = hashedInput == storedHash
-        if (result) {
-          logger.info(s"✅ Password hash comparison: MATCH")
-        } else {
-          logger.warn(s"❌ Password hash comparison: NO MATCH")
-          logger.debug(s"Expected: '$storedHash'")
-          logger.debug(s"Got:      '$hashedInput'")
+        // Method 1: Try to verify against stored hash directly
+        val result1 = try {
+          BCrypt.verifyer().verify(plainPassword.toCharArray, storedHash.toCharArray).verified
+        } catch {
+          case e: Exception =>
+            println(s"🧪 Test 1 failed: ${e.getMessage}")
+            false
         }
-        result
+        println(s"🧪 Test 1 - BCrypt.verifyer on stored hash: $result1")
+
+        // Method 2: Try to verify against salt (in case salt is actually the full hash)
+        val result2 = try {
+          BCrypt.verifyer().verify(plainPassword.toCharArray, salt.toCharArray).verified
+        } catch {
+          case e: Exception =>
+            println(s"🧪 Test 2 failed: ${e.getMessage}")
+            false
+        }
+        println(s"🧪 Test 2 - BCrypt.verifyer on salt: $result2")
+
+        // Method 3: Generate hash with salt and compare (OBP-API style)
+        val result3 = try {
+          // Use salt as BCrypt salt parameter and generate hash, then substring to 44 chars
+          val hasher = BCrypt.withDefaults()
+          val hashedResult = hasher.hashToString(12, plainPassword.toCharArray)
+          val hashedSubstring = hashedResult.substring(0, math.min(44, hashedResult.length))
+          println(s"🔨 Generated hash: '$hashedResult'")
+          println(s"🔨 Substring(0,44): '$hashedSubstring'")
+          hashedSubstring == storedHash
+        } catch {
+          case e: Exception =>
+            println(s"🧪 Test 3 failed: ${e.getMessage}")
+            false
+        }
+        println(s"🧪 Test 3 - Generate hash and substring: $result3")
+
+        val finalResult = result1 || result2 || result3
+
+        if (finalResult) {
+          val method = if(result1) "verify-stored-hash" else if(result2) "verify-salt" else "generate-and-compare"
+          println(s"✅ Password verification SUCCESSFUL (method: $method)")
+          logger.info(s"✅ Password verification SUCCESSFUL")
+        } else {
+          println(s"❌ Password verification FAILED - none of the methods worked")
+          logger.warn(s"❌ Password verification FAILED")
+        }
+
+        finalResult
       } catch {
         case e: Exception =>
+          println(s"💥 Error during password verification: ${e.getMessage}")
           logger.error(s"💥 Error during password verification: ${e.getMessage}", e)
+          e.printStackTrace()
           false
       }
     }
