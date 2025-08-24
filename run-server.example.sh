@@ -65,7 +65,7 @@ export DB_ADMIN_MAX_CONNECTIONS=5
 # Customize these values for your environment
 export OIDC_CLIENT_OBP_API_ID=obp-api-client
 export OIDC_CLIENT_OBP_API_SECRET=CHANGE_THIS_TO_OBP_API_SECRET_2024
-export OIDC_CLIENT_OBP_API_REDIRECTS=http://localhost:8080/oauth/callback
+export OIDC_CLIENT_OBP_API_REDIRECTS=http://localhost:8080/auth/openid-connect/callback
 
 export OIDC_CLIENT_PORTAL_ID=obp-portal-client
 export OIDC_CLIENT_PORTAL_SECRET=CHANGE_THIS_TO_PORTAL_SECRET_2024

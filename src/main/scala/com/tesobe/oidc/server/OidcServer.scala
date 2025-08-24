@@ -2,7 +2,7 @@
  * Copyright (c) 2025 TESOBE
  *
  * This file is part of OBP-OIDC.
- * 
+ *
  * OBP-OIDC is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -57,23 +57,23 @@ object OidcServer extends IOApp {
       config <- Config.load
       _ <- IO(println(s"Starting OIDC Provider on ${config.server.host}:${config.server.port}"))
       _ <- IO(println(s"Issuer: ${config.issuer}"))
-      
+
       // Test database connections
       _ <- DatabaseAuthService.testConnection(config).flatMap {
         case Right(msg) => IO(println(msg))
         case Left(error) => IO.raiseError(new RuntimeException(s"User database connection failed: $error"))
       }
-      
+
       _ <- DatabaseAuthService.testClientConnection(config).flatMap {
         case Right(msg) => IO(println(msg))
         case Left(error) => IO(println(s"Client database warning: $error (using permissive mode)"))
       }
-      
+
       _ <- DatabaseAuthService.testAdminConnection(config).flatMap {
         case Right(msg) => IO(println(msg))
         case Left(error) => IO(println(s"Admin database warning: $error (client management features disabled)"))
       }
-      
+
       exitCode <- DatabaseAuthService.create(config).use { authService =>
         for {
           // Initialize standard OBP ecosystem clients (create-only mode)
@@ -94,27 +94,27 @@ object OidcServer extends IOApp {
             IO(println(s"⚠️ Client initialization failed: ${error.getMessage} - continuing server startup"))
             IO(error.printStackTrace())
           }
-          
+
           // Initialize services
           codeService <- CodeService(config)
           jwtService <- JwtService(config)
-    
+
       // Initialize endpoints
       discoveryEndpoint = DiscoveryEndpoint(config)
       jwksEndpoint = JwksEndpoint(jwtService)
       authEndpoint = AuthEndpoint(authService, codeService)
       tokenEndpoint = TokenEndpoint(authService, codeService, jwtService, config)
       userInfoEndpoint = UserInfoEndpoint(authService, jwtService)
-          
+
           // Create all routes in a single HttpRoutes definition
           routes = {
             import org.http4s.dsl.io._
-            
+
             HttpRoutes.of[IO] {
               // Health check
               case GET -> Root / "health" =>
                 Ok("OIDC Provider is running")
-                
+
               // Root page
               case GET -> Root =>
                 Ok("""<!DOCTYPE html>
@@ -132,21 +132,21 @@ object OidcServer extends IOApp {
                      |</body>
                      |</html>""".stripMargin)
                    .map(_.withContentType(org.http4s.headers.`Content-Type`(MediaType.text.html)))
-                   
+
               // OIDC Discovery
               case GET -> Root / ".well-known" / "openid-configuration" =>
                 discoveryEndpoint.routes.run(org.http4s.Request[IO](org.http4s.Method.GET, org.http4s.Uri.unsafeFromString("/.well-known/openid-configuration"))).value.flatMap {
                   case Some(resp) => IO.pure(resp)
                   case None => NotFound("Discovery endpoint not found")
                 }
-                
+
               // JWKS
               case GET -> Root / "jwks" =>
                 jwksEndpoint.routes.run(org.http4s.Request[IO](org.http4s.Method.GET, org.http4s.Uri.unsafeFromString("/jwks"))).value.flatMap {
                   case Some(resp) => IO.pure(resp)
                   case None => NotFound("JWKS endpoint not found")
                 }
-                
+
               // Delegate other requests to endpoints
               case req =>
                 authEndpoint.routes.run(req).value.flatMap {
@@ -163,7 +163,7 @@ object OidcServer extends IOApp {
                 }
             }.orNotFound
           }
-          
+
           // Start server
           host <- IO.fromOption(Host.fromString(config.server.host))(
             new RuntimeException(s"Invalid host: ${config.server.host}")
@@ -171,7 +171,7 @@ object OidcServer extends IOApp {
           port <- IO.fromOption(Port.fromInt(config.server.port))(
             new RuntimeException(s"Invalid port: ${config.server.port}")
           )
-          
+
           _ <- EmberServerBuilder.default[IO]
             .withHost(host)
             .withPort(port)
@@ -262,38 +262,38 @@ object OidcServer extends IOApp {
     val portalClientId = sys.env.getOrElse("OIDC_CLIENT_PORTAL_ID", "obp-portal-client")
     val explorerClientId = sys.env.getOrElse("OIDC_CLIENT_EXPLORER_ID", "obp-explorer-ii-client")
     val opeyClientId = sys.env.getOrElse("OIDC_CLIENT_OPEY_ID", "obp-opey-ii-client")
-    
+
     for {
       _ <- IO(println(s"🔍 DEBUG: Looking for clients with IDs:"))
       _ <- IO(println(s"   OBP-API: $obpApiClientId"))
       _ <- IO(println(s"   Portal: $portalClientId"))
       _ <- IO(println(s"   Explorer: $explorerClientId"))
       _ <- IO(println(s"   Opey: $opeyClientId"))
-      
+
       // Fetch actual client configurations from database
       obpApiClient <- authService.findAdminClientById(obpApiClientId)
       portalClient <- authService.findAdminClientById(portalClientId)
       explorerClient <- authService.findAdminClientById(explorerClientId)
       opeyClient <- authService.findAdminClientById(opeyClientId)
-      
+
       _ <- IO(println(s"🔍 DEBUG: Client lookup results:"))
       _ <- IO(println(s"   OBP-API: ${if (obpApiClient.isDefined) "FOUND" else "NOT FOUND"}"))
       _ <- IO(println(s"   Portal: ${if (portalClient.isDefined) "FOUND" else "NOT FOUND"}"))
       _ <- IO(println(s"   Explorer: ${if (explorerClient.isDefined) "FOUND" else "NOT FOUND"}"))
       _ <- IO(println(s"   Opey: ${if (opeyClient.isDefined) "FOUND" else "NOT FOUND"}"))
       _ <- IO(println())
-      
+
       _ <- IO(println())
       _ <- IO(println("=" * 100))
       _ <- IO(println("🚀 OBP PROJECT CONFIGURATIONS - Ready to copy & paste"))
       _ <- IO(println("=" * 100))
       _ <- IO(println())
-      
+
       _ <- printOBPApiConfig(baseUri, obpApiClient)
       _ <- printPortalConfig(baseUri, portalClient)
       _ <- printApiExplorerConfig(baseUri, explorerClient)
       _ <- printOpeyConfig(baseUri, opeyClient)
-      
+
       _ <- IO(println("=" * 100))
       _ <- IO(println("✅ All configurations printed above. Happy coding! 🎉"))
       _ <- IO(println("💡 Note: Client secrets shown above are from your v_oidc_clients database"))
@@ -309,7 +309,7 @@ object OidcServer extends IOApp {
     val clientId = client.map(_.client_id).getOrElse("obp-api-client")
     val clientSecret = client.flatMap(_.client_secret).getOrElse("CLIENT_NOT_REGISTERED")
     println(s"🔑 DEBUG: OBP-API client id: ${clientId}")
-    
+
     for {
       _ <- IO(println("📋 1. OBP-API Configuration (props file):"))
       _ <- IO(println("-" * 50))
@@ -320,7 +320,7 @@ object OidcServer extends IOApp {
       _ <- IO(println("openid_connect_1.button_text=OBP-OIDC"))
       _ <- IO(println(s"openid_connect_1.client_id=$clientId"))
       _ <- IO(println(s"openid_connect_1.client_secret=$clientSecret"))
-      _ <- IO(println(s"openid_connect_1.callback_url=${sys.env.getOrElse("OBP_API_URL", "http://localhost:8080")}/oauth/callback"))
+      _ <- IO(println(s"openid_connect_1.callback_url=${sys.env.getOrElse("OBP_API_URL", "http://localhost:8080")}/auth/openid-connect/callback"))
       _ <- IO(println(s"openid_connect_1.endpoint.discovery=$baseUri/.well-known/openid-configuration"))
       _ <- IO(println(s"openid_connect_1.endpoint.authorization=$baseUri/auth"))
       _ <- IO(println(s"openid_connect_1.endpoint.userinfo=$baseUri/userinfo"))
@@ -341,7 +341,7 @@ object OidcServer extends IOApp {
     val clientId = client.map(_.client_id).getOrElse("obp-portal-client")
     val clientSecret = client.flatMap(_.client_secret).getOrElse("CLIENT_NOT_REGISTERED")
     println(s"🔑 DEBUG: Portal client id: $clientId")
-    
+
     for {
       _ <- IO(println("🌐 2. OBP-Portal Configuration (.env file):"))
       _ <- IO(println("-" * 50))
@@ -374,7 +374,7 @@ object OidcServer extends IOApp {
     val clientId = client.map(_.client_id).getOrElse("explorer-ii-client")
     val clientSecret = client.flatMap(_.client_secret).getOrElse("CLIENT_NOT_REGISTERED")
     println(s"🔑 DEBUG: Explorer client id: $clientId")
-    
+
     for {
       _ <- IO(println("🔍 3. API-Explorer-II Configuration (.env file):"))
       _ <- IO(println("-" * 50))
@@ -404,7 +404,7 @@ object OidcServer extends IOApp {
     val clientId = client.map(_.client_id).getOrElse("opey-ii-client")
     val clientSecret = client.flatMap(_.client_secret).getOrElse("CLIENT_NOT_REGISTERED")
     println(s"🔑 DEBUG: Opey client id: $clientId")
-    
+
     for {
       _ <- IO(println("🤖 4. Opey-II Configuration (.env file):"))
       _ <- IO(println("-" * 50))

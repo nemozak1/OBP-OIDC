@@ -1,0 +1,24 @@
+# OBP-OIDC Database Configuration
+# Generated at: 2025-08-24T07:18:22.176075804Z
+
+# Database Setup Commands
+# Run these as postgres user:
+sudo -u postgres psql << EOF
+CREATE DATABASE sandbox;
+CREATE USER oidc_user WITH PASSWORD '3!Y!T$eTMa*Br36zuZGcKKbu';
+CREATE USER oidc_admin WITH PASSWORD 'ueJTGzeeRnG!tzHjwU^$wN*X';
+GRANT CONNECT ON DATABASE sandbox TO oidc_user;
+GRANT CONNECT ON DATABASE sandbox TO oidc_admin;
+\q
+EOF
+
+# Environment Variables for OBP-OIDC
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_NAME=sandbox
+export OIDC_USER_USERNAME=oidc_user
+export OIDC_USER_PASSWORD=3!Y!T$eTMa*Br36zuZGcKKbu
+export DB_MAX_CONNECTIONS=10
+export OIDC_ADMIN_USERNAME=oidc_admin
+export OIDC_ADMIN_PASSWORD=ueJTGzeeRnG!tzHjwU^$wN*X
+export DB_ADMIN_MAX_CONNECTIONS=5

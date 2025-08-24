@@ -20,7 +20,7 @@ A bare bones OpenID Connect (OIDC) provider built with http4s and functional pro
 - **HTTP Framework**: http4s with Ember server
 - **Effect System**: Cats Effect IO
 - **Database**: PostgreSQL with Doobie for functional database access
-- **JSON**: Circe for serialization/deserialization  
+- **JSON**: Circe for serialization/deserialization
 - **JWT**: Auth0 Java JWT library
 - **Build Tool**: Maven
 - **Testing**: ScalaTest
@@ -30,6 +30,7 @@ A bare bones OpenID Connect (OIDC) provider built with http4s and functional pro
 **New to OBP-OIDC? Get up and running in 3 steps:**
 
 ### Step 1: Generate Configuration
+
 ```bash
 # Interactive configuration generator
 ./generate-config.sh
@@ -39,7 +40,9 @@ mvn exec:java -Dexec.args="--generate-config"
 ```
 
 ### Step 2: Set Up Database
+
 Copy & paste the generated database setup commands from `obp-oidc-database-config.txt`:
+
 ```bash
 # Example output (your passwords will be different):
 sudo -u postgres psql << EOF
@@ -53,6 +56,7 @@ EOF
 ```
 
 ### Step 3: Start OBP-OIDC
+
 ```bash
 # Export the generated environment variables
 export OIDC_USER_PASSWORD=YourGeneratedPassword123!
@@ -77,9 +81,11 @@ export OIDC_ADMIN_PASSWORD=YourGeneratedAdminPass456#
 ## Database Setup
 
 ### 1. PostgreSQL Database
+
 Ensure you have a PostgreSQL database with the OBP authuser table populated with users.
 
 ### 2. Create OIDC Database User and View
+
 Run the OIDC setup script to create a read-only database user and view:
 
 ```bash
@@ -87,14 +93,17 @@ psql -h localhost -p 5432 -d sandbox -U obp -f workspace_2024/OBP-API-C/OBP-API/
 ```
 
 This script will:
+
 - Create `oidc_user` with read-only access
 - Create `v_authuser_oidc` view exposing validated users
 - Set up proper permissions and security measures
 
 ### 3. Database Configuration
+
 Set environment variables for database connection:
 
 **Read-Only Database User** (for user authentication):
+
 ```bash
 export DB_HOST=localhost
 export DB_PORT=5432
@@ -105,6 +114,7 @@ export DB_MAX_CONNECTIONS=10
 ```
 
 **Admin Database User** (for client management via v_oidc_admin_clients):
+
 ```bash
 export OIDC_ADMIN_USERNAME=oidc_admin_user
 export OIDC_ADMIN_PASSWORD=CHANGE_THIS_TO_A_VERY_STRONG_ADMIN_PASSWORD_2024!
@@ -112,10 +122,11 @@ export DB_ADMIN_MAX_CONNECTIONS=5
 ```
 
 **OBP Ecosystem Client Configuration** (optional - auto-generated if not set):
+
 ```bash
 export OIDC_CLIENT_OBP_API_ID=obp-api-client
 export OIDC_CLIENT_OBP_API_SECRET=YOUR_SECURE_SECRET_HERE
-export OIDC_CLIENT_OBP_API_REDIRECTS=http://localhost:8080/oauth/callback
+export OIDC_CLIENT_OBP_API_REDIRECTS=http://localhost:8080/auth/openid-connect/callback
 
 export OIDC_CLIENT_PORTAL_ID=obp-portal-client
 export OIDC_CLIENT_PORTAL_SECRET=YOUR_SECURE_SECRET_HERE
@@ -133,6 +144,7 @@ export OIDC_CLIENT_OPEY_REDIRECTS=http://localhost:3002/callback,http://localhos
 ⚠️ **Security Note**: Use a strong password and follow the security recommendations in the setup script.
 
 ### 4. Test Admin Database Connection (Optional)
+
 Before running the server, you can test your admin database configuration:
 
 ```bash
@@ -146,8 +158,9 @@ chmod +x test-admin-db.sh
 ```
 
 This will verify:
+
 - Basic admin database connection
-- Access to `v_oidc_admin_clients` view  
+- Access to `v_oidc_admin_clients` view
 - INSERT, UPDATE, and DELETE permissions
 
 ## Quick Start
@@ -155,11 +168,13 @@ This will verify:
 ### Build and Run
 
 1. **Compile the project:**
+
    ```bash
    mvn clean compile
    ```
 
 2. **Run the server:**
+
    ```bash
    mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
    ```
@@ -174,11 +189,13 @@ This will verify:
 For easier configuration and running:
 
 1. **Copy the example script:**
+
    ```bash
    cp run-server.example.sh run-server.sh
    ```
 
 2. **Edit your database credentials:**
+
    ```bash
    nano run-server.sh
    # Edit the DB_* environment variables with your actual database settings
@@ -191,6 +208,7 @@ For easier configuration and running:
    ```
 
 The script will:
+
 - ✅ Set all necessary environment variables
 - ✅ Build the project
 - ✅ Start the server with helpful output
@@ -255,6 +273,7 @@ Simply copy this output to your OBP-API props file!
 #### Security Note
 
 ⚠️ **Important**: The `run-server.sh` file is in `.gitignore` to prevent accidentally committing database credentials. Always:
+
 - Keep your database passwords secure
 - Never commit `run-server.sh` with real credentials
 - Use the `run-server.example.sh` template for sharing configurations
@@ -262,37 +281,47 @@ Simply copy this output to your OBP-API props file!
 ## OIDC Endpoints
 
 ### Discovery Document
+
 ```
 GET /.well-known/openid-configuration
 ```
+
 Returns the OIDC discovery document with all endpoint URLs and supported features.
 
 ### Authorization Endpoint
+
 ```
 GET /auth?response_type=code&client_id=YOUR_CLIENT&redirect_uri=YOUR_REDIRECT&scope=openid%20profile%20email&state=ABC123
 ```
+
 Shows HTML login form for user authentication. Supports authorization code flow.
 
 ### Token Endpoint
+
 ```
 POST /token
 Content-Type: application/x-www-form-urlencoded
 
 grant_type=authorization_code&code=AUTH_CODE&redirect_uri=YOUR_REDIRECT&client_id=YOUR_CLIENT
 ```
+
 Exchanges authorization code for ID token and access token.
 
 ### UserInfo Endpoint
+
 ```
 GET /userinfo
 Authorization: Bearer ACCESS_TOKEN
 ```
+
 Returns user claims based on token scope.
 
 ### JWKS Endpoint
+
 ```
 GET /jwks
 ```
+
 Returns JSON Web Key Set for token verification.
 
 ## Testing the Server
@@ -320,6 +349,7 @@ curl http://localhost:9000/.well-known/openid-configuration
 ```
 
 **Expected JSON response:**
+
 ```json
 {
   "issuer": "http://localhost:9000",
@@ -343,13 +373,14 @@ curl http://localhost:9000/jwks
 ```
 
 **Expected JSON response:**
+
 ```json
 {
   "keys": [
     {
       "kty": "RSA",
       "use": "sig",
-      "alg": "RS256", 
+      "alg": "RS256",
       "kid": "your-key-id",
       "n": "...",
       "e": "AQAB"
@@ -369,27 +400,32 @@ curl "http://localhost:9000/auth?response_type=code&client_id=test-client&redire
 ### Browser Testing
 
 Open these URLs in your browser:
+
 - **Welcome Page**: `http://localhost:9000/`
-- **Discovery**: `http://localhost:9000/.well-known/openid-configuration`  
+- **Discovery**: `http://localhost:9000/.well-known/openid-configuration`
 - **JWKS**: `http://localhost:9000/jwks`
 - **Login Form**: `http://localhost:9000/auth?response_type=code&client_id=test-client&redirect_uri=https://example.com/callback&scope=openid&state=test123`
 
 ## Authentication
 
 ### Database Views
+
 This OIDC provider uses three PostgreSQL database views:
 
 #### User Authentication (`v_oidc_users`)
+
 - Authenticates users from the validated authuser table
-- BCrypt password verification 
+- BCrypt password verification
 - User profile information (name, email)
 
 #### Client Registration (`v_oidc_clients`)
+
 - Validates registered OIDC clients
 - Controls allowed redirect URIs
 - Manages client permissions and scopes
 
 #### Client Management (`v_oidc_admin_clients`)
+
 - Provides write access for client administration
 - Used by admin database user for CRUD operations
 - Supports creating, updating, and deleting OIDC clients
@@ -397,13 +433,15 @@ This OIDC provider uses three PostgreSQL database views:
 ### Supported Database Fields
 
 #### User Fields (`v_oidc_users` view)
+
 - `username`: Login identifier
-- `firstname`, `lastname`: User's full name  
+- `firstname`, `lastname`: User's full name
 - `email`: User's email address
 - `uniqueid`: Used as OIDC subject identifier
 - `validated`: Must be true for authentication
 
 #### Client Fields (`v_oidc_clients` and `v_oidc_admin_clients` views)
+
 - `client_id`: Unique client identifier
 - `client_secret`: Client authentication secret
 - `client_name`: Human-readable client name
@@ -417,6 +455,7 @@ This OIDC provider uses three PostgreSQL database views:
 - `password_slt`: Password salt for verification
 
 #### Client Fields (`v_oidc_clients` view)
+
 - `client_id`: Unique client identifier
 - `client_secret`: Secret for confidential clients (optional)
 - `client_name`: Human-readable application name
@@ -428,6 +467,7 @@ This OIDC provider uses three PostgreSQL database views:
 ## Example OIDC Flow
 
 1. **Authorization Request:**
+
    ```
    http://localhost:9000/auth?response_type=code&client_id=test-client&redirect_uri=https://example.com/callback&scope=openid%20profile%20email&state=abc123
    ```
@@ -437,6 +477,7 @@ This OIDC provider uses three PostgreSQL database views:
 3. **Authorization Code:** Redirected to your callback URL with code parameter
 
 4. **Token Exchange:**
+
    ```bash
    curl -X POST http://localhost:9000/token \
      -H "Content-Type: application/x-www-form-urlencoded" \
@@ -452,9 +493,11 @@ This OIDC provider uses three PostgreSQL database views:
 ## Testing
 
 ### Database Connection Test
+
 The server will test the database connection on startup and log the results.
 
 ### Integration Tests
+
 Run the test suite:
 
 ```bash
@@ -462,6 +505,7 @@ mvn test
 ```
 
 The tests demonstrate:
+
 - Discovery document validation
 - JWKS endpoint functionality
 - Authorization flow with login forms
@@ -529,6 +573,7 @@ src/main/scala/com/tesobe/oidc/
 If the server hangs during startup (especially after showing "🚀 Initializing OBP ecosystem OIDC clients..."):
 
 1. **Admin Database Issues**: The server may be waiting for admin database connection
+
    ```bash
    # Check if admin database user exists and has permissions
    ./test-admin-db.sh
@@ -540,6 +585,7 @@ If the server hangs during startup (especially after showing "🚀 Initializing 
    - Server will provide manual SQL commands if admin DB unavailable
 
 3. **Manual Client Creation**: If admin database unavailable, copy SQL from server logs:
+
    ```sql
    INSERT INTO v_oidc_admin_clients (client_id, client_secret, client_name, ...)
    VALUES ('obp-api-client', 'your-secret', 'OBP-API', ...);
@@ -551,17 +597,19 @@ If the server hangs during startup (especially after showing "🚀 Initializing 
    ```
 
 ### Database Connection Issues
+
 1. Verify PostgreSQL is running and accessible
 2. Check database credentials and permissions:
    - `OIDC_USER_USERNAME` and `OIDC_USER_PASSWORD` for read-only access
    - `OIDC_ADMIN_USERNAME` and `OIDC_ADMIN_PASSWORD` for client management
 3. Ensure database views exist:
    - `v_oidc_users` for user authentication
-   - `v_oidc_clients` for client validation  
+   - `v_oidc_clients` for client validation
    - `v_oidc_admin_clients` for client management (optional)
 4. Review database logs for connection errors
 
 ### Authentication Failures
+
 1. Verify user exists and is validated in authuser table
 2. Check password hash format matches BCrypt expectations
 3. Review application logs for authentication attempts

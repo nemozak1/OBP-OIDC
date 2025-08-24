@@ -2,7 +2,7 @@
  * Copyright (c) 2025 TESOBE
  *
  * This file is part of OBP-OIDC.
- * 
+ *
  * OBP-OIDC is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -32,7 +32,7 @@ import scala.concurrent.duration._
 
 /**
  * Client Bootstrap Service
- * 
+ *
  * Automatically creates (but never modifies) standard OBP ecosystem clients on startup:
  * - OBP-API: Core banking API service
  * - Portal: OBP Portal web application
@@ -40,7 +40,7 @@ import scala.concurrent.duration._
  * - Opey II: OBP mobile/web client
  */
 class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
-  
+
   private val logger = LoggerFactory.getLogger(getClass)
   private val secureRandom = new SecureRandom()
 
@@ -51,7 +51,7 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
     IO {
       val dbUserPassword = generateSecurePassword()
       val dbAdminPassword = generateSecurePassword()
-      
+
       println()
       println("=" * 80)
       println("🔐 DEVELOPER HELPER: Database Configuration")
@@ -69,7 +69,7 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
       println("\\q")
       println("EOF")
       println()
-      
+
       println("📋 Environment Variables for OBP-OIDC (copy to your .env or export):")
       println("-" * 50)
       println("export DB_HOST=localhost")
@@ -82,7 +82,7 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
       println(s"export OIDC_ADMIN_PASSWORD=$dbAdminPassword")
       println("export DB_ADMIN_MAX_CONNECTIONS=5")
       println()
-      
+
       // Write to file
       val configContent = s"""# OBP-OIDC Database Configuration
 # Generated at: ${java.time.Instant.now()}
@@ -109,17 +109,17 @@ export OIDC_ADMIN_USERNAME=oidc_admin
 export OIDC_ADMIN_PASSWORD=$dbAdminPassword
 export DB_ADMIN_MAX_CONNECTIONS=5
 """
-      
+
       try {
         val file = new java.io.PrintWriter("obp-oidc-database-config.txt")
         file.write(configContent)
         file.close()
         println("📄 Database configuration also saved to: obp-oidc-database-config.txt")
       } catch {
-        case e: Exception => 
+        case e: Exception =>
           println(s"⚠️  Could not write database config file: ${e.getMessage}")
       }
-      
+
       println("=" * 80)
       println("✅ Database configuration ready! Set up your database first, then run OBP-OIDC.")
       println("=" * 80)
@@ -129,13 +129,13 @@ export DB_ADMIN_MAX_CONNECTIONS=5
 
   /**
    * Initialize all standard OBP clients
-   * 
+   *
    * BEHAVIOR: Create-only mode - never modifies existing clients
    * - First run: Creates all standard OBP ecosystem clients
    * - Subsequent runs: Only creates newly added clients, preserves existing ones
    * - Existing clients: Skipped with read-only message, configurations preserved
    * - New apps: Automatically created when added to the codebase
-   * 
+   *
    * This ensures persistent state and prevents accidental modification of
    * manually configured client settings in production environments.
    */
@@ -146,7 +146,7 @@ export DB_ADMIN_MAX_CONNECTIONS=5
     val skipBootstrap = sys.env.get("OIDC_SKIP_CLIENT_BOOTSTRAP").exists(_.toLowerCase == "true")
     println(s"🔧 DEBUG: OIDC_SKIP_CLIENT_BOOTSTRAP = ${sys.env.get("OIDC_SKIP_CLIENT_BOOTSTRAP").getOrElse("not set")}")
     logger.info(s"🔧 OIDC_SKIP_CLIENT_BOOTSTRAP = ${sys.env.get("OIDC_SKIP_CLIENT_BOOTSTRAP").getOrElse("not set")}")
-    
+
     if (skipBootstrap) {
       println("⏭️  DEBUG: Client bootstrap disabled via OIDC_SKIP_CLIENT_BOOTSTRAP environment variable")
       logger.info("⏭️  Client bootstrap disabled via OIDC_SKIP_CLIENT_BOOTSTRAP environment variable")
@@ -157,7 +157,7 @@ export DB_ADMIN_MAX_CONNECTIONS=5
       logger.info("🚦 Bootstrap not disabled - proceeding with client initialization")
       logger.info("🚀 Initializing OBP ecosystem OIDC clients...")
       logger.info("🔍 Step 1: Checking admin database availability...")
-      
+
       // Check if admin database is available first
       println("🔍 DEBUG: About to check admin database availability...")
       checkAdminDatabaseAvailability().flatMap { adminAvailable =>
@@ -197,8 +197,8 @@ export DB_ADMIN_MAX_CONNECTIONS=5
   private def createOBPAPIClient(): OidcClient = {
     val clientId = sys.env.getOrElse("OIDC_CLIENT_OBP_API_ID", "obp-api-client")
     val clientSecret = generateFreshSecretIfPlaceholder(sys.env.get("OIDC_CLIENT_OBP_API_SECRET"))
-    val redirectUris = sys.env.getOrElse("OIDC_CLIENT_OBP_API_REDIRECTS", s"${sys.env.getOrElse("OBP_API_URL", "http://localhost:8080")}/oauth/callback").split(",").toList
-    
+    val redirectUris = sys.env.getOrElse("OIDC_CLIENT_OBP_API_REDIRECTS", s"${sys.env.getOrElse("OBP_API_URL", "http://localhost:8080")}/auth/openid-connect/callback").split(",").toList
+
     OidcClient(
       client_id = clientId,
       client_secret = Some(clientSecret),
@@ -219,7 +219,7 @@ export DB_ADMIN_MAX_CONNECTIONS=5
     val clientId = sys.env.getOrElse("OIDC_CLIENT_PORTAL_ID", "obp-portal-client")
     val clientSecret = generateFreshSecretIfPlaceholder(sys.env.get("OIDC_CLIENT_PORTAL_SECRET"))
     val redirectUris = sys.env.getOrElse("OIDC_CLIENT_PORTAL_REDIRECTS", "http://localhost:3000/callback,http://localhost:3000/oauth/callback").split(",").toList
-    
+
     OidcClient(
       client_id = clientId,
       client_secret = Some(clientSecret),
@@ -240,7 +240,7 @@ export DB_ADMIN_MAX_CONNECTIONS=5
     val clientId = sys.env.getOrElse("OIDC_CLIENT_EXPLORER_ID", "obp-explorer-ii-client")
     val clientSecret = generateFreshSecretIfPlaceholder(sys.env.get("OIDC_CLIENT_EXPLORER_SECRET"))
     val redirectUris = sys.env.getOrElse("OIDC_CLIENT_EXPLORER_REDIRECTS", "http://localhost:3001/callback,http://localhost:3001/oauth/callback").split(",").toList
-    
+
     OidcClient(
       client_id = clientId,
       client_secret = Some(clientSecret),
@@ -261,7 +261,7 @@ export DB_ADMIN_MAX_CONNECTIONS=5
     val clientId = sys.env.getOrElse("OIDC_CLIENT_OPEY_ID", "obp-opey-ii-client")
     val clientSecret = generateFreshSecretIfPlaceholder(sys.env.get("OIDC_CLIENT_OPEY_SECRET"))
     val redirectUris = sys.env.getOrElse("OIDC_CLIENT_OPEY_REDIRECTS", "http://localhost:3002/callback,http://localhost:3002/oauth/callback").split(",").toList
-    
+
     OidcClient(
       client_id = clientId,
       client_secret = Some(clientSecret),
@@ -286,11 +286,11 @@ export DB_ADMIN_MAX_CONNECTIONS=5
       IO.sleep(5.seconds),
       authService.listClients()
     ).map {
-      case Left(_) => 
+      case Left(_) =>
         println("   ⏱️ DEBUG: Admin database check TIMED OUT after 5 seconds")
         logger.warn("   ⏱️ Admin database check timed out after 5 seconds")
         false
-      case Right(result) => 
+      case Right(result) =>
         result match {
           case Right(clients) =>
             println(s"   ✅ DEBUG: Admin database responds - found ${clients.length} existing clients")
@@ -359,7 +359,7 @@ export DB_ADMIN_MAX_CONNECTIONS=5
   private def logClientConfiguration(): IO[Unit] = {
     val clients = List(
       createOBPAPIClient(),
-      createPortalClient(), 
+      createPortalClient(),
       createExplorerIIClient(),
       createOpeyIIClient()
     )
@@ -370,7 +370,7 @@ export DB_ADMIN_MAX_CONNECTIONS=5
       println("🚀 DEVELOPER HELPER: Ready-to-Copy OBP Project Configurations")
       println("=" * 80)
       println()
-      
+
       // OBP-API Configuration
       val obpClient = clients.find(_.client_id.contains("api")).get
       println("📋 1. OBP-API Configuration (Props file):")
@@ -384,7 +384,7 @@ export DB_ADMIN_MAX_CONNECTIONS=5
       println(s"oauth2.client_secret=${obpClient.client_secret.getOrElse("NOT_SET")}")
       println(s"oauth2.callback_url=${obpClient.redirect_uris.head}")
       println()
-      
+
       // Portal Configuration
       val portalClient = clients.find(_.client_id.contains("portal")).get
       println("📋 2. OBP-Portal Configuration (.env file):")
@@ -397,8 +397,8 @@ export DB_ADMIN_MAX_CONNECTIONS=5
       println(s"OAUTH_USERINFO_URL=${config.issuer}/userinfo")
       println(s"NEXT_PUBLIC_OAUTH_REDIRECT_URI=${portalClient.redirect_uris.head}")
       println()
-      
-      // Explorer II Configuration  
+
+      // Explorer II Configuration
       val explorerClient = clients.find(_.client_id.contains("explorer")).get
       println("📋 3. API-Explorer-II Configuration (environment variables):")
       println("-" * 50)
@@ -409,26 +409,26 @@ export DB_ADMIN_MAX_CONNECTIONS=5
       println(s"export REACT_APP_OAUTH_TOKEN_URL=${config.issuer}/token")
       println(s"export REACT_APP_OAUTH_REDIRECT_URI=${explorerClient.redirect_uris.head}")
       println()
-      
+
       // Opey II Configuration
       val opeyClient = clients.find(_.client_id.contains("opey")).get
       println("📋 4. Opey-II Configuration (environment variables):")
       println("-" * 50)
-      println("# Add to your Opey-II environment") 
+      println("# Add to your Opey-II environment")
       println(s"export VUE_APP_OAUTH_CLIENT_ID=${opeyClient.client_id}")
       println(s"export VUE_APP_OAUTH_CLIENT_SECRET=${opeyClient.client_secret.getOrElse("NOT_SET")}")
       println(s"export VUE_APP_OAUTH_AUTHORIZATION_URL=${config.issuer}/auth")
       println(s"export VUE_APP_OAUTH_TOKEN_URL=${config.issuer}/token")
       println(s"export VUE_APP_OAUTH_REDIRECT_URI=${opeyClient.redirect_uris.head}")
       println()
-      
+
       println("=" * 80)
       println("✅ All configurations ready! Copy & paste the sections you need.")
       println("🔐 Fresh secure secrets have been generated and stored in database.")
       println(s"💡 OIDC Server will be available at: ${config.issuer}")
       println("=" * 80)
       println()
-      
+
       // Also write to config file for easy access
       writeConfigurationFile(clients)
     }
@@ -441,14 +441,14 @@ export DB_ADMIN_MAX_CONNECTIONS=5
     val clients = List(
       createOBPAPIClient(),
       createPortalClient(),
-      createExplorerIIClient(), 
+      createExplorerIIClient(),
       createOpeyIIClient()
     )
 
     IO {
       logger.info("📋 Manual Client Creation SQL:")
       logger.info("=" * 60)
-      
+
       clients.foreach { client =>
         logger.info(s"""
 INSERT INTO v_oidc_admin_clients (
@@ -470,7 +470,7 @@ INSERT INTO v_oidc_admin_clients (
   true
 );""")
       }
-      
+
       logger.info("=" * 60)
       logger.info("💡 Run these SQL commands manually to create OIDC clients")
     }
@@ -499,14 +499,14 @@ INSERT INTO v_oidc_admin_clients (
    */
   private def generateFreshSecretIfPlaceholder(envSecret: Option[String]): String = {
     envSecret match {
-      case Some(secret) if secret.contains("CHANGE_THIS") => 
+      case Some(secret) if secret.contains("CHANGE_THIS") =>
         val fresh = generateSecureSecret()
         println(s"🔐 Generated fresh secret (was placeholder): ${fresh.take(20)}...")
         fresh
-      case Some(secret) if secret.nonEmpty => 
+      case Some(secret) if secret.nonEmpty =>
         println(s"🔑 Using existing secret: ${secret.take(20)}...")
         secret
-      case _ => 
+      case _ =>
         val fresh = generateSecureSecret()
         println(s"🔐 Generated fresh secret (none provided): ${fresh.take(20)}...")
         fresh
@@ -524,7 +524,7 @@ INSERT INTO v_oidc_admin_clients (
       file.close()
       println("📄 Configuration also saved to: obp-oidc-generated-config.txt")
     } catch {
-      case e: Exception => 
+      case e: Exception =>
         println(s"⚠️  Could not write config file: ${e.getMessage}")
     }
   }
@@ -537,7 +537,7 @@ INSERT INTO v_oidc_admin_clients (
     val portalClient = clients.find(_.client_id.contains("portal")).get
     val explorerClient = clients.find(_.client_id.contains("explorer")).get
     val opeyClient = clients.find(_.client_id.contains("opey")).get
-    
+
     s"""# OBP-OIDC Generated Configuration
 # Generated at: ${java.time.Instant.now()}
 # Copy the sections you need to your project configuration files
@@ -595,9 +595,9 @@ export VUE_APP_OAUTH_REDIRECT_URI=${opeyClient.redirect_uris.head}
 }
 
 object ClientBootstrap {
-  
+
   private val logger = LoggerFactory.getLogger(getClass)
-  
+
   /**
    * Create and run client bootstrap
    */
