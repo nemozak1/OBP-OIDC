@@ -33,7 +33,7 @@ import scala.concurrent.duration._
 /**
  * Client Bootstrap Service
  * 
- * Automatically creates or updates standard OBP ecosystem clients on startup:
+ * Automatically creates (but never modifies) standard OBP ecosystem clients on startup:
  * - OBP-API: Core banking API service
  * - Portal: OBP Portal web application
  * - Explorer II: API exploration tool
@@ -129,6 +129,15 @@ export DB_ADMIN_MAX_CONNECTIONS=5
 
   /**
    * Initialize all standard OBP clients
+   * 
+   * BEHAVIOR: Create-only mode - never modifies existing clients
+   * - First run: Creates all standard OBP ecosystem clients
+   * - Subsequent runs: Only creates newly added clients, preserves existing ones
+   * - Existing clients: Skipped with read-only message, configurations preserved
+   * - New apps: Automatically created when added to the codebase
+   * 
+   * This ensures persistent state and prevents accidental modification of
+   * manually configured client settings in production environments.
    */
   def initializeClients(): IO[Unit] = {
     println("🎬 DEBUG: ClientBootstrap.initializeClients() called")
@@ -156,7 +165,7 @@ export DB_ADMIN_MAX_CONNECTIONS=5
       if (adminAvailable) {
         println("✅ DEBUG: Admin database available - proceeding with client management")
         logger.info("✅ Step 2: Admin database available - proceeding with client management")
-        logger.info("🔧 Step 3: Creating/updating OBP ecosystem clients...")
+        logger.info("🔧 Step 3: Creating missing OBP ecosystem clients (read-only for existing)...")
         for {
           _ <- IO(println("🔧 DEBUG: Starting individual client creation..."))
           _ <- ensureClient(createOBPAPIClient())
@@ -300,7 +309,7 @@ export DB_ADMIN_MAX_CONNECTIONS=5
   }
 
   /**
-   * Ensure client exists, create if not found, update if different
+   * Ensure client exists, create if not found (never modify existing clients)
    */
   private def ensureClient(clientConfig: OidcClient): IO[Unit] = {
     // Add timeout to prevent hanging
@@ -321,26 +330,10 @@ export DB_ADMIN_MAX_CONNECTIONS=5
     logger.info(s"   🔍 Checking if client exists: ${clientConfig.client_name} (${clientConfig.client_id})")
     authService.findClientById(clientConfig.client_id).flatMap {
       case Some(existingClient) =>
-        println(s"   ✅ DEBUG: Client exists: ${existingClient.client_name}")
-        logger.info(s"   ✅ Client exists: ${existingClient.client_name}")
-        if (needsUpdate(existingClient, clientConfig)) {
-          println(s"   🔄 DEBUG: Client needs update: ${clientConfig.client_name} (${clientConfig.client_id})")
-          logger.info(s"   🔄 Client needs update: ${clientConfig.client_name} (${clientConfig.client_id})")
-          authService.updateClient(clientConfig.client_id, clientConfig).flatMap {
-            case Right(_) =>
-              println(s"   ✅ DEBUG: Successfully updated client: ${clientConfig.client_name}")
-              logger.info(s"   ✅ Successfully updated client: ${clientConfig.client_name}")
-              IO.unit
-            case Left(error) =>
-              println(s"   ❌ DEBUG: Failed to update client ${clientConfig.client_name}: ${error.error} - ${error.error_description.getOrElse("No description")}")
-              logger.error(s"   ❌ Failed to update client ${clientConfig.client_name}: ${error.error} - ${error.error_description.getOrElse("No description")}")
-              IO.unit
-          }
-        } else {
-          println(s"   ✅ DEBUG: Client already up-to-date: ${clientConfig.client_name} (${clientConfig.client_id})")
-          logger.info(s"   ✅ Client already up-to-date: ${clientConfig.client_name} (${clientConfig.client_id})")
-          IO.unit
-        }
+        println(s"   ✅ DEBUG: Client exists: ${existingClient.client_name} - SKIPPING (read-only mode)")
+        logger.info(s"   ✅ Client exists: ${existingClient.client_name} - preserving existing configuration")
+        logger.info(s"   📖 READ-ONLY: Not modifying existing client ${clientConfig.client_id}")
+        IO.unit
       case None =>
         println(s"   ➕ DEBUG: Client not found - creating new client: ${clientConfig.client_name} (${clientConfig.client_id})")
         logger.info(s"   ➕ Client not found - creating new client: ${clientConfig.client_name} (${clientConfig.client_id})")
@@ -358,18 +351,7 @@ export DB_ADMIN_MAX_CONNECTIONS=5
     }
   }
 
-  /**
-   * Check if client needs updating
-   */
-  private def needsUpdate(existing: OidcClient, desired: OidcClient): Boolean = {
-    existing.client_name != desired.client_name ||
-    existing.redirect_uris.toSet != desired.redirect_uris.toSet ||
-    existing.grant_types.toSet != desired.grant_types.toSet ||
-    existing.response_types.toSet != desired.response_types.toSet ||
-    existing.scopes.toSet != desired.scopes.toSet ||
-    existing.token_endpoint_auth_method != desired.token_endpoint_auth_method ||
-    (desired.client_secret.isDefined && existing.client_secret != desired.client_secret)
-  }
+
 
   /**
    * Log configuration for all clients with ready-to-copy configs

@@ -76,8 +76,8 @@ object OidcServer extends IOApp {
       
       exitCode <- DatabaseAuthService.create(config).use { authService =>
         for {
-          // Initialize standard OBP ecosystem clients with timeout
-          _ <- IO(println("🔧 DEBUG: About to start ClientBootstrap initialization..."))
+          // Initialize standard OBP ecosystem clients (create-only mode)
+          _ <- IO(println("🔧 DEBUG: Starting ClientBootstrap initialization (create-only mode)..."))
           _ <- IO(println("🔧 Starting ClientBootstrap initialization..."))
           _ <- IO.race(
             IO.sleep(15.seconds),
@@ -89,7 +89,6 @@ object OidcServer extends IOApp {
             case Right(_) =>
               IO(println("✅ DEBUG: Client initialization completed successfully"))
               IO(println("✅ Client initialization completed successfully"))
-              IO.unit
           }.handleErrorWith { error =>
             IO(println(s"❌ DEBUG: Client initialization FAILED with error: ${error.getClass.getSimpleName}: ${error.getMessage}"))
             IO(println(s"⚠️ Client initialization failed: ${error.getMessage} - continuing server startup"))
@@ -373,7 +372,7 @@ object OidcServer extends IOApp {
   private def printApiExplorerConfig(baseUri: String, client: Option[OidcClient]): IO[Unit] = {
     val clientId = client.map(_.client_id).getOrElse("explorer-ii-client")
     val clientSecret = client.flatMap(_.client_secret).getOrElse("CLIENT_NOT_REGISTERED")
-    println(s"🔑 DEBUG: Explorer client secret: ${clientSecret.take(20)}...")
+    println(s"🔑 DEBUG: Explorer client id: $clientId")
     
     for {
       _ <- IO(println("🔍 3. API-Explorer-II Configuration (.env file):"))
