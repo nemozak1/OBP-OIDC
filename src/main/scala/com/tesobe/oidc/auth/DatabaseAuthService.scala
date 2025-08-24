@@ -365,7 +365,8 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
   }
 
 /**
- * Verify password using BCrypt - compatible with OBP-API implementation
+ * Verify password using BCrypt - compatible with OBP-API Lift MegaProtoUser implementation
+ * Based on OBP-API pattern: BCrypt.hashpw(password, salt).substring(0, 44)
  */
   private def verifyPassword(plainPassword: String, storedHash: String, salt: String): IO[Boolean] = {
     IO {
@@ -379,56 +380,99 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
         logger.debug(s"🔑 Plain password length: ${plainPassword.length}")
         println(s"🔑 Plain password length: ${plainPassword.length}")
 
-        // Try different BCrypt approaches with the at.favre.lib.crypto.bcrypt.BCrypt library
+        // Log hex representation for debugging
+        logger.debug(s"📝 Stored hash (hex): ${storedHash.getBytes("UTF-8").map("%02x".format(_)).mkString}")
+        logger.debug(s"🧂 Salt (hex): ${salt.getBytes("UTF-8").map("%02x".format(_)).mkString}")
+        println(s"📝 Stored hash (hex): ${storedHash.getBytes("UTF-8").map("%02x".format(_)).mkString}")
+        println(s"🧂 Salt (hex): ${salt.getBytes("UTF-8").map("%02x".format(_)).mkString}")
 
-        // Method 1: Try to verify against stored hash directly
-        val result1 = try {
-          BCrypt.verifyer().verify(plainPassword.toCharArray, storedHash.toCharArray).verified
-        } catch {
-          case e: Exception =>
-            println(s"🧪 Test 1 failed: ${e.getMessage}")
-            false
+        val result = if (storedHash.startsWith("b;")) {
+          // Lift MegaProtoUser BCrypt format: "b;" + BCrypt.hashpw(password, salt).substring(0, 44)
+          val hashWithoutPrefix = storedHash.substring(2) // Remove "b;" prefix
+          println(s"🔍 Detected Lift MegaProtoUser BCrypt format")
+          println(s"🔍 Hash without prefix: '$hashWithoutPrefix'")
+
+          try {
+            // Use the BCrypt.hashpw approach that OBP-API uses
+            // Import the jBCrypt library that OBP-API uses (org.mindrot.jbcrypt.BCrypt)
+            import org.mindrot.jbcrypt.{BCrypt => JBCrypt}
+
+            println(s"🔧 About to call JBCrypt.hashpw with:")
+            println(s"   - password: [REDACTED] (length: ${plainPassword.length})")
+            println(s"   - salt: '$salt' (length: ${salt.length})")
+
+            // Generate hash using the same method as OBP-API: BCrypt.hashpw(password, salt).substring(0, 44)
+            val fullGeneratedHash = JBCrypt.hashpw(plainPassword, salt)
+            println(s"🔨 Full generated hash: '$fullGeneratedHash' (length: ${fullGeneratedHash.length})")
+
+            val generatedHash = fullGeneratedHash.substring(0, 44)
+            println(s"🔨 Truncated hash: '$generatedHash' (length: ${generatedHash.length})")
+            println(s"🔍 Expected hash:  '$hashWithoutPrefix' (length: ${hashWithoutPrefix.length})")
+
+            val isMatch = generatedHash == hashWithoutPrefix
+            println(s"🧪 Hash comparison result: $isMatch")
+
+            // Log character-by-character comparison for debugging
+            if (!isMatch) {
+              println(s"🔍 Character comparison:")
+              val minLength = math.min(generatedHash.length, hashWithoutPrefix.length)
+              var firstDifference = -1
+              for (i <- 0 until minLength if firstDifference == -1) {
+                val genChar = generatedHash.charAt(i)
+                val expChar = hashWithoutPrefix.charAt(i)
+                val match_char = if (genChar == expChar) "✓" else "✗"
+                println(s"   [$i]: '$genChar' vs '$expChar' $match_char")
+                if (genChar != expChar) {
+                  println(s"   First difference at position $i")
+                  firstDifference = i
+                }
+              }
+              if (generatedHash.length != hashWithoutPrefix.length) {
+                println(s"   Length difference: ${generatedHash.length} vs ${hashWithoutPrefix.length}")
+              }
+            }
+
+            isMatch
+          } catch {
+            case e: Exception =>
+              println(s"🧪 JBCrypt verification failed: ${e.getMessage}")
+
+              // Fallback to the at.favre.lib BCrypt library
+              try {
+                // Try direct verification with reconstructed hash
+                val reconstructedHash = hashWithoutPrefix + salt
+                println(s"🔨 Fallback: trying reconstructed hash '$reconstructedHash'")
+
+                val fallbackResult = BCrypt.verifyer().verify(plainPassword.toCharArray, reconstructedHash.toCharArray).verified
+                println(s"🧪 Fallback verification result: $fallbackResult")
+                fallbackResult
+              } catch {
+                case e2: Exception =>
+                  println(s"🧪 Fallback also failed: ${e2.getMessage}")
+                  false
+              }
+          }
+        } else {
+          // Standard BCrypt hash format
+          println(s"🔍 Standard BCrypt format detected")
+          try {
+            BCrypt.verifyer().verify(plainPassword.toCharArray, storedHash.toCharArray).verified
+          } catch {
+            case e: Exception =>
+              println(s"🧪 Standard BCrypt verification failed: ${e.getMessage}")
+              false
+          }
         }
-        println(s"🧪 Test 1 - BCrypt.verifyer on stored hash: $result1")
 
-        // Method 2: Try to verify against salt (in case salt is actually the full hash)
-        val result2 = try {
-          BCrypt.verifyer().verify(plainPassword.toCharArray, salt.toCharArray).verified
-        } catch {
-          case e: Exception =>
-            println(s"🧪 Test 2 failed: ${e.getMessage}")
-            false
-        }
-        println(s"🧪 Test 2 - BCrypt.verifyer on salt: $result2")
-
-        // Method 3: Generate hash with salt and compare (OBP-API style)
-        val result3 = try {
-          // Use salt as BCrypt salt parameter and generate hash, then substring to 44 chars
-          val hasher = BCrypt.withDefaults()
-          val hashedResult = hasher.hashToString(12, plainPassword.toCharArray)
-          val hashedSubstring = hashedResult.substring(0, math.min(44, hashedResult.length))
-          println(s"🔨 Generated hash: '$hashedResult'")
-          println(s"🔨 Substring(0,44): '$hashedSubstring'")
-          hashedSubstring == storedHash
-        } catch {
-          case e: Exception =>
-            println(s"🧪 Test 3 failed: ${e.getMessage}")
-            false
-        }
-        println(s"🧪 Test 3 - Generate hash and substring: $result3")
-
-        val finalResult = result1 || result2 || result3
-
-        if (finalResult) {
-          val method = if(result1) "verify-stored-hash" else if(result2) "verify-salt" else "generate-and-compare"
-          println(s"✅ Password verification SUCCESSFUL (method: $method)")
+        if (result) {
+          println(s"✅ Password verification SUCCESSFUL")
           logger.info(s"✅ Password verification SUCCESSFUL")
         } else {
-          println(s"❌ Password verification FAILED - none of the methods worked")
+          println(s"❌ Password verification FAILED")
           logger.warn(s"❌ Password verification FAILED")
         }
 
-        finalResult
+        result
       } catch {
         case e: Exception =>
           println(s"💥 Error during password verification: ${e.getMessage}")

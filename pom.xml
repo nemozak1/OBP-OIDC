@@ -25,7 +25,7 @@
     <postgresql.version>42.7.1</postgresql.version>
     <bcrypt.version>0.10.2</bcrypt.version>
     <hikaricp.version>5.1.0</hikaricp.version>
-    
+
     <!-- Build settings -->
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>${project.build.sourceEncoding}</project.reporting.outputEncoding>
@@ -139,6 +139,13 @@
       <groupId>at.favre.lib</groupId>
       <artifactId>bcrypt</artifactId>
       <version>${bcrypt.version}</version>
+    </dependency>
+
+    <!-- jBCrypt - same library used by OBP-API -->
+    <dependency>
+      <groupId>org.mindrot</groupId>
+      <artifactId>jbcrypt</artifactId>
+      <version>0.4</version>
     </dependency>
 
     <!-- Logging -->

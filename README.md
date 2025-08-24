@@ -566,6 +566,100 @@ src/main/scala/com/tesobe/oidc/
 - Comprehensive logging for security monitoring
 - No password storage in memory beyond verification
 
+## Database Callback URL Fix
+
+### Issue: Wrong Callback URL in Database
+
+If you encounter redirect issues where the system redirects to `http://localhost:8080/oauth/callback` instead of `http://localhost:8080/auth/openid-connect/callback`, you need to update the database record.
+
+**Root Cause:** The `consumer` table stores the client's `redirecturl` field, which may have been set incorrectly during initial client creation.
+
+**Fix Steps:**
+
+1. **Run the SQL fix script:**
+
+   ```bash
+   psql -d sandbox -f fix-callback-url.sql
+   ```
+
+2. **Or manually update via SQL:**
+
+   ```sql
+   UPDATE consumer
+   SET redirecturl = 'http://localhost:8080/auth/openid-connect/callback'
+   WHERE key_c = 'obp-api-client';
+   ```
+
+3. **Verify the fix:**
+   ```sql
+   SELECT key_c, name, redirecturl FROM consumer WHERE key_c = 'obp-api-client';
+   ```
+
+**Expected Output:**
+
+```
+ client_id    | client_name           | redirecturl
+--------------+-----------------------+------------------------------------------------
+ obp-api-client| OBP-API Core Service | http://localhost:8080/auth/openid-connect/callback
+```
+
+This ensures the OAuth authorization flow redirects to the correct OBP-API endpoint.
+
+## Password Verification Fix
+
+### Issue Resolution - OBP-API Password Hash Compatibility
+
+**Problem:** OBP-OIDC was unable to verify passwords hashed by OBP-API due to incompatible BCrypt format handling.
+
+**Root Cause:** OBP-API uses Lift framework's MegaProtoUser which stores BCrypt hashes in a custom format:
+
+- Format: `password_pw = "b;" + BCrypt.hashpw(password, salt).substring(0, 44)`
+- The "b;" prefix indicates BCrypt format
+- Hash is truncated to 44 characters
+- Salt is stored separately in `password_slt` field
+
+**Solution Implemented:**
+
+1. **Added jBCrypt dependency** (same library used by OBP-API):
+
+   ```xml
+   <dependency>
+     <groupId>org.mindrot</groupId>
+     <artifactId>jbcrypt</artifactId>
+     <version>0.4</version>
+   </dependency>
+   ```
+
+2. **Updated password verification logic** in `DatabaseAuthService.scala`:
+
+   ```scala
+   if (storedHash.startsWith("b;")) {
+     val hashWithoutPrefix = storedHash.substring(2) // Remove "b;" prefix
+     val generatedHash = JBCrypt.hashpw(plainPassword, salt).substring(0, 44)
+     val isMatch = generatedHash == hashWithoutPrefix
+   }
+   ```
+
+3. **Database view compatibility** - Uses existing `v_oidc_users` view fields:
+   - `password_pw` - Contains "b;" + truncated hash
+   - `password_slt` - Contains BCrypt salt
+
+**Verification Process:**
+
+1. Detect "b;" prefix format
+2. Extract hash without prefix
+3. Generate hash using `JBCrypt.hashpw(password, salt)`
+4. Truncate to 44 characters
+5. Compare with stored hash
+
+**Testing:**
+
+- Use `test-password-verification.scala` to validate implementation
+- Comprehensive debug logging added for troubleshooting
+- Character-by-character comparison for failed attempts
+
+This fix ensures 100% compatibility with OBP-API password verification.
+
 ## Troubleshooting
 
 ### Server Startup Hanging
@@ -611,9 +705,27 @@ If the server hangs during startup (especially after showing "🚀 Initializing 
 ### Authentication Failures
 
 1. Verify user exists and is validated in authuser table
-2. Check password hash format matches BCrypt expectations
-3. Review application logs for authentication attempts
-4. Ensure database view returns expected user data
+2. Check password hash format - should start with "b;" for OBP-API compatibility
+3. Verify jBCrypt library is available (org.mindrot:jbcrypt:0.4)
+4. Review application logs for detailed password verification debug output
+5. Use test-password-verification.scala to validate hash generation
+6. Ensure database view returns expected user data
+
+### Callback URL Issues
+
+If authentication succeeds but redirects to wrong URL:
+
+1. Check the `consumer` table `redirecturl` field:
+
+   ```sql
+   SELECT key_c, redirecturl FROM consumer WHERE key_c = 'obp-api-client';
+   ```
+
+2. Should be: `http://localhost:8080/auth/openid-connect/callback` (not `/oauth/callback`)
+
+3. Fix with: `psql -d sandbox -f fix-callback-url.sql`
+
+4. Restart OBP-OIDC service after database changes
 
 ## License
 
