@@ -128,7 +128,7 @@ class AuthEndpoint(authService: AuthService[IO], codeService: CodeService[IO]) {
     authService.authenticate(username, password).flatMap {
       case Right(user) =>
         for {
-          code <- codeService.generateCode(clientId, redirectUri, user.sub, scope, nonce)
+          code <- codeService.generateCode(clientId, redirectUri, user.sub, scope, state, nonce)
           response <- redirectWithCode(redirectUri, code, state)
         } yield response
 

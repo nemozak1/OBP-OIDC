@@ -218,7 +218,7 @@ export DB_ADMIN_MAX_CONNECTIONS=5
   private def createPortalClient(): OidcClient = {
     val clientId = sys.env.getOrElse("OIDC_CLIENT_PORTAL_ID", "obp-portal-client")
     val clientSecret = generateFreshSecretIfPlaceholder(sys.env.get("OIDC_CLIENT_PORTAL_SECRET"))
-    val redirectUris = sys.env.getOrElse("OIDC_CLIENT_PORTAL_REDIRECTS", "http://localhost:3000/callback,http://localhost:3000/oauth/callback").split(",").toList
+    val redirectUris = sys.env.getOrElse("OIDC_CLIENT_PORTAL_REDIRECTS", "http://localhost:5174/login/obp/callback").split(",").toList
 
     OidcClient(
       client_id = clientId,
@@ -390,12 +390,13 @@ export DB_ADMIN_MAX_CONNECTIONS=5
       println("📋 2. OBP-Portal Configuration (.env file):")
       println("-" * 50)
       println("# Add to your OBP-Portal .env file")
-      println(s"NEXT_PUBLIC_OAUTH_CLIENT_ID=${portalClient.client_id}")
-      println(s"OAUTH_CLIENT_SECRET=${portalClient.client_secret.getOrElse("NOT_SET")}")
-      println(s"NEXT_PUBLIC_OAUTH_AUTHORIZATION_URL=${config.issuer}/auth")
-      println(s"OAUTH_TOKEN_URL=${config.issuer}/token")
-      println(s"OAUTH_USERINFO_URL=${config.issuer}/userinfo")
-      println(s"NEXT_PUBLIC_OAUTH_REDIRECT_URI=${portalClient.redirect_uris.head}")
+      println(s"OBP_OAUTH_CLIENT_ID=${portalClient.client_id}")
+      println(s"OBP_OAUTH_CLIENT_SECRET=${portalClient.client_secret.getOrElse("NOT_SET")}")
+      println(s"OBP_OAUTH_WELL_KNOWN_URL=${config.issuer}/.well-known/openid-configuration")
+      println("APP_CALLBACK_URL=http://localhost:5174/login/obp/callback")
+      println(s"VITE_API_URL=${sys.env.getOrElse("OBP_API_URL", "http://localhost:8080")}")
+      println(s"VITE_OIDC_ISSUER=${config.issuer}")
+      println(s"VITE_CLIENT_ID=${portalClient.client_id}")
       println()
 
       // Explorer II Configuration
@@ -558,12 +559,13 @@ oauth2.callback_url=${obpClient.redirect_uris.head}
 # 2. OBP-Portal Configuration (.env file)
 # ============================================================================
 # Add to your OBP-Portal .env file
-NEXT_PUBLIC_OAUTH_CLIENT_ID=${portalClient.client_id}
-OAUTH_CLIENT_SECRET=${portalClient.client_secret.getOrElse("NOT_SET")}
-NEXT_PUBLIC_OAUTH_AUTHORIZATION_URL=${config.issuer}/auth
-OAUTH_TOKEN_URL=${config.issuer}/token
-OAUTH_USERINFO_URL=${config.issuer}/userinfo
-NEXT_PUBLIC_OAUTH_REDIRECT_URI=${portalClient.redirect_uris.head}
+OBP_OAUTH_CLIENT_ID=${portalClient.client_id}
+OBP_OAUTH_CLIENT_SECRET=${portalClient.client_secret.getOrElse("NOT_SET")}
+OBP_OAUTH_WELL_KNOWN_URL=${config.issuer}/.well-known/openid-configuration
+APP_CALLBACK_URL=http://localhost:5174/login/obp/callback
+VITE_API_URL=${sys.env.getOrElse("OBP_API_URL", "http://localhost:8080")}
+VITE_OIDC_ISSUER=${config.issuer}
+VITE_CLIENT_ID=${portalClient.client_id}
 
 # ============================================================================
 # 3. API-Explorer-II Configuration (environment variables)

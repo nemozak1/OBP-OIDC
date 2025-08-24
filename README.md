@@ -130,7 +130,7 @@ export OIDC_CLIENT_OBP_API_REDIRECTS=http://localhost:8080/auth/openid-connect/c
 
 export OIDC_CLIENT_PORTAL_ID=obp-portal-client
 export OIDC_CLIENT_PORTAL_SECRET=YOUR_SECURE_SECRET_HERE
-export OIDC_CLIENT_PORTAL_REDIRECTS=http://localhost:3000/callback,http://localhost:3000/oauth/callback
+export OIDC_CLIENT_PORTAL_REDIRECTS=http://localhost:5174/login/obp/callback
 
 export OIDC_CLIENT_EXPLORER_ID=obp-explorer-ii-client
 export OIDC_CLIENT_EXPLORER_SECRET=YOUR_SECURE_SECRET_HERE

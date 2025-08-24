@@ -2,7 +2,7 @@
  * Copyright (c) 2025 TESOBE
  *
  * This file is part of OBP-OIDC.
- * 
+ *
  * OBP-OIDC is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -147,6 +147,7 @@ case class AuthorizationCode(
   redirect_uri: String,
   sub: String,
   scope: String,
+  state: Option[String] = None,
   nonce: Option[String] = None,
   exp: Long // Expiration time
 )

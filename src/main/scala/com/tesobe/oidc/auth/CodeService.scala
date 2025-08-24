@@ -2,7 +2,7 @@
  * Copyright (c) 2025 TESOBE
  *
  * This file is part of OBP-OIDC.
- * 
+ *
  * OBP-OIDC is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -30,27 +30,28 @@ import java.util.UUID
 import scala.concurrent.duration._
 
 trait CodeService[F[_]] {
-  def generateCode(clientId: String, redirectUri: String, sub: String, scope: String, nonce: Option[String] = None): F[String]
+  def generateCode(clientId: String, redirectUri: String, sub: String, scope: String, state: Option[String] = None, nonce: Option[String] = None): F[String]
   def validateAndConsumeCode(code: String, clientId: String, redirectUri: String): F[Either[OidcError, AuthorizationCode]]
 }
 
 class InMemoryCodeService(config: OidcConfig, codesRef: Ref[IO, Map[String, AuthorizationCode]]) extends CodeService[IO] {
-  
-  def generateCode(clientId: String, redirectUri: String, sub: String, scope: String, nonce: Option[String] = None): IO[String] = {
+
+  def generateCode(clientId: String, redirectUri: String, sub: String, scope: String, state: Option[String] = None, nonce: Option[String] = None): IO[String] = {
     for {
       code <- IO(UUID.randomUUID().toString.replace("-", ""))
       exp = Instant.now().plusSeconds(config.codeExpirationSeconds).getEpochSecond
-      
+
       authCode = AuthorizationCode(
         code = code,
         client_id = clientId,
         redirect_uri = redirectUri,
         sub = sub,
         scope = scope,
+        state = state,
         nonce = nonce,
         exp = exp
       )
-      
+
       _ <- codesRef.update(_ + (code -> authCode))
     } yield code
   }
@@ -59,16 +60,16 @@ class InMemoryCodeService(config: OidcConfig, codesRef: Ref[IO, Map[String, Auth
     for {
       codes <- codesRef.get
       result <- codes.get(code) match {
-        case Some(authCode) => 
+        case Some(authCode) =>
           validateCode(authCode, clientId, redirectUri).flatMap {
-            case Right(validCode) => 
+            case Right(validCode) =>
               // Consume the code (remove it after use)
               codesRef.update(_ - code).as(validCode.asRight[OidcError])
-            case Left(error) => 
+            case Left(error) =>
               // Remove invalid code
               codesRef.update(_ - code).as(error.asLeft[AuthorizationCode])
           }
-        case None => 
+        case None =>
           IO.pure(OidcError("invalid_grant", Some("Authorization code not found")).asLeft[AuthorizationCode])
       }
     } yield result
@@ -77,7 +78,7 @@ class InMemoryCodeService(config: OidcConfig, codesRef: Ref[IO, Map[String, Auth
   private def validateCode(authCode: AuthorizationCode, clientId: String, redirectUri: String): IO[Either[OidcError, AuthorizationCode]] = {
     IO {
       val now = Instant.now().getEpochSecond
-      
+
       if (authCode.exp < now) {
         OidcError("invalid_grant", Some("Authorization code expired")).asLeft[AuthorizationCode]
       } else if (authCode.client_id != clientId) {

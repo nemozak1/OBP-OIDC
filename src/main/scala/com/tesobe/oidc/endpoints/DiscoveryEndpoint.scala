@@ -2,7 +2,7 @@
  * Copyright (c) 2025 TESOBE
  *
  * This file is part of OBP-OIDC.
- * 
+ *
  * OBP-OIDC is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -36,12 +36,13 @@ class DiscoveryEndpoint(config: OidcConfig) {
   }
 
   private def getConfiguration: IO[Response[IO]] = {
+    val baseUrl = s"http://${config.server.host}:${config.server.port}"
     val configuration = OidcConfiguration(
       issuer = config.issuer,
-      authorization_endpoint = s"${config.issuer}/auth",
-      token_endpoint = s"${config.issuer}/token",
-      userinfo_endpoint = s"${config.issuer}/userinfo",
-      jwks_uri = s"${config.issuer}/jwks",
+      authorization_endpoint = s"$baseUrl/auth",
+      token_endpoint = s"$baseUrl/token",
+      userinfo_endpoint = s"$baseUrl/userinfo",
+      jwks_uri = s"$baseUrl/jwks",
       response_types_supported = List("code"),
       subject_types_supported = List("public"),
       id_token_signing_alg_values_supported = List("RS256"),
