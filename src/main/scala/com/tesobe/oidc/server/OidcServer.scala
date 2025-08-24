@@ -307,7 +307,7 @@ object OidcServer extends IOApp {
   private def printOBPApiConfig(baseUri: String, client: Option[OidcClient]): IO[Unit] = {
     val clientId = client.map(_.client_id).getOrElse("obp-api-client")
     val clientSecret = client.flatMap(_.client_secret).getOrElse("CLIENT_NOT_REGISTERED")
-    println(s"🔑 DEBUG: OBP-API client secret: ${clientSecret.take(20)}...")
+    println(s"🔑 DEBUG: OBP-API client id: ${clientId}")
     
     for {
       _ <- IO(println("📋 1. OBP-API Configuration (props file):"))
@@ -339,7 +339,7 @@ object OidcServer extends IOApp {
   private def printPortalConfig(baseUri: String, client: Option[OidcClient]): IO[Unit] = {
     val clientId = client.map(_.client_id).getOrElse("obp-portal-client")
     val clientSecret = client.flatMap(_.client_secret).getOrElse("CLIENT_NOT_REGISTERED")
-    println(s"🔑 DEBUG: Portal client secret: ${clientSecret.take(20)}...")
+    println(s"🔑 DEBUG: Portal client id: $clientId")
     
     for {
       _ <- IO(println("🌐 2. OBP-Portal Configuration (.env file):"))
@@ -402,7 +402,7 @@ object OidcServer extends IOApp {
   private def printOpeyConfig(baseUri: String, client: Option[OidcClient]): IO[Unit] = {
     val clientId = client.map(_.client_id).getOrElse("opey-ii-client")
     val clientSecret = client.flatMap(_.client_secret).getOrElse("CLIENT_NOT_REGISTERED")
-    println(s"🔑 DEBUG: Opey client secret: ${clientSecret.take(20)}...")
+    println(s"🔑 DEBUG: Opey client id: $clientId")
     
     for {
       _ <- IO(println("🤖 4. Opey-II Configuration (.env file):"))
