@@ -178,15 +178,16 @@ object OidcServer extends IOApp {
             .withHttpApp(routes)
             .build
             .use { server =>
+              val baseUriString = server.baseUri.toString.stripSuffix("/")
               IO(println(s"OIDC Provider started at ${server.baseUri}")) *>
               IO(println("Available endpoints:")) *>
-              IO(println(s"  Discovery: ${server.baseUri}/.well-known/openid-configuration")) *>
-              IO(println(s"  Authorization: ${server.baseUri}/auth")) *>
-              IO(println(s"  Token: ${server.baseUri}/token")) *>
-              IO(println(s"  UserInfo: ${server.baseUri}/userinfo")) *>
-              IO(println(s"  JWKS: ${server.baseUri}/jwks")) *>
-              IO(println(s"  Health Check: ${server.baseUri}/health")) *>
-              printOBPConfiguration(server.baseUri.toString, authService) *>
+              IO(println(s"  Discovery: $baseUriString/.well-known/openid-configuration")) *>
+              IO(println(s"  Authorization: $baseUriString/auth")) *>
+              IO(println(s"  Token: $baseUriString/token")) *>
+              IO(println(s"  UserInfo: $baseUriString/userinfo")) *>
+              IO(println(s"  JWKS: $baseUriString/jwks")) *>
+              IO(println(s"  Health Check: $baseUriString/health")) *>
+              printOBPConfiguration(baseUriString, authService) *>
               IO.never
             }
         } yield ExitCode.Success
@@ -319,7 +320,7 @@ object OidcServer extends IOApp {
       _ <- IO(println("openid_connect_1.button_text=OBP-OIDC"))
       _ <- IO(println(s"openid_connect_1.client_id=$clientId"))
       _ <- IO(println(s"openid_connect_1.client_secret=$clientSecret"))
-      _ <- IO(println("openid_connect_1.callback_url=http://localhost:8080/oauth/callback"))
+      _ <- IO(println(s"openid_connect_1.callback_url=${sys.env.getOrElse("OBP_API_URL", "http://localhost:8080")}/oauth/callback"))
       _ <- IO(println(s"openid_connect_1.endpoint.discovery=$baseUri/.well-known/openid-configuration"))
       _ <- IO(println(s"openid_connect_1.endpoint.authorization=$baseUri/auth"))
       _ <- IO(println(s"openid_connect_1.endpoint.userinfo=$baseUri/userinfo"))
@@ -345,8 +346,8 @@ object OidcServer extends IOApp {
       _ <- IO(println("🌐 2. OBP-Portal Configuration (.env file):"))
       _ <- IO(println("-" * 50))
       _ <- IO(println("# Add to OBP-Portal .env file"))
-      _ <- IO(println("OBP_API_HOST=localhost:8080"))
-      _ <- IO(println("OBP_API_URL=http://localhost:8080"))
+      _ <- IO(println(s"OBP_API_HOST=${sys.env.getOrElse("OBP_API_HOST", "localhost:8080")}"))
+      _ <- IO(println(s"OBP_API_URL=${sys.env.getOrElse("OBP_API_URL", "http://localhost:8080")}"))
       _ <- IO(println(s"OIDC_ISSUER=$baseUri"))
       _ <- IO(println(s"OIDC_AUTH_URL=$baseUri/auth"))
       _ <- IO(println(s"OIDC_TOKEN_URL=$baseUri/token"))
@@ -356,7 +357,7 @@ object OidcServer extends IOApp {
       _ <- IO(println(s"OIDC_CLIENT_SECRET=$clientSecret"))
       _ <- IO(println("OIDC_REDIRECT_URI=http://localhost:3000/callback"))
       _ <- IO(println("OIDC_SCOPE=openid profile email"))
-      _ <- IO(println("VITE_API_URL=http://localhost:8080"))
+      _ <- IO(println(s"VITE_API_URL=${sys.env.getOrElse("OBP_API_URL", "http://localhost:8080")}"))
       _ <- IO(println(s"VITE_OIDC_ISSUER=$baseUri"))
       _ <- IO(println(s"VITE_CLIENT_ID=$clientId"))
       _ <- IO(println())
@@ -378,7 +379,7 @@ object OidcServer extends IOApp {
       _ <- IO(println("🔍 3. API-Explorer-II Configuration (.env file):"))
       _ <- IO(println("-" * 50))
       _ <- IO(println("# Add to API-Explorer-II .env file"))
-      _ <- IO(println("REACT_APP_API_HOST=http://localhost:8080"))
+      _ <- IO(println(s"REACT_APP_API_HOST=${sys.env.getOrElse("OBP_API_URL", "http://localhost:8080")}"))
       _ <- IO(println(s"REACT_APP_OIDC_ISSUER=$baseUri"))
       _ <- IO(println(s"REACT_APP_OIDC_AUTH_URL=$baseUri/auth"))
       _ <- IO(println(s"REACT_APP_OIDC_TOKEN_URL=$baseUri/token"))
@@ -408,8 +409,8 @@ object OidcServer extends IOApp {
       _ <- IO(println("🤖 4. Opey-II Configuration (.env file):"))
       _ <- IO(println("-" * 50))
       _ <- IO(println("# Add to Opey-II .env file"))
-      _ <- IO(println("OBP_API_HOST=localhost:8080"))
-      _ <- IO(println("NEXT_PUBLIC_API_URL=http://localhost:8080"))
+      _ <- IO(println(s"OBP_API_HOST=${sys.env.getOrElse("OBP_API_HOST", "localhost:8080")}"))
+      _ <- IO(println(s"NEXT_PUBLIC_API_URL=${sys.env.getOrElse("OBP_API_URL", "http://localhost:8080")}"))
       _ <- IO(println(s"NEXT_PUBLIC_OIDC_ISSUER=$baseUri"))
       _ <- IO(println(s"OIDC_ISSUER=$baseUri"))
       _ <- IO(println(s"OIDC_AUTH_URL=$baseUri/auth"))

@@ -197,7 +197,7 @@ export DB_ADMIN_MAX_CONNECTIONS=5
   private def createOBPAPIClient(): OidcClient = {
     val clientId = sys.env.getOrElse("OIDC_CLIENT_OBP_API_ID", "obp-api-client")
     val clientSecret = generateFreshSecretIfPlaceholder(sys.env.get("OIDC_CLIENT_OBP_API_SECRET"))
-    val redirectUris = sys.env.getOrElse("OIDC_CLIENT_OBP_API_REDIRECTS", "http://localhost:8080/oauth/callback").split(",").toList
+    val redirectUris = sys.env.getOrElse("OIDC_CLIENT_OBP_API_REDIRECTS", s"${sys.env.getOrElse("OBP_API_URL", "http://localhost:8080")}/oauth/callback").split(",").toList
     
     OidcClient(
       client_id = clientId,
@@ -379,7 +379,7 @@ export DB_ADMIN_MAX_CONNECTIONS=5
       println("openid_connect.scope=openid email profile")
       println()
       println("# OBP-API OIDC Provider Settings")
-      println(s"openid_connect.endpoint=http://localhost:8080/.well-known/openid_configuration")
+      println(s"openid_connect.endpoint=${config.issuer}/.well-known/openid_configuration")
       println(s"oauth2.client_id=${obpClient.client_id}")
       println(s"oauth2.client_secret=${obpClient.client_secret.getOrElse("NOT_SET")}")
       println(s"oauth2.callback_url=${obpClient.redirect_uris.head}")
@@ -392,9 +392,9 @@ export DB_ADMIN_MAX_CONNECTIONS=5
       println("# Add to your OBP-Portal .env file")
       println(s"NEXT_PUBLIC_OAUTH_CLIENT_ID=${portalClient.client_id}")
       println(s"OAUTH_CLIENT_SECRET=${portalClient.client_secret.getOrElse("NOT_SET")}")
-      println("NEXT_PUBLIC_OAUTH_AUTHORIZATION_URL=http://localhost:8080/oauth/authorize")
-      println("OAUTH_TOKEN_URL=http://localhost:8080/oauth/token")
-      println("OAUTH_USERINFO_URL=http://localhost:8080/oauth/userinfo")
+      println(s"NEXT_PUBLIC_OAUTH_AUTHORIZATION_URL=${config.issuer}/auth")
+      println(s"OAUTH_TOKEN_URL=${config.issuer}/token")
+      println(s"OAUTH_USERINFO_URL=${config.issuer}/userinfo")
       println(s"NEXT_PUBLIC_OAUTH_REDIRECT_URI=${portalClient.redirect_uris.head}")
       println()
       
@@ -405,8 +405,8 @@ export DB_ADMIN_MAX_CONNECTIONS=5
       println("# Add to your API-Explorer-II environment")
       println(s"export REACT_APP_OAUTH_CLIENT_ID=${explorerClient.client_id}")
       println(s"export REACT_APP_OAUTH_CLIENT_SECRET=${explorerClient.client_secret.getOrElse("NOT_SET")}")
-      println("export REACT_APP_OAUTH_AUTHORIZATION_URL=http://localhost:8080/oauth/authorize")
-      println("export REACT_APP_OAUTH_TOKEN_URL=http://localhost:8080/oauth/token")
+      println(s"export REACT_APP_OAUTH_AUTHORIZATION_URL=${config.issuer}/auth")
+      println(s"export REACT_APP_OAUTH_TOKEN_URL=${config.issuer}/token")
       println(s"export REACT_APP_OAUTH_REDIRECT_URI=${explorerClient.redirect_uris.head}")
       println()
       
@@ -417,15 +417,15 @@ export DB_ADMIN_MAX_CONNECTIONS=5
       println("# Add to your Opey-II environment") 
       println(s"export VUE_APP_OAUTH_CLIENT_ID=${opeyClient.client_id}")
       println(s"export VUE_APP_OAUTH_CLIENT_SECRET=${opeyClient.client_secret.getOrElse("NOT_SET")}")
-      println("export VUE_APP_OAUTH_AUTHORIZATION_URL=http://localhost:8080/oauth/authorize")
-      println("export VUE_APP_OAUTH_TOKEN_URL=http://localhost:8080/oauth/token")
+      println(s"export VUE_APP_OAUTH_AUTHORIZATION_URL=${config.issuer}/auth")
+      println(s"export VUE_APP_OAUTH_TOKEN_URL=${config.issuer}/token")
       println(s"export VUE_APP_OAUTH_REDIRECT_URI=${opeyClient.redirect_uris.head}")
       println()
       
       println("=" * 80)
       println("✅ All configurations ready! Copy & paste the sections you need.")
       println("🔐 Fresh secure secrets have been generated and stored in database.")
-      println("💡 Server will be available at: http://localhost:8080")
+      println(s"💡 OIDC Server will be available at: ${config.issuer}")
       println("=" * 80)
       println()
       
@@ -549,7 +549,7 @@ INSERT INTO v_oidc_admin_clients (
 openid_connect.scope=openid email profile
 
 # OBP-API OIDC Provider Settings
-openid_connect.endpoint=http://localhost:8080/.well-known/openid_configuration
+openid_connect.endpoint=${config.issuer}/.well-known/openid_configuration
 oauth2.client_id=${obpClient.client_id}
 oauth2.client_secret=${obpClient.client_secret.getOrElse("NOT_SET")}
 oauth2.callback_url=${obpClient.redirect_uris.head}
@@ -560,9 +560,9 @@ oauth2.callback_url=${obpClient.redirect_uris.head}
 # Add to your OBP-Portal .env file
 NEXT_PUBLIC_OAUTH_CLIENT_ID=${portalClient.client_id}
 OAUTH_CLIENT_SECRET=${portalClient.client_secret.getOrElse("NOT_SET")}
-NEXT_PUBLIC_OAUTH_AUTHORIZATION_URL=http://localhost:8080/oauth/authorize
-OAUTH_TOKEN_URL=http://localhost:8080/oauth/token
-OAUTH_USERINFO_URL=http://localhost:8080/oauth/userinfo
+NEXT_PUBLIC_OAUTH_AUTHORIZATION_URL=${config.issuer}/auth
+OAUTH_TOKEN_URL=${config.issuer}/token
+OAUTH_USERINFO_URL=${config.issuer}/userinfo
 NEXT_PUBLIC_OAUTH_REDIRECT_URI=${portalClient.redirect_uris.head}
 
 # ============================================================================
@@ -571,8 +571,8 @@ NEXT_PUBLIC_OAUTH_REDIRECT_URI=${portalClient.redirect_uris.head}
 # Add to your API-Explorer-II environment
 export REACT_APP_OAUTH_CLIENT_ID=${explorerClient.client_id}
 export REACT_APP_OAUTH_CLIENT_SECRET=${explorerClient.client_secret.getOrElse("NOT_SET")}
-export REACT_APP_OAUTH_AUTHORIZATION_URL=http://localhost:8080/oauth/authorize
-export REACT_APP_OAUTH_TOKEN_URL=http://localhost:8080/oauth/token
+export REACT_APP_OAUTH_AUTHORIZATION_URL=${config.issuer}/auth
+export REACT_APP_OAUTH_TOKEN_URL=${config.issuer}/token
 export REACT_APP_OAUTH_REDIRECT_URI=${explorerClient.redirect_uris.head}
 
 # ============================================================================
@@ -581,8 +581,8 @@ export REACT_APP_OAUTH_REDIRECT_URI=${explorerClient.redirect_uris.head}
 # Add to your Opey-II environment
 export VUE_APP_OAUTH_CLIENT_ID=${opeyClient.client_id}
 export VUE_APP_OAUTH_CLIENT_SECRET=${opeyClient.client_secret.getOrElse("NOT_SET")}
-export VUE_APP_OAUTH_AUTHORIZATION_URL=http://localhost:8080/oauth/authorize
-export VUE_APP_OAUTH_TOKEN_URL=http://localhost:8080/oauth/token
+export VUE_APP_OAUTH_AUTHORIZATION_URL=${config.issuer}/auth
+export VUE_APP_OAUTH_TOKEN_URL=${config.issuer}/token
 export VUE_APP_OAUTH_REDIRECT_URI=${opeyClient.redirect_uris.head}
 
 # ============================================================================

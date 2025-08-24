@@ -152,7 +152,7 @@ class AuthEndpoint(authService: AuthService[IO], codeService: CodeService[IO]) {
           }
           button:hover { background: #0056b3; }
           .info { background: #f8f9fa; padding: 15px; border-radius: 4px; margin-bottom: 20px; }
-          .test-users { background: #fff3cd; padding: 10px; border-radius: 4px; margin-top: 20px; }
+
         </style>
       </head>
       <body>
@@ -181,13 +181,6 @@ class AuthEndpoint(authService: AuthService[IO], codeService: CodeService[IO]) {
           
           <button type="submit">Sign In</button>
         </form>
-        
-        <div class="test-users">
-          <strong>Test Users:</strong><br>
-          alice / secret123<br>
-          bob / password456<br>  
-          charlie / test789
-        </div>
       </body>
       </html>
     """

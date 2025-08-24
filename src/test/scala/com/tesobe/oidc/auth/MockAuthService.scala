@@ -19,20 +19,17 @@
 
 package com.tesobe.oidc.auth
 
-
 import cats.effect.IO
 import cats.syntax.either._
-import com.tesobe.oidc.models.{User, OidcError}
+import com.tesobe.oidc.models.{User, OidcError, OidcClient}
 
-trait AuthService[F[_]] {
-  def authenticate(username: String, password: String): F[Either[OidcError, User]]
-  def getUserById(sub: String): F[Option[User]]
-  def validateClient(clientId: String, redirectUri: String): F[Boolean]
-}
-
+/**
+ * Mock authentication service for TESTING PURPOSES ONLY
+ * This service should never be used in production or offered as an option to users
+ */
 class MockAuthService extends AuthService[IO] {
   
-  // Hardcoded test users - NO DATABASE
+  // Test users for testing only
   private val users = Map(
     "alice" -> User(
       sub = "alice",
@@ -76,9 +73,37 @@ class MockAuthService extends AuthService[IO] {
   }
 
   def validateClient(clientId: String, redirectUri: String): IO[Boolean] = IO {
-    // Mock implementation - accepts any client_id and redirect_uri for testing
-    // In production, this would check against the v_oidc_clients database view
+    // Mock implementation for testing - accepts any client_id and redirect_uri
     true
+  }
+
+  def findClientById(clientId: String): IO[Option[OidcClient]] = IO {
+    // Mock implementation for testing
+    Some(OidcClient(
+      client_id = clientId,
+      client_secret = Some("test-secret"),
+      client_name = "Test Client",
+      redirect_uris = List("https://example.com/callback"),
+      grant_types = List("authorization_code"),
+      response_types = List("code"),
+      scopes = List("openid", "profile", "email")
+    ))
+  }
+
+  def findAdminClientById(clientId: String): IO[Option[OidcClient]] = findClientById(clientId)
+
+  def listClients(): IO[Either[OidcError, List[OidcClient]]] = IO {
+    Right(List(
+      OidcClient(
+        client_id = "test-client",
+        client_secret = Some("test-secret"),
+        client_name = "Test Client",
+        redirect_uris = List("https://example.com/callback"),
+        grant_types = List("authorization_code"),
+        response_types = List("code"),
+        scopes = List("openid", "profile", "email")
+      )
+    ))
   }
 }
 

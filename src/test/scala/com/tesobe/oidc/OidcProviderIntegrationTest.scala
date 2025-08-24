@@ -141,9 +141,9 @@ class OidcProviderIntegrationTest extends AnyFlatSpec with Matchers {
       body should include("Sign In")
       body should include("test-client")
       body should include("openid profile email")
-      body should include("alice / secret123")
-      body should include("bob / password456")
-      body should include("charlie / test789")
+      body should include("Sign In")
+      body should include("test-client")
+      body should include("openid profile email")
     }
     
     test.unsafeRunSync()
