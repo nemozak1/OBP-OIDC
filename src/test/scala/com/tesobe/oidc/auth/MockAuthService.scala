@@ -2,7 +2,7 @@
  * Copyright (c) 2025 TESOBE
  *
  * This file is part of OBP-OIDC.
- * 
+ *
  * OBP-OIDC is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -28,7 +28,7 @@ import com.tesobe.oidc.models.{User, OidcError, OidcClient}
  * This service should never be used in production or offered as an option to users
  */
 class MockAuthService extends AuthService[IO] {
-  
+
   // Test users for testing only
   private val users = Map(
     "alice" -> User(
@@ -37,33 +37,36 @@ class MockAuthService extends AuthService[IO] {
       password = "secret123",
       name = Some("Alice Smith"),
       email = Some("alice@example.com"),
-      email_verified = Some(true)
+      email_verified = Some(true),
+      provider = Some("obp")
     ),
     "bob" -> User(
-      sub = "bob", 
+      sub = "bob",
       username = "bob",
       password = "password456",
       name = Some("Bob Jones"),
       email = Some("bob@example.com"),
-      email_verified = Some(true)
+      email_verified = Some(true),
+      provider = Some("obp")
     ),
     "charlie" -> User(
       sub = "charlie",
-      username = "charlie", 
+      username = "charlie",
       password = "test789",
       name = Some("Charlie Brown"),
       email = Some("charlie@example.com"),
-      email_verified = Some(true)
+      email_verified = Some(true),
+      provider = Some("obp")
     )
   )
 
   def authenticate(username: String, password: String): IO[Either[OidcError, User]] = IO {
     users.get(username) match {
-      case Some(user) if user.password == password => 
+      case Some(user) if user.password == password =>
         user.asRight[OidcError]
-      case Some(_) => 
+      case Some(_) =>
         OidcError("access_denied", Some("Invalid password")).asLeft[User]
-      case None => 
+      case None =>
         OidcError("access_denied", Some("User not found")).asLeft[User]
     }
   }

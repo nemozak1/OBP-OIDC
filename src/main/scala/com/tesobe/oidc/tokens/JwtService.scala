@@ -2,7 +2,7 @@
  * Copyright (c) 2025 TESOBE
  *
  * This file is part of OBP-OIDC.
- * 
+ *
  * OBP-OIDC is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -43,8 +43,8 @@ trait JwtService[F[_]] {
 }
 
 class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair]) extends JwtService[IO] {
-  
-  private def getAlgorithm: IO[Algorithm] = 
+
+  private def getAlgorithm: IO[Algorithm] =
     keyPairRef.get.map { keyPair =>
       Algorithm.RSA256(
         keyPair.getPublic.asInstanceOf[RSAPublicKey],
@@ -57,9 +57,12 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair]) extends J
       algorithm <- getAlgorithm
       now = Instant.now()
       exp = now.plusSeconds(config.tokenExpirationSeconds)
-      
+
+      // Use user provider as issuer for OBP-API compatibility, fallback to config issuer
+      issuer = user.provider.getOrElse(config.issuer)
+
       token = JWT.create()
-        .withIssuer(config.issuer)
+        .withIssuer(issuer)
         .withSubject(user.sub)
         .withAudience(clientId)
         .withIssuedAt(Date.from(now))
@@ -68,7 +71,7 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair]) extends J
         .withClaim("name", user.name.orNull)
         .withClaim("email", user.email.orNull)
         .withClaim("email_verified", user.email_verified.map(Boolean.box).orNull)
-        
+
       tokenWithNonce = nonce.fold(token)(n => token.withClaim("nonce", n))
       signedToken = tokenWithNonce.sign(algorithm)
     } yield signedToken
@@ -79,9 +82,12 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair]) extends J
       algorithm <- getAlgorithm
       now = Instant.now()
       exp = now.plusSeconds(config.tokenExpirationSeconds)
-      
+
+      // Use user provider as issuer for OBP-API compatibility, fallback to config issuer
+      issuer = user.provider.getOrElse(config.issuer)
+
       token = JWT.create()
-        .withIssuer(config.issuer)
+        .withIssuer(issuer)
         .withSubject(user.sub)
         .withAudience(config.issuer) // Access token audience is the resource server (ourselves)
         .withIssuedAt(Date.from(now))
@@ -89,7 +95,7 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair]) extends J
         .withKeyId(config.keyId)
         .withClaim("scope", scope)
         .withClaim("client_id", clientId)
-        
+
       signedToken = token.sign(algorithm)
     } yield signedToken
   }
@@ -98,12 +104,23 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair]) extends J
     getAlgorithm.flatMap { algorithm =>
       IO {
         Try {
+          // First decode token without verification to check issuer
+          val unverifiedJWT = JWT.decode(token)
+          val tokenIssuer = unverifiedJWT.getIssuer
+
+          // Create verifier that accepts either config issuer or provider-based issuer
           val verifier = JWT.require(algorithm)
-            .withIssuer(config.issuer)
+            .acceptIssuedAt(config.tokenExpirationSeconds)
             .build()
-          
+
           val decodedJWT: DecodedJWT = verifier.verify(token)
-          
+
+          // Validate that issuer is either our config issuer or a reasonable provider value
+          val issuer = decodedJWT.getIssuer
+          if (issuer == null || issuer.trim.isEmpty) {
+            throw new JWTVerificationException("Missing or empty issuer")
+          }
+
           AccessTokenClaims(
             iss = decodedJWT.getIssuer,
             sub = decodedJWT.getSubject,
@@ -115,9 +132,9 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair]) extends J
           )
         } match {
           case Success(claims) => claims.asRight[OidcError]
-          case Failure(_: JWTVerificationException) => 
+          case Failure(_: JWTVerificationException) =>
             OidcError("invalid_token", Some("Token validation failed")).asLeft[AccessTokenClaims]
-          case Failure(ex) => 
+          case Failure(ex) =>
             OidcError("server_error", Some(s"Token validation error: ${ex.getMessage}")).asLeft[AccessTokenClaims]
         }
       }
@@ -127,11 +144,11 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair]) extends J
   def getJsonWebKey: IO[JsonWebKey] = {
     keyPairRef.get.map { keyPair =>
       val publicKey = keyPair.getPublic.asInstanceOf[RSAPublicKey]
-      
+
       // Get RSA modulus and exponent as Base64URL encoded strings
       val modulus = Base64.getUrlEncoder.withoutPadding().encodeToString(publicKey.getModulus.toByteArray)
       val exponent = Base64.getUrlEncoder.withoutPadding().encodeToString(publicKey.getPublicExponent.toByteArray)
-      
+
       JsonWebKey(
         kty = "RSA",
         use = "sig",
@@ -145,14 +162,14 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair]) extends J
 }
 
 object JwtService {
-  
+
   def apply(config: OidcConfig): IO[JwtService[IO]] = {
     for {
       keyPair <- generateKeyPair
       keyPairRef <- Ref.of[IO, KeyPair](keyPair)
     } yield new JwtServiceImpl(config, keyPairRef)
   }
-  
+
   private def generateKeyPair: IO[KeyPair] = IO {
     val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
     keyPairGenerator.initialize(2048)

@@ -84,7 +84,8 @@ case class User(
   password: String, // In real implementation, this would be hashed
   name: Option[String] = None,
   email: Option[String] = None,
-  email_verified: Option[Boolean] = Some(true)
+  email_verified: Option[Boolean] = Some(true),
+  provider: Option[String] = None
 )
 
 object User {

@@ -101,14 +101,16 @@ class AuthEndpoint(authService: AuthService[IO], codeService: CodeService[IO]) {
       _ <- IO(println(s"📋 Auth form submitted for username: '$username'"))
       password <- IO.fromOption(formData.get("password"))(new RuntimeException("Missing password"))
       _ <- IO(logger.debug(s"🔑 Password received (length: ${password.length})"))
+      provider <- IO.fromOption(formData.get("provider"))(new RuntimeException("Missing provider"))
+      _ <- IO(logger.info(s"🏢 Provider selected: '$provider'"))
       clientId <- IO.fromOption(formData.get("client_id"))(new RuntimeException("Missing client_id"))
       redirectUri <- IO.fromOption(formData.get("redirect_uri"))(new RuntimeException("Missing redirect_uri"))
       scope <- IO.fromOption(formData.get("scope"))(new RuntimeException("Missing scope"))
       state = formData.get("state")
       nonce = formData.get("nonce")
 
-      _ <- IO(logger.info(s"🔄 Calling authentication service for username: '$username'"))
-      response <- authenticateAndGenerateCode(username, password, clientId, redirectUri, scope, state, nonce)
+      _ <- IO(logger.info(s"🔄 Calling authentication service for username: '$username' with provider: '$provider'"))
+      response <- authenticateAndGenerateCode(username, password, provider, clientId, redirectUri, scope, state, nonce)
     } yield response
   }.handleErrorWith { error =>
     logger.error(s"💥 Error handling login submission: ${error.getMessage}", error)
@@ -118,6 +120,7 @@ class AuthEndpoint(authService: AuthService[IO], codeService: CodeService[IO]) {
   private def authenticateAndGenerateCode(
     username: String,
     password: String,
+    provider: String,
     clientId: String,
     redirectUri: String,
     scope: String,
@@ -125,7 +128,7 @@ class AuthEndpoint(authService: AuthService[IO], codeService: CodeService[IO]) {
     nonce: Option[String]
   ): IO[Response[IO]] = {
 
-    authService.authenticate(username, password).flatMap {
+    authService.authenticate(username, password, provider).flatMap {
       case Right(user) =>
         for {
           code <- codeService.generateCode(clientId, redirectUri, user.sub, scope, state, nonce)
@@ -145,10 +148,15 @@ class AuthEndpoint(authService: AuthService[IO], codeService: CodeService[IO]) {
     nonce: Option[String]
   ): IO[Response[IO]] = {
 
-    val stateParam = state.map(s => s"""<input type="hidden" name="state" value="$s">""").getOrElse("")
-    val nonceParam = nonce.map(n => s"""<input type="hidden" name="nonce" value="$n">""").getOrElse("")
+    authService.getAvailableProviders().flatMap { providers =>
+      val stateParam = state.map(s => s"""<input type="hidden" name="state" value="$s">""").getOrElse("")
+      val nonceParam = nonce.map(n => s"""<input type="hidden" name="nonce" value="$n">""").getOrElse("")
 
-    val html = s"""
+      val providerOptions = providers.map { provider =>
+        s"""<option value="$provider">$provider</option>"""
+      }.mkString("\n            ")
+
+      val html = s"""
       <!DOCTYPE html>
       <html>
       <head>
@@ -187,6 +195,13 @@ class AuthEndpoint(authService: AuthService[IO], codeService: CodeService[IO]) {
             <input type="password" id="password" name="password" required>
           </div>
 
+          <div class="form-group">
+            <label for="provider">Authentication Provider:</label>
+            <select id="provider" name="provider" required>
+            $providerOptions
+            </select>
+          </div>
+
           <input type="hidden" name="client_id" value="$clientId">
           <input type="hidden" name="redirect_uri" value="$redirectUri">
           <input type="hidden" name="scope" value="$scope">
@@ -199,7 +214,8 @@ class AuthEndpoint(authService: AuthService[IO], codeService: CodeService[IO]) {
       </html>
     """
 
-    Ok(html).map(_.withContentType(org.http4s.headers.`Content-Type`(MediaType.text.html)))
+      Ok(html).map(_.withContentType(org.http4s.headers.`Content-Type`(MediaType.text.html)))
+    }
   }
 
   private def redirectWithCode(redirectUri: String, code: String, state: Option[String]): IO[Response[IO]] = {

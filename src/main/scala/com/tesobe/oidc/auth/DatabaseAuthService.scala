@@ -51,21 +51,38 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
   println("🚀 DatabaseAuthService created - logging is working!")
 
   /**
-   * Authenticate a user by username and password
+   * Get available providers for dropdown
+   */
+  def getAvailableProviders(): IO[List[String]] = {
+    val query = sql"""
+      SELECT DISTINCT provider
+      FROM v_oidc_users
+      WHERE validated = true
+      ORDER BY provider
+    """.query[String]
+
+    query.to[List].transact(transactor).handleErrorWith { error =>
+      logger.error("Database error while fetching providers", error)
+      IO.pure(List.empty[String])
+    }
+  }
+
+  /**
+   * Authenticate a user by username, password, and provider
    * Returns the user information if authentication succeeds
    */
-  def authenticate(username: String, password: String): IO[Either[OidcError, User]] = {
-    logger.info(s"🔐 Starting authentication for username: '$username'")
-    println(s"🔐 Starting authentication for username: '$username'")
+  def authenticate(username: String, password: String, provider: String): IO[Either[OidcError, User]] = {
+    logger.info(s"🔐 Starting authentication for username: '$username' with provider: '$provider'")
+    println(s"🔐 Starting authentication for username: '$username' with provider: '$provider'")
 
-    findUserByUsername(username).flatMap {
+    findUserByUsernameAndProvider(username, provider).flatMap {
       case None =>
         logger.warn(s"❌ User NOT FOUND in database: '$username'")
         println(s"❌ User NOT FOUND in database: '$username'")
         IO.pure(Left(OidcError("invalid_grant", Some("Invalid username or password"))))
       case Some(dbUser) =>
-        logger.info(s"✅ User FOUND in database: '$username' (id: ${dbUser.id})")
-        println(s"✅ User FOUND in database: '$username' (id: ${dbUser.id})")
+        logger.info(s"✅ User FOUND in database: '$username' (userId: ${dbUser.userId})")
+        println(s"✅ User FOUND in database: '$username' (userId: ${dbUser.userId})")
         logger.debug(s"🔍 Password hash length: ${dbUser.passwordHash.length}, Salt length: ${dbUser.passwordSalt.length}")
         println(s"🔍 Password hash length: ${dbUser.passwordHash.length}, Salt length: ${dbUser.passwordSalt.length}")
 
@@ -87,7 +104,7 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
    * Get user by ID (for UserInfo endpoint) - required by AuthService interface
    */
   def getUserById(sub: String): IO[Option[User]] = {
-    findUserByUniqueId(sub).map(_.map(_.toUser))
+    findUserByUserId(sub).map(_.map(_.toUser))
   }
 
   /**
@@ -98,29 +115,30 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
   }
 
   /**
-   * Find user by unique ID from the database view
+   * Find user by user_id from the database view
    */
-  private def findUserByUniqueId(uniqueId: String): IO[Option[DatabaseUser]] = {
+  private def findUserByUserId(userId: String): IO[Option[DatabaseUser]] = {
     val query = sql"""
-      SELECT id, username, firstname, lastname, email, uniqueid,
+      SELECT user_id, username, firstname, lastname, email,
              validated, provider, password_pw, password_slt,
              createdat, updatedat
       FROM v_oidc_users
-      WHERE uniqueid = $uniqueId AND validated = true
+      WHERE username = $userId AND validated = true
     """.query[DatabaseUser]
 
     query.option.transact(transactor).handleErrorWith { error =>
-      logger.error(s"Database error while finding user by ID $uniqueId", error)
+      logger.error(s"Database error while finding user by username $userId", error)
       IO.pure(None)
     }
   }
+
 
   /**
    * Find user by username from the database view
    */
   private def findUserByUsername(username: String): IO[Option[DatabaseUser]] = {
     val query = sql"""
-      SELECT id, username, firstname, lastname, email, uniqueid,
+      SELECT user_id, username, firstname, lastname, email,
              validated, provider, password_pw, password_slt,
              createdat, updatedat
       FROM v_oidc_users
@@ -129,6 +147,24 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
 
     query.option.transact(transactor).handleErrorWith { error =>
       logger.error(s"Database error while finding user $username", error)
+      IO.pure(None)
+    }
+  }
+
+  /**
+   * Find user by username and provider from the database view
+   */
+  private def findUserByUsernameAndProvider(username: String, provider: String): IO[Option[DatabaseUser]] = {
+    val query = sql"""
+      SELECT user_id, username, firstname, lastname, email,
+             validated, provider, password_pw, password_slt,
+             createdat, updatedat
+      FROM v_oidc_users
+      WHERE username = $username AND provider = $provider AND validated = true
+    """.query[DatabaseUser]
+
+    query.option.transact(transactor).handleErrorWith { error =>
+      logger.error(s"Database error while finding user by username $username and provider $provider", error)
       IO.pure(None)
     }
   }
@@ -488,12 +524,11 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
  * Database user representation matching the v_oidc_users view structure
  */
 case class DatabaseUser(
-  id: Long,
+  userId: String,      // user_id column
   username: String,
   firstname: String,
   lastname: String,
   email: String,
-  uniqueid: String,
   validated: Boolean,
   provider: String,
   passwordHash: String,  // password_pw column
@@ -503,16 +538,17 @@ case class DatabaseUser(
 ) {
 
   def toUser: User = User(
-    sub = uniqueid,
+    sub = username, // Use username as subject identifier for OBP-API compatibility
     username = username,
     password = "", // Never expose password, even if hashed
     name = Some(s"$firstname $lastname".trim),
     email = Some(email),
-    email_verified = Some(validated)
+    email_verified = Some(validated),
+    provider = Some(provider) // This will be used as the JWT issuer
   )
 
   def toUserInfo: UserInfo = UserInfo(
-    sub = uniqueid,
+    sub = username, // Use username as subject identifier for OBP-API compatibility
     name = Some(s"$firstname $lastname".trim),
     given_name = Some(firstname),
     family_name = Some(lastname),
@@ -736,19 +772,18 @@ object DatabaseUserInstances {
   import doobie.util.Read
 
   implicit val databaseUserRead: Read[DatabaseUser] =
-    Read[(Long, String, String, String, String, String, Boolean, String, String, String, Instant, Instant)]
-      .map { case (id, username, firstname, lastname, email, uniqueid, validated, provider, passwordPw, passwordSlt, createdAt, updatedAt) =>
+    Read[(String, String, String, String, String, Boolean, String, String, String, Instant, Instant)]
+      .map { case (userId, username, firstname, lastname, email, validated, provider, passwordPw, passwordSalt, createdAt, updatedAt) =>
         DatabaseUser(
-          id = id,
+          userId = userId,
           username = username,
           firstname = firstname,
           lastname = lastname,
           email = email,
-          uniqueid = uniqueid,
           validated = validated,
           provider = provider,
           passwordHash = passwordPw,
-          passwordSalt = passwordSlt,
+          passwordSalt = passwordSalt,
           createdAt = createdAt,
           updatedAt = updatedAt
         )

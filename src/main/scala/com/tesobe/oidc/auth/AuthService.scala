@@ -2,7 +2,7 @@
  * Copyright (c) 2025 TESOBE
  *
  * This file is part of OBP-OIDC.
- * 
+ *
  * OBP-OIDC is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -30,28 +30,33 @@ trait AuthService[F[_]] {
    * Authenticate a user by username and password
    * Returns the user information if authentication succeeds
    */
-  def authenticate(username: String, password: String): F[Either[OidcError, User]]
-  
+  def authenticate(username: String, password: String, provider: String): F[Either[OidcError, User]]
+
   /**
    * Get user information by subject ID
    */
   def getUserById(sub: String): F[Option[User]]
-  
+
+  /**
+   * Get available authentication providers
+   */
+  def getAvailableProviders(): F[List[String]]
+
   /**
    * Validate that a client_id and redirect_uri combination is valid
    */
   def validateClient(clientId: String, redirectUri: String): F[Boolean]
-  
+
   /**
    * Find a client by client ID
    */
   def findClientById(clientId: String): F[Option[OidcClient]]
-  
+
   /**
    * Find an admin client by client ID (with write access)
    */
   def findAdminClientById(clientId: String): F[Option[OidcClient]]
-  
+
   /**
    * List all registered clients
    */

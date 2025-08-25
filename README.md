@@ -434,10 +434,11 @@ This OIDC provider uses three PostgreSQL database views:
 
 #### User Fields (`v_oidc_users` view)
 
-- `username`: Login identifier
+- `user_id`: Internal unique identifier
+- `username`: Login identifier, used as OIDC subject (`sub`) claim for OBP-API compatibility
 - `firstname`, `lastname`: User's full name
 - `email`: User's email address
-- `uniqueid`: Used as OIDC subject identifier
+- `provider`: Authentication provider, used as OIDC issuer (`iss`) claim for OBP-API compatibility
 - `validated`: Must be true for authentication
 
 #### Client Fields (`v_oidc_clients` and `v_oidc_admin_clients` views)
@@ -463,6 +464,29 @@ This OIDC provider uses three PostgreSQL database views:
 - `grant_types`: Supported OAuth2 grant types (default: authorization_code)
 - `scopes`: Allowed access scopes (default: openid, profile, email)
 - `token_endpoint_auth_method`: Client authentication method
+
+## OBP-API Integration
+
+### JWT Token Claims
+
+For compatibility with OBP-API, JWT tokens are generated with specific claim mappings from the `v_oidc_users` database view:
+
+- **`sub` (Subject)**: Contains the user's `username` field from `v_oidc_users`
+  - Source: `v_oidc_users.username`
+  - Purpose: OBP-API uses this to identify the user
+- **`iss` (Issuer)**: Contains the user's `provider` field from `v_oidc_users`
+  - Source: `v_oidc_users.provider`
+  - Purpose: OBP-API uses this to identify the authentication provider
+- **Standard claims**: Populated from user data in `v_oidc_users`
+  - `name`: Combined from `v_oidc_users.firstname` and `v_oidc_users.lastname`
+  - `email`: From `v_oidc_users.email`
+  - `email_verified`: From `v_oidc_users.validated`
+
+This ensures that OBP-API can correctly identify users using the `sub` field as username and `iss` field as provider, exactly as required for proper integration.
+
+### Token Validation
+
+The OIDC server accepts tokens with various provider-based issuers, providing flexibility for different authentication providers while maintaining security.
 
 ## Example OIDC Flow
 
