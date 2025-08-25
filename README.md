@@ -2,6 +2,20 @@
 
 A bare bones OpenID Connect (OIDC) provider built with http4s and functional programming in Scala. This implementation follows the same technology stack as OBP-API-II and integrates with PostgreSQL database for real user authentication.
 
+It's meant to be used with OBP-API and apps such as the OBP Portal.
+
+If you're having trouble understanding OIDC with OBP this tool might help.
+
+Designed to create clients for the OBP Apps as it starts up. It will print client_id, secrets and other info so you can copy and paste into your Props or env files.
+
+Designed to read / write to the OBP Users and Consumers tables via SQL views defined in https://github.com/OpenBankProject/OBP-API/blob/develop/obp-api/src/main/scripts/sql/create_oidc_user_and_views.sql
+
+
+Very Work in Progress.
+
+Please take the following with a very big pinch of salt!
+
+
 ## Features
 
 - **Pure Functional Programming**: Built with Cats Effect IO and immutable data structures
@@ -39,21 +53,9 @@ A bare bones OpenID Connect (OIDC) provider built with http4s and functional pro
 mvn exec:java -Dexec.args="--generate-config"
 ```
 
-### Step 2: Set Up Database
+### Step 2: Locate your OBP database.
 
-Copy & paste the generated database setup commands from `obp-oidc-database-config.txt`:
-
-```bash
-# Example output (your passwords will be different):
-sudo -u postgres psql << EOF
-CREATE DATABASE sandbox;
-CREATE USER oidc_user WITH PASSWORD 'YourGeneratedPassword123!';
-CREATE USER oidc_admin WITH PASSWORD 'YourGeneratedAdminPass456#';
-GRANT CONNECT ON DATABASE sandbox TO oidc_user;
-GRANT CONNECT ON DATABASE sandbox TO oidc_admin;
-\q
-EOF
-```
+see below
 
 ### Step 3: Start OBP-OIDC
 
