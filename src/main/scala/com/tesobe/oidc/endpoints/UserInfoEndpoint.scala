@@ -2,7 +2,7 @@
  * Copyright (c) 2025 TESOBE
  *
  * This file is part of OBP-OIDC.
- * 
+ *
  * OBP-OIDC is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -33,9 +33,9 @@ import org.http4s.headers.Authorization
 class UserInfoEndpoint(authService: AuthService[IO], jwtService: JwtService[IO]) {
 
   val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
-    case req @ GET -> Root / "userinfo" =>
+    case req @ GET -> Root / "obp-oidc" / "userinfo" =>
       handleUserInfoRequest(req)
-    case req @ POST -> Root / "userinfo" =>
+    case req @ POST -> Root / "obp-oidc" / "userinfo" =>
       handleUserInfoRequest(req)
   }
 
@@ -74,12 +74,12 @@ class UserInfoEndpoint(authService: AuthService[IO], jwtService: JwtService[IO])
                 email_verified = if (claims.scope.contains("email")) user.email_verified else None
               )
               Ok(userInfo.asJson)
-              
+
             case None =>
               BadRequest("User not found")
           }
         }
-        
+
       case Left(error) =>
         BadRequest("Invalid token")
     }
@@ -87,6 +87,6 @@ class UserInfoEndpoint(authService: AuthService[IO], jwtService: JwtService[IO])
 }
 
 object UserInfoEndpoint {
-  def apply(authService: AuthService[IO], jwtService: JwtService[IO]): UserInfoEndpoint = 
+  def apply(authService: AuthService[IO], jwtService: JwtService[IO]): UserInfoEndpoint =
     new UserInfoEndpoint(authService, jwtService)
 }

@@ -39,7 +39,7 @@ class AuthEndpoint(authService: AuthService[IO], codeService: CodeService[IO]) {
   println("🚀 AuthEndpoint created - logging is working!")
 
   val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
-    case GET -> Root / "auth" :?
+    case GET -> Root / "obp-oidc" / "auth" :?
       ResponseTypeQueryParamMatcher(responseType) +&
       ClientIdQueryParamMatcher(clientId) +&
       RedirectUriQueryParamMatcher(redirectUri) +&
@@ -48,7 +48,7 @@ class AuthEndpoint(authService: AuthService[IO], codeService: CodeService[IO]) {
       NonceQueryParamMatcher(nonce) =>
       handleAuthorizationRequest(responseType, clientId, redirectUri, scope, state, nonce)
 
-    case req @ POST -> Root / "auth" =>
+    case req @ POST -> Root / "obp-oidc" / "auth" =>
       req.as[UrlForm].flatMap(handleLoginSubmission)
   }
 
@@ -176,7 +176,7 @@ class AuthEndpoint(authService: AuthService[IO], codeService: CodeService[IO]) {
           <strong>Requested Scopes:</strong> $scope
         </div>
 
-        <form method="post" action="/auth">
+        <form method="post" action="/obp-oidc/auth">
           <div class="form-group">
             <label for="username">Username:</label>
             <input type="text" id="username" name="username" required>

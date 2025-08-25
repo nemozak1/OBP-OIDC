@@ -126,8 +126,8 @@ object OidcServer extends IOApp {
                      |<p>OpenID Connect provider is running</p>
                      |<h2>Endpoints:</h2>
                      |<ul>
-                     |<li><a href="/.well-known/openid-configuration">Discovery</a></li>
-                     |<li><a href="/jwks">JWKS</a></li>
+                     |<li><a href="/obp-oidc/.well-known/openid-configuration">Discovery</a></li>
+                     |<li><a href="/obp-oidc/jwks">JWKS</a></li>
                      |<li><a href="/health">Health Check</a></li>
                      |</ul>
                      |</body>
@@ -135,15 +135,15 @@ object OidcServer extends IOApp {
                    .map(_.withContentType(org.http4s.headers.`Content-Type`(MediaType.text.html)))
 
               // OIDC Discovery
-              case GET -> Root / ".well-known" / "openid-configuration" =>
-                discoveryEndpoint.routes.run(org.http4s.Request[IO](org.http4s.Method.GET, org.http4s.Uri.unsafeFromString("/.well-known/openid-configuration"))).value.flatMap {
+              case GET -> Root / "obp-oidc" / ".well-known" / "openid-configuration" =>
+                discoveryEndpoint.routes.run(org.http4s.Request[IO](org.http4s.Method.GET, org.http4s.Uri.unsafeFromString("/obp-oidc/.well-known/openid-configuration"))).value.flatMap {
                   case Some(resp) => IO.pure(resp)
                   case None => NotFound("Discovery endpoint not found")
                 }
 
               // JWKS
-              case GET -> Root / "jwks" =>
-                jwksEndpoint.routes.run(org.http4s.Request[IO](org.http4s.Method.GET, org.http4s.Uri.unsafeFromString("/jwks"))).value.flatMap {
+              case GET -> Root / "obp-oidc" / "jwks" =>
+                jwksEndpoint.routes.run(org.http4s.Request[IO](org.http4s.Method.GET, org.http4s.Uri.unsafeFromString("/obp-oidc/jwks"))).value.flatMap {
                   case Some(resp) => IO.pure(resp)
                   case None => NotFound("JWKS endpoint not found")
                 }
@@ -333,11 +333,11 @@ object OidcServer extends IOApp {
       _ <- IO(println(s"openid_connect_1.client_id=$clientId"))
       _ <- IO(println(s"openid_connect_1.client_secret=$clientSecret"))
       _ <- IO(println(s"openid_connect_1.callback_url=${sys.env.getOrElse("OBP_API_URL", "http://localhost:8080")}/auth/openid-connect/callback"))
-      _ <- IO(println(s"openid_connect_1.endpoint.discovery=$baseUri/.well-known/openid-configuration"))
-      _ <- IO(println(s"openid_connect_1.endpoint.authorization=$baseUri/auth"))
-      _ <- IO(println(s"openid_connect_1.endpoint.userinfo=$baseUri/userinfo"))
-      _ <- IO(println(s"openid_connect_1.endpoint.token=$baseUri/token"))
-      _ <- IO(println(s"openid_connect_1.endpoint.jwks_uri=$baseUri/jwks"))
+      _ <- IO(println(s"openid_connect_1.endpoint.discovery=$baseUri/obp-oidc/.well-known/openid-configuration"))
+      _ <- IO(println(s"openid_connect_1.endpoint.authorization=$baseUri/obp-oidc/auth"))
+      _ <- IO(println(s"openid_connect_1.endpoint.userinfo=$baseUri/obp-oidc/userinfo"))
+      _ <- IO(println(s"openid_connect_1.endpoint.token=$baseUri/obp-oidc/token"))
+      _ <- IO(println(s"openid_connect_1.endpoint.jwks_uri=$baseUri/obp-oidc/jwks"))
       _ <- IO(println("openid_connect_1.access_type_offline=true"))
       _ <- IO(println())
       _ <- if (client.isEmpty) {
@@ -362,7 +362,7 @@ object OidcServer extends IOApp {
       _ <- IO(println(s"OBP_API_URL=${sys.env.getOrElse("OBP_API_URL", "http://localhost:8080")}"))
       _ <- IO(println(s"OBP_OAUTH_CLIENT_ID=$clientId"))
       _ <- IO(println(s"OBP_OAUTH_CLIENT_SECRET=$clientSecret"))
-      _ <- IO(println(s"OBP_OAUTH_WELL_KNOWN_URL=$baseUri/.well-known/openid-configuration"))
+      _ <- IO(println(s"OBP_OAUTH_WELL_KNOWN_URL=$baseUri/obp-oidc/.well-known/openid-configuration"))
       _ <- IO(println("APP_CALLBACK_URL=http://localhost:5174/login/obp/callback"))
       _ <- IO(println(s"VITE_API_URL=${sys.env.getOrElse("OBP_API_URL", "http://localhost:8080")}"))
       _ <- IO(println(s"VITE_OIDC_ISSUER=$baseUri"))
@@ -388,9 +388,9 @@ object OidcServer extends IOApp {
       _ <- IO(println("# Add to API-Explorer-II .env file"))
       _ <- IO(println(s"REACT_APP_API_HOST=${sys.env.getOrElse("OBP_API_URL", "http://localhost:8080")}"))
       _ <- IO(println(s"REACT_APP_OIDC_ISSUER=$baseUri"))
-      _ <- IO(println(s"REACT_APP_OIDC_AUTH_URL=$baseUri/auth"))
-      _ <- IO(println(s"REACT_APP_OIDC_TOKEN_URL=$baseUri/token"))
-      _ <- IO(println(s"REACT_APP_OIDC_USERINFO_URL=$baseUri/userinfo"))
+      _ <- IO(println(s"REACT_APP_OIDC_AUTH_URL=$baseUri/obp-oidc/auth"))
+      _ <- IO(println(s"REACT_APP_OIDC_TOKEN_URL=$baseUri/obp-oidc/token"))
+      _ <- IO(println(s"REACT_APP_OIDC_USERINFO_URL=$baseUri/obp-oidc/userinfo"))
       _ <- IO(println(s"REACT_APP_OIDC_CLIENT_ID=$clientId"))
       _ <- IO(println(s"REACT_APP_OIDC_CLIENT_SECRET=$clientSecret"))
       _ <- IO(println("REACT_APP_OIDC_REDIRECT_URI=http://localhost:3001/callback"))
@@ -420,9 +420,9 @@ object OidcServer extends IOApp {
       _ <- IO(println(s"NEXT_PUBLIC_API_URL=${sys.env.getOrElse("OBP_API_URL", "http://localhost:8080")}"))
       _ <- IO(println(s"NEXT_PUBLIC_OIDC_ISSUER=$baseUri"))
       _ <- IO(println(s"OIDC_ISSUER=$baseUri"))
-      _ <- IO(println(s"OIDC_AUTH_URL=$baseUri/auth"))
-      _ <- IO(println(s"OIDC_TOKEN_URL=$baseUri/token"))
-      _ <- IO(println(s"OIDC_USERINFO_URL=$baseUri/userinfo"))
+      _ <- IO(println(s"OIDC_AUTH_URL=$baseUri/obp-oidc/auth"))
+      _ <- IO(println(s"OIDC_TOKEN_URL=$baseUri/obp-oidc/token"))
+      _ <- IO(println(s"OIDC_USERINFO_URL=$baseUri/obp-oidc/userinfo"))
       _ <- IO(println(s"OIDC_CLIENT_ID=$clientId"))
       _ <- IO(println(s"OIDC_CLIENT_SECRET=$clientSecret"))
       _ <- IO(println(s"NEXT_PUBLIC_CLIENT_ID=$clientId"))

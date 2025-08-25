@@ -31,18 +31,17 @@ import org.http4s.dsl.io._
 class DiscoveryEndpoint(config: OidcConfig) {
 
   val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
-    case GET -> Root / ".well-known" / "openid-configuration" =>
+    case GET -> Root / "obp-oidc" / ".well-known" / "openid-configuration" =>
       getConfiguration
   }
 
   private def getConfiguration: IO[Response[IO]] = {
-    val baseUrl = s"http://${config.server.host}:${config.server.port}"
     val configuration = OidcConfiguration(
       issuer = config.issuer,
-      authorization_endpoint = s"$baseUrl/auth",
-      token_endpoint = s"$baseUrl/token",
-      userinfo_endpoint = s"$baseUrl/userinfo",
-      jwks_uri = s"$baseUrl/jwks",
+      authorization_endpoint = s"${config.issuer}/auth",
+      token_endpoint = s"${config.issuer}/token",
+      userinfo_endpoint = s"${config.issuer}/userinfo",
+      jwks_uri = s"${config.issuer}/jwks",
       response_types_supported = List("code"),
       subject_types_supported = List("public"),
       id_token_signing_alg_values_supported = List("RS256"),

@@ -50,7 +50,8 @@ object Config {
   def load: IO[OidcConfig] = IO {
     val host = sys.env.getOrElse("OIDC_HOST", "localhost")
     val port = sys.env.getOrElse("OIDC_PORT", "9000").toInt
-    val issuer = "obp-oidc"
+    val baseUrl = s"http://$host:$port"
+    val issuer = s"$baseUrl/obp-oidc"
 
     val dbConfig = DatabaseConfig(
       host = sys.env.getOrElse("DB_HOST", "localhost"),

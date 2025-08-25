@@ -42,7 +42,7 @@ class TokenEndpoint(
   private val logger = LoggerFactory.getLogger(getClass)
 
   val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
-    case req @ POST -> Root / "token" =>
+    case req @ POST -> Root / "obp-oidc" / "token" =>
       println(s"🎫 DEBUG: TokenEndpoint route matched! ${req.method} ${req.uri}")
       println(s"🎫 DEBUG: About to log with logger...")
       logger.info(s"🎫 Token endpoint called")
