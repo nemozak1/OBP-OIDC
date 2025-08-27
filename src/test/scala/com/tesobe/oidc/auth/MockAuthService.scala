@@ -23,10 +23,9 @@ import cats.effect.IO
 import cats.syntax.either._
 import com.tesobe.oidc.models.{User, OidcError, OidcClient}
 
-/**
- * Mock authentication service for TESTING PURPOSES ONLY
- * This service should never be used in production or offered as an option to users
- */
+/** Mock authentication service for TESTING PURPOSES ONLY This service should
+  * never be used in production or offered as an option to users
+  */
 class MockAuthService extends AuthService[IO] {
 
   // Test users for testing only
@@ -60,10 +59,17 @@ class MockAuthService extends AuthService[IO] {
     )
   )
 
-  def authenticate(username: String, password: String): IO[Either[OidcError, User]] = IO {
+  def authenticate(
+      username: String,
+      password: String,
+      provider: String
+  ): IO[Either[OidcError, User]] = IO {
     users.get(username) match {
-      case Some(user) if user.password == password =>
+      case Some(user)
+          if user.password == password && user.provider.contains(provider) =>
         user.asRight[OidcError]
+      case Some(user) if user.password == password =>
+        OidcError("access_denied", Some("Invalid provider")).asLeft[User]
       case Some(_) =>
         OidcError("access_denied", Some("Invalid password")).asLeft[User]
       case None =>
@@ -75,6 +81,10 @@ class MockAuthService extends AuthService[IO] {
     users.values.find(_.sub == sub)
   }
 
+  def getAvailableProviders(): IO[List[String]] = IO {
+    users.values.flatMap(_.provider).toList.distinct.sorted
+  }
+
   def validateClient(clientId: String, redirectUri: String): IO[Boolean] = IO {
     // Mock implementation for testing - accepts any client_id and redirect_uri
     true
@@ -82,23 +92,9 @@ class MockAuthService extends AuthService[IO] {
 
   def findClientById(clientId: String): IO[Option[OidcClient]] = IO {
     // Mock implementation for testing
-    Some(OidcClient(
-      client_id = clientId,
-      client_secret = Some("test-secret"),
-      client_name = "Test Client",
-      redirect_uris = List("https://example.com/callback"),
-      grant_types = List("authorization_code"),
-      response_types = List("code"),
-      scopes = List("openid", "profile", "email")
-    ))
-  }
-
-  def findAdminClientById(clientId: String): IO[Option[OidcClient]] = findClientById(clientId)
-
-  def listClients(): IO[Either[OidcError, List[OidcClient]]] = IO {
-    Right(List(
+    Some(
       OidcClient(
-        client_id = "test-client",
+        client_id = clientId,
         client_secret = Some("test-secret"),
         client_name = "Test Client",
         redirect_uris = List("https://example.com/callback"),
@@ -106,7 +102,26 @@ class MockAuthService extends AuthService[IO] {
         response_types = List("code"),
         scopes = List("openid", "profile", "email")
       )
-    ))
+    )
+  }
+
+  def findAdminClientById(clientId: String): IO[Option[OidcClient]] =
+    findClientById(clientId)
+
+  def listClients(): IO[Either[OidcError, List[OidcClient]]] = IO {
+    Right(
+      List(
+        OidcClient(
+          client_id = "test-client",
+          client_secret = Some("test-secret"),
+          client_name = "Test Client",
+          redirect_uris = List("https://example.com/callback"),
+          grant_types = List("authorization_code"),
+          response_types = List("code"),
+          scopes = List("openid", "profile", "email")
+        )
+      )
+    )
   }
 }
 

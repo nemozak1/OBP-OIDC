@@ -35,15 +35,14 @@ import org.scalatest.matchers.should.Matchers
 import cats.effect.unsafe.implicits.global
 import org.typelevel.ci.CIString
 
-
-
 class OidcProviderIntegrationTest extends AnyFlatSpec with Matchers {
 
   val testConfig = OidcConfig(
     issuer = "http://localhost:9000/obp-oidc",
     server = ServerConfig("localhost", 9000),
     database = DatabaseConfig("localhost", 5432, "test", "test", "test"),
-    adminDatabase = DatabaseConfig("localhost", 5432, "test", "test_admin", "test_admin"),
+    adminDatabase =
+      DatabaseConfig("localhost", 5432, "test", "test_admin", "test_admin"),
     keyId = "test-key-1",
     tokenExpirationSeconds = 3600,
     codeExpirationSeconds = 600
@@ -58,7 +57,12 @@ class OidcProviderIntegrationTest extends AnyFlatSpec with Matchers {
       discoveryEndpoint = DiscoveryEndpoint(testConfig)
       jwksEndpoint = JwksEndpoint(jwtService)
       authEndpoint = AuthEndpoint(authService, codeService)
-      tokenEndpoint = TokenEndpoint(authService, codeService, jwtService, testConfig)
+      tokenEndpoint = TokenEndpoint(
+        authService,
+        codeService,
+        jwtService,
+        testConfig
+      )
       userInfoEndpoint = UserInfoEndpoint(authService, jwtService)
 
       routes = Router(
@@ -74,16 +78,22 @@ class OidcProviderIntegrationTest extends AnyFlatSpec with Matchers {
   "OIDC Discovery Endpoint" should "return valid discovery document" in {
     val test = for {
       app <- createTestApp
-      request = Request[IO](Method.GET, uri"/obp-oidc/.well-known/openid-configuration")
+      request = Request[IO](
+        Method.GET,
+        uri"/obp-oidc/.well-known/openid-configuration"
+      )
       response <- app(request)
       body <- response.as[String]
     } yield {
       response.status should be(Status.Ok)
-      response.contentType.map(_.mediaType) should be(Some(MediaType.application.json))
+      response.contentType.map(_.mediaType) should be(
+        Some(MediaType.application.json)
+      )
 
       val config = decode[OidcConfiguration](body)
       config.isRight should be(true)
-      val configObj = config.getOrElse(throw new Exception("Failed to decode config"))
+      val configObj =
+        config.getOrElse(throw new Exception("Failed to decode config"))
       configObj.issuer should be(testConfig.issuer)
       configObj.authorization_endpoint should be(s"${testConfig.issuer}/auth")
       configObj.token_endpoint should be(s"${testConfig.issuer}/token")
@@ -102,7 +112,9 @@ class OidcProviderIntegrationTest extends AnyFlatSpec with Matchers {
       body <- response.as[String]
     } yield {
       response.status should be(Status.Ok)
-      response.contentType.map(_.mediaType) should be(Some(MediaType.application.json))
+      response.contentType.map(_.mediaType) should be(
+        Some(MediaType.application.json)
+      )
 
       val jwks = decode[JsonWebKeySet](body)
       jwks.isRight should be(true)
@@ -186,11 +198,15 @@ class OidcProviderIntegrationTest extends AnyFlatSpec with Matchers {
       body <- response.as[String]
     } yield {
       response.status should be(Status.BadRequest)
-      response.contentType.map(_.mediaType) should be(Some(MediaType.application.json))
+      response.contentType.map(_.mediaType) should be(
+        Some(MediaType.application.json)
+      )
 
       val error = decode[OidcError](body)
       error.isRight should be(true)
-      error.getOrElse(throw new Exception("Failed to decode error")).error should be("unsupported_grant_type")
+      error
+        .getOrElse(throw new Exception("Failed to decode error"))
+        .error should be("unsupported_grant_type")
     }
 
     test.unsafeRunSync()
@@ -224,6 +240,7 @@ class OidcProviderIntegrationTest extends AnyFlatSpec with Matchers {
       loginForm = UrlForm(
         "username" -> "alice",
         "password" -> "secret123",
+        "provider" -> "obp",
         "client_id" -> clientId,
         "redirect_uri" -> redirectUri,
         "scope" -> scope,
@@ -231,9 +248,13 @@ class OidcProviderIntegrationTest extends AnyFlatSpec with Matchers {
         "nonce" -> nonce
       )
 
-      loginRequest = Request[IO](Method.POST, uri"/obp-oidc/auth").withEntity(loginForm)
+      loginRequest = Request[IO](Method.POST, uri"/obp-oidc/auth").withEntity(
+        loginForm
+      )
       loginResponse <- app(loginRequest)
-      location = loginResponse.headers.get(CIString("Location")).map(_.head.value)
+      location = loginResponse.headers
+        .get(CIString("Location"))
+        .map(_.head.value)
 
       // Extract authorization code from redirect
       _ = loginResponse.status should be(Status.SeeOther)
@@ -254,7 +275,9 @@ class OidcProviderIntegrationTest extends AnyFlatSpec with Matchers {
         "client_id" -> clientId
       )
 
-      tokenRequest = Request[IO](Method.POST, uri"/obp-oidc/token").withEntity(tokenForm)
+      tokenRequest = Request[IO](Method.POST, uri"/obp-oidc/token").withEntity(
+        tokenForm
+      )
       tokenResponse <- app(tokenRequest)
       tokenBody <- tokenResponse.as[String]
 
@@ -262,18 +285,27 @@ class OidcProviderIntegrationTest extends AnyFlatSpec with Matchers {
       tokenResponseObj = decode[TokenResponse](tokenBody)
 
       _ = tokenResponseObj.isRight should be(true)
-      tokens = tokenResponseObj.getOrElse(throw new Exception("Failed to decode token response"))
+      tokens = tokenResponseObj.getOrElse(
+        throw new Exception("Failed to decode token response")
+      )
 
       // Step 3: Use access token to get user info
       userInfoRequest = Request[IO](Method.GET, uri"/obp-oidc/userinfo")
-        .putHeaders(Header.Raw(CIString("Authorization"), s"Bearer ${tokens.access_token}"))
+        .putHeaders(
+          Header.Raw(
+            CIString("Authorization"),
+            s"Bearer ${tokens.access_token}"
+          )
+        )
       userInfoResponse <- app(userInfoRequest)
       userInfoBody <- userInfoResponse.as[String]
 
       _ = userInfoResponse.status should be(Status.Ok)
       userInfo = decode[UserInfo](userInfoBody)
       _ = userInfo.isRight should be(true)
-      user = userInfo.getOrElse(throw new Exception("Failed to decode user info"))
+      user = userInfo.getOrElse(
+        throw new Exception("Failed to decode user info")
+      )
 
     } yield {
       // Verify token response
