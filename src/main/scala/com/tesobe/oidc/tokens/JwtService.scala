@@ -119,6 +119,7 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
       _ = println(
         s"🚨 EMERGENCY DEBUG: ID token generated successfully with azp: $clientId"
       )
+      _ = println(s"🚨 EMERGENCY DEBUG: ID Token JWT: $signedToken")
       _ = logger.info(s"✅ ID token generated successfully with azp: $clientId")
     } yield signedToken
   }
@@ -169,6 +170,7 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
       _ = println(
         s"🚨 EMERGENCY DEBUG: Access token generated successfully with azp: $clientId"
       )
+      _ = println(s"🚨 EMERGENCY DEBUG: Access Token JWT: $signedToken")
       _ = logger.info(
         s"✅ Access token generated successfully with azp: $clientId"
       )
