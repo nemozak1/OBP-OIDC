@@ -40,6 +40,7 @@ import java.security.{KeyPair, KeyPairGenerator}
 import java.time.Instant
 import java.util.{Base64, Date}
 import scala.util.{Failure, Success, Try}
+import org.slf4j.LoggerFactory
 
 trait JwtService[F[_]] {
   def generateIdToken(
@@ -60,6 +61,8 @@ trait JwtService[F[_]] {
 
 class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
     extends JwtService[IO] {
+
+  private val logger = LoggerFactory.getLogger(getClass)
 
   private def getAlgorithm: IO[Algorithm] =
     keyPairRef.get.map { keyPair =>
@@ -82,6 +85,17 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
       // Use user provider as issuer for OBP-API compatibility, fallback to config issuer
       issuer = user.provider.getOrElse(config.issuer)
 
+      _ = println(
+        s"🚨 EMERGENCY DEBUG: Generating ID token for user: ${user.sub}, client: $clientId"
+      )
+      _ = println(
+        s"🚨 EMERGENCY DEBUG: Setting azp (Authorized Party) claim to: $clientId"
+      )
+      _ = logger.info(
+        s"🎫 Generating ID token for user: ${user.sub}, client: $clientId"
+      )
+      _ = logger.info(s"🏢 Setting azp (Authorized Party) claim to: $clientId")
+
       token = JWT
         .create()
         .withIssuer(issuer)
@@ -94,12 +108,18 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
         .withClaim("name", user.name.orNull)
         .withClaim("email", user.email.orNull)
         .withClaim(
-          "email_verified",
-          user.email_verified.map(Boolean.box).orNull
+          "provider",
+          user.provider.getOrElse(config.issuer)
         )
 
+      _ = println(s"🚨 EMERGENCY DEBUG: Added azp claim with value: $clientId")
       tokenWithNonce = nonce.fold(token)(n => token.withClaim("nonce", n))
       signedToken = tokenWithNonce.sign(algorithm)
+
+      _ = println(
+        s"🚨 EMERGENCY DEBUG: ID token generated successfully with azp: $clientId"
+      )
+      _ = logger.info(s"✅ ID token generated successfully with azp: $clientId")
     } yield signedToken
   }
 
@@ -116,6 +136,17 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
       // Use user provider as issuer for OBP-API compatibility, fallback to config issuer
       issuer = user.provider.getOrElse(config.issuer)
 
+      _ = println(
+        s"🚨 EMERGENCY DEBUG: Generating Access token for user: ${user.sub}, client: $clientId"
+      )
+      _ = println(
+        s"🚨 EMERGENCY DEBUG: Setting azp (Authorized Party) claim to: $clientId"
+      )
+      _ = logger.info(
+        s"🎫 Generating Access token for user: ${user.sub}, client: $clientId"
+      )
+      _ = logger.info(s"🏢 Setting azp (Authorized Party) claim to: $clientId")
+
       token = JWT
         .create()
         .withIssuer(issuer)
@@ -126,10 +157,21 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
         .withIssuedAt(Date.from(now))
         .withExpiresAt(Date.from(exp))
         .withKeyId(config.keyId)
+        .withClaim("azp", clientId)
         .withClaim("scope", scope)
         .withClaim("client_id", clientId)
 
+      _ = println(
+        s"🚨 EMERGENCY DEBUG: Added azp claim to access token with value: $clientId"
+      )
       signedToken = token.sign(algorithm)
+
+      _ = println(
+        s"🚨 EMERGENCY DEBUG: Access token generated successfully with azp: $clientId"
+      )
+      _ = logger.info(
+        s"✅ Access token generated successfully with azp: $clientId"
+      )
     } yield signedToken
   }
 
@@ -157,6 +199,11 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
             throw new JWTVerificationException("Missing or empty issuer")
           }
 
+          val azpClaim = Option(decodedJWT.getClaim("azp")).map(_.asString())
+          logger.info(
+            s"🔍 Validating access token with azp: ${azpClaim.getOrElse("NONE")}"
+          )
+
           AccessTokenClaims(
             iss = decodedJWT.getIssuer,
             sub = decodedJWT.getSubject,
@@ -164,7 +211,8 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
             exp = decodedJWT.getExpiresAt.toInstant.getEpochSecond,
             iat = decodedJWT.getIssuedAt.toInstant.getEpochSecond,
             scope = decodedJWT.getClaim("scope").asString(),
-            client_id = decodedJWT.getClaim("client_id").asString()
+            client_id = decodedJWT.getClaim("client_id").asString(),
+            azp = azpClaim
           )
         } match {
           case Success(claims) => claims.asRight[OidcError]

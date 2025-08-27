@@ -24,17 +24,17 @@ import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 
 // OIDC Discovery Document
 case class OidcConfiguration(
-  issuer: String,
-  authorization_endpoint: String,
-  token_endpoint: String,
-  userinfo_endpoint: String,
-  jwks_uri: String,
-  response_types_supported: List[String],
-  subject_types_supported: List[String],
-  id_token_signing_alg_values_supported: List[String],
-  scopes_supported: List[String],
-  token_endpoint_auth_methods_supported: List[String],
-  claims_supported: List[String]
+    issuer: String,
+    authorization_endpoint: String,
+    token_endpoint: String,
+    userinfo_endpoint: String,
+    jwks_uri: String,
+    response_types_supported: List[String],
+    subject_types_supported: List[String],
+    id_token_signing_alg_values_supported: List[String],
+    scopes_supported: List[String],
+    token_endpoint_auth_methods_supported: List[String],
+    claims_supported: List[String]
 )
 
 object OidcConfiguration {
@@ -44,16 +44,17 @@ object OidcConfiguration {
 
 // JWT Claims for ID Token
 case class IdTokenClaims(
-  iss: String,              // Issuer
-  sub: String,              // Subject (user ID)
-  aud: String,              // Audience (client ID)
-  exp: Long,                // Expiration time
-  iat: Long,                // Issued at time
-  nonce: Option[String] = None,     // Nonce from authorization request
-  // Standard claims
-  name: Option[String] = None,
-  email: Option[String] = None,
-  email_verified: Option[Boolean] = None
+    iss: String, // Issuer
+    sub: String, // Subject (user ID)
+    aud: String, // Audience (client ID)
+    exp: Long, // Expiration time
+    iat: Long, // Issued at time
+    azp: Option[String] = None, // Authorized Party (client ID)
+    nonce: Option[String] = None, // Nonce from authorization request
+    // Standard claims
+    name: Option[String] = None,
+    email: Option[String] = None,
+    email_verified: Option[Boolean] = None
 )
 
 object IdTokenClaims {
@@ -63,13 +64,14 @@ object IdTokenClaims {
 
 // Access Token Claims
 case class AccessTokenClaims(
-  iss: String,
-  sub: String,
-  aud: String,
-  exp: Long,
-  iat: Long,
-  scope: String,
-  client_id: String
+    iss: String,
+    sub: String,
+    aud: String,
+    exp: Long,
+    iat: Long,
+    scope: String,
+    client_id: String,
+    azp: Option[String] = None // Authorized Party (client ID)
 )
 
 object AccessTokenClaims {
@@ -79,13 +81,13 @@ object AccessTokenClaims {
 
 // User info for mocked service
 case class User(
-  sub: String,
-  username: String,
-  password: String, // In real implementation, this would be hashed
-  name: Option[String] = None,
-  email: Option[String] = None,
-  email_verified: Option[Boolean] = Some(true),
-  provider: Option[String] = None
+    sub: String,
+    username: String,
+    password: String, // In real implementation, this would be hashed
+    name: Option[String] = None,
+    email: Option[String] = None,
+    email_verified: Option[Boolean] = Some(true),
+    provider: Option[String] = None
 )
 
 object User {
@@ -95,12 +97,12 @@ object User {
 
 // UserInfo endpoint response
 case class UserInfo(
-  sub: String,
-  name: Option[String] = None,
-  given_name: Option[String] = None,
-  family_name: Option[String] = None,
-  email: Option[String] = None,
-  email_verified: Option[Boolean] = None
+    sub: String,
+    name: Option[String] = None,
+    given_name: Option[String] = None,
+    family_name: Option[String] = None,
+    email: Option[String] = None,
+    email_verified: Option[Boolean] = None
 )
 
 object UserInfo {
@@ -110,15 +112,15 @@ object UserInfo {
 
 // OIDC Client Registration
 case class OidcClient(
-  client_id: String,
-  client_secret: Option[String] = None,
-  client_name: String,
-  redirect_uris: List[String],
-  grant_types: List[String] = List("authorization_code"),
-  response_types: List[String] = List("code"),
-  scopes: List[String] = List("openid", "profile", "email"),
-  token_endpoint_auth_method: String = "client_secret_post",
-  created_at: Option[String] = None
+    client_id: String,
+    client_secret: Option[String] = None,
+    client_name: String,
+    redirect_uris: List[String],
+    grant_types: List[String] = List("authorization_code"),
+    response_types: List[String] = List("code"),
+    scopes: List[String] = List("openid", "profile", "email"),
+    token_endpoint_auth_method: String = "client_secret_post",
+    created_at: Option[String] = None
 )
 
 object OidcClient {
@@ -128,12 +130,12 @@ object OidcClient {
 
 // Authorization request parameters
 case class AuthorizationRequest(
-  response_type: String,
-  client_id: String,
-  redirect_uri: String,
-  scope: String,
-  state: Option[String] = None,
-  nonce: Option[String] = None
+    response_type: String,
+    client_id: String,
+    redirect_uri: String,
+    scope: String,
+    state: Option[String] = None,
+    nonce: Option[String] = None
 )
 
 object AuthorizationRequest {
@@ -143,14 +145,14 @@ object AuthorizationRequest {
 
 // Authorization code (temporary)
 case class AuthorizationCode(
-  code: String,
-  client_id: String,
-  redirect_uri: String,
-  sub: String,
-  scope: String,
-  state: Option[String] = None,
-  nonce: Option[String] = None,
-  exp: Long // Expiration time
+    code: String,
+    client_id: String,
+    redirect_uri: String,
+    sub: String,
+    scope: String,
+    state: Option[String] = None,
+    nonce: Option[String] = None,
+    exp: Long // Expiration time
 )
 
 object AuthorizationCode {
@@ -160,10 +162,10 @@ object AuthorizationCode {
 
 // Token request
 case class TokenRequest(
-  grant_type: String,
-  code: String,
-  redirect_uri: String,
-  client_id: String
+    grant_type: String,
+    code: String,
+    redirect_uri: String,
+    client_id: String
 )
 
 object TokenRequest {
@@ -173,11 +175,11 @@ object TokenRequest {
 
 // Token response
 case class TokenResponse(
-  access_token: String,
-  token_type: String = "Bearer",
-  expires_in: Long,
-  id_token: String,
-  scope: String
+    access_token: String,
+    token_type: String = "Bearer",
+    expires_in: Long,
+    id_token: String,
+    scope: String
 )
 
 object TokenResponse {
@@ -187,10 +189,10 @@ object TokenResponse {
 
 // Error responses
 case class OidcError(
-  error: String,
-  error_description: Option[String] = None,
-  error_uri: Option[String] = None,
-  state: Option[String] = None
+    error: String,
+    error_description: Option[String] = None,
+    error_uri: Option[String] = None,
+    state: Option[String] = None
 )
 
 object OidcError {
@@ -200,12 +202,12 @@ object OidcError {
 
 // JWK (JSON Web Key) for JWKS endpoint
 case class JsonWebKey(
-  kty: String,              // Key type (RSA)
-  use: String,              // Usage (sig for signing)
-  kid: String,              // Key ID
-  alg: String,              // Algorithm (RS256)
-  n: String,                // RSA modulus
-  e: String                 // RSA public exponent
+    kty: String, // Key type (RSA)
+    use: String, // Usage (sig for signing)
+    kid: String, // Key ID
+    alg: String, // Algorithm (RS256)
+    n: String, // RSA modulus
+    e: String // RSA public exponent
 )
 
 object JsonWebKey {
@@ -215,7 +217,7 @@ object JsonWebKey {
 
 // JWKS response
 case class JsonWebKeySet(
-  keys: List[JsonWebKey]
+    keys: List[JsonWebKey]
 )
 
 object JsonWebKeySet {
@@ -225,13 +227,13 @@ object JsonWebKeySet {
 
 // Login form data
 case class LoginForm(
-  username: String,
-  password: String,
-  client_id: String,
-  redirect_uri: String,
-  scope: String,
-  state: Option[String] = None,
-  nonce: Option[String] = None
+    username: String,
+    password: String,
+    client_id: String,
+    redirect_uri: String,
+    scope: String,
+    state: Option[String] = None,
+    nonce: Option[String] = None
 )
 
 object LoginForm {
