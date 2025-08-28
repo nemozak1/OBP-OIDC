@@ -82,8 +82,9 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
       now = Instant.now()
       exp = now.plusSeconds(config.tokenExpirationSeconds)
 
-      // Use user provider as issuer for OBP-API compatibility, fallback to config issuer
-      issuer = user.provider.getOrElse(config.issuer)
+      // Even though the user might been generated in  OBP database,
+      // the issuer of this token is this application.
+      issuer = config.issuer
 
       _ = println(
         s"🚨 EMERGENCY DEBUG: Generating ID token for user: ${user.sub}, client: $clientId"
@@ -96,11 +97,12 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
       )
       _ = logger.info(s"🏢 Setting azp (Authorized Party) claim to: $clientId")
 
+      // Create Identity token (to identify the user at the resource server)
       token = JWT
         .create()
         .withIssuer(issuer)
         .withSubject(user.sub)
-        .withAudience(clientId)
+        .withAudience(user.provider.get)
         .withIssuedAt(Date.from(now))
         .withExpiresAt(Date.from(exp))
         .withKeyId(config.keyId)
@@ -134,8 +136,13 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
       now = Instant.now()
       exp = now.plusSeconds(config.tokenExpirationSeconds)
 
-      // Use user provider as issuer for OBP-API compatibility, fallback to config issuer
-      issuer = user.provider.getOrElse(config.issuer)
+      issuer = config.issuer
+
+      // my_audience = user.provider
+
+      _ = println(
+        s"🚨 EMERGENCY DEBUG: issuer is : $issuer"
+      )
 
       _ = println(
         s"🚨 EMERGENCY DEBUG: Generating Access token for user: ${user.sub}, client: $clientId"
@@ -148,13 +155,12 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
       )
       _ = logger.info(s"🏢 Setting azp (Authorized Party) claim to: $clientId")
 
+      // Create Access token (to access a resource)
       token = JWT
         .create()
         .withIssuer(issuer)
         .withSubject(user.sub)
-        .withAudience(
-          config.issuer
-        ) // Access token audience is the resource server (ourselves)
+        .withAudience(user.provider.get)
         .withIssuedAt(Date.from(now))
         .withExpiresAt(Date.from(exp))
         .withKeyId(config.keyId)
