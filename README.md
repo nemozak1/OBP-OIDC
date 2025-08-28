@@ -193,7 +193,7 @@ For easier configuration and running:
 1. **Copy the example script:**
 
    ```bash
-   cp run-server.example.sh run-server.sh
+   cp run-server.sh run-server.sh
    ```
 
 2. **Edit your database credentials:**

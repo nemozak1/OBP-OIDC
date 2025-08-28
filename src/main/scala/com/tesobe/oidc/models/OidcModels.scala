@@ -113,6 +113,7 @@ case class OidcClient(
   client_id: String,
   client_secret: Option[String] = None,
   client_name: String,
+  consumer_id: String,
   redirect_uris: List[String],
   grant_types: List[String] = List("authorization_code"),
   response_types: List[String] = List("code"),
