@@ -26,7 +26,13 @@ import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.auth0.jwt.exceptions.JWTVerificationException
 import com.auth0.jwt.interfaces.DecodedJWT
-import com.tesobe.oidc.models.{AccessTokenClaims, IdTokenClaims, JsonWebKey, OidcError, User}
+import com.tesobe.oidc.models.{
+  AccessTokenClaims,
+  IdTokenClaims,
+  JsonWebKey,
+  OidcError,
+  User
+}
 import com.tesobe.oidc.config.OidcConfig
 
 import java.security.interfaces.{RSAPrivateKey, RSAPublicKey}
@@ -34,15 +40,29 @@ import java.security.{KeyPair, KeyPairGenerator}
 import java.time.Instant
 import java.util.{Base64, Date}
 import scala.util.{Failure, Success, Try}
+import org.slf4j.LoggerFactory
 
 trait JwtService[F[_]] {
-  def generateIdToken(user: User, clientId: String, nonce: Option[String] = None): F[String]
-  def generateAccessToken(user: User, clientId: String, scope: String): F[String]
-  def validateAccessToken(token: String): F[Either[OidcError, AccessTokenClaims]]
+  def generateIdToken(
+      user: User,
+      clientId: String,
+      nonce: Option[String] = None
+  ): F[String]
+  def generateAccessToken(
+      user: User,
+      clientId: String,
+      scope: String
+  ): F[String]
+  def validateAccessToken(
+      token: String
+  ): F[Either[OidcError, AccessTokenClaims]]
   def getJsonWebKey: F[JsonWebKey]
 }
 
-class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair]) extends JwtService[IO] {
+class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
+    extends JwtService[IO] {
+
+  private val logger = LoggerFactory.getLogger(getClass)
 
   private def getAlgorithm: IO[Algorithm] =
     keyPairRef.get.map { keyPair =>
@@ -52,7 +72,11 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair]) extends J
       )
     }
 
-  def generateIdToken(user: User, clientId: String, nonce: Option[String] = None): IO[String] = {
+  def generateIdToken(
+      user: User,
+      clientId: String,
+      nonce: Option[String] = None
+  ): IO[String] = {
     for {
       algorithm <- getAlgorithm
       now = Instant.now()
@@ -61,23 +85,50 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair]) extends J
       // Use user provider as issuer for OBP-API compatibility, fallback to config issuer
       issuer = user.provider.getOrElse(config.issuer)
 
-      token = JWT.create()
+      _ = println(
+        s"🚨 EMERGENCY DEBUG: Generating ID token for user: ${user.sub}, client: $clientId"
+      )
+      _ = println(
+        s"🚨 EMERGENCY DEBUG: Setting azp (Authorized Party) claim to: $clientId"
+      )
+      _ = logger.info(
+        s"🎫 Generating ID token for user: ${user.sub}, client: $clientId"
+      )
+      _ = logger.info(s"🏢 Setting azp (Authorized Party) claim to: $clientId")
+
+      token = JWT
+        .create()
         .withIssuer(issuer)
         .withSubject(user.sub)
         .withAudience(clientId)
         .withIssuedAt(Date.from(now))
         .withExpiresAt(Date.from(exp))
         .withKeyId(config.keyId)
+        .withClaim("azp", clientId)
         .withClaim("name", user.name.orNull)
         .withClaim("email", user.email.orNull)
-        .withClaim("email_verified", user.email_verified.map(Boolean.box).orNull)
+        .withClaim(
+          "provider",
+          user.provider.getOrElse(config.issuer)
+        )
 
+      _ = println(s"🚨 EMERGENCY DEBUG: Added azp claim with value: $clientId")
       tokenWithNonce = nonce.fold(token)(n => token.withClaim("nonce", n))
       signedToken = tokenWithNonce.sign(algorithm)
+
+      _ = println(
+        s"🚨 EMERGENCY DEBUG: ID token generated successfully with azp: $clientId"
+      )
+      _ = println(s"🚨 EMERGENCY DEBUG: ID Token JWT: $signedToken")
+      _ = logger.info(s"✅ ID token generated successfully with azp: $clientId")
     } yield signedToken
   }
 
-  def generateAccessToken(user: User, clientId: String, scope: String): IO[String] = {
+  def generateAccessToken(
+      user: User,
+      clientId: String,
+      scope: String
+  ): IO[String] = {
     for {
       algorithm <- getAlgorithm
       now = Instant.now()
@@ -86,21 +137,49 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair]) extends J
       // Use user provider as issuer for OBP-API compatibility, fallback to config issuer
       issuer = user.provider.getOrElse(config.issuer)
 
-      token = JWT.create()
+      _ = println(
+        s"🚨 EMERGENCY DEBUG: Generating Access token for user: ${user.sub}, client: $clientId"
+      )
+      _ = println(
+        s"🚨 EMERGENCY DEBUG: Setting azp (Authorized Party) claim to: $clientId"
+      )
+      _ = logger.info(
+        s"🎫 Generating Access token for user: ${user.sub}, client: $clientId"
+      )
+      _ = logger.info(s"🏢 Setting azp (Authorized Party) claim to: $clientId")
+
+      token = JWT
+        .create()
         .withIssuer(issuer)
         .withSubject(user.sub)
-        .withAudience(config.issuer) // Access token audience is the resource server (ourselves)
+        .withAudience(
+          config.issuer
+        ) // Access token audience is the resource server (ourselves)
         .withIssuedAt(Date.from(now))
         .withExpiresAt(Date.from(exp))
         .withKeyId(config.keyId)
+        .withClaim("azp", clientId)
         .withClaim("scope", scope)
         .withClaim("client_id", clientId)
 
+      _ = println(
+        s"🚨 EMERGENCY DEBUG: Added azp claim to access token with value: $clientId"
+      )
       signedToken = token.sign(algorithm)
+
+      _ = println(
+        s"🚨 EMERGENCY DEBUG: Access token generated successfully with azp: $clientId"
+      )
+      _ = println(s"🚨 EMERGENCY DEBUG: Access Token JWT: $signedToken")
+      _ = logger.info(
+        s"✅ Access token generated successfully with azp: $clientId"
+      )
     } yield signedToken
   }
 
-  def validateAccessToken(token: String): IO[Either[OidcError, AccessTokenClaims]] = {
+  def validateAccessToken(
+      token: String
+  ): IO[Either[OidcError, AccessTokenClaims]] = {
     getAlgorithm.flatMap { algorithm =>
       IO {
         Try {
@@ -109,7 +188,8 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair]) extends J
           val tokenIssuer = unverifiedJWT.getIssuer
 
           // Create verifier that accepts either config issuer or provider-based issuer
-          val verifier = JWT.require(algorithm)
+          val verifier = JWT
+            .require(algorithm)
             .acceptIssuedAt(config.tokenExpirationSeconds)
             .build()
 
@@ -121,6 +201,11 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair]) extends J
             throw new JWTVerificationException("Missing or empty issuer")
           }
 
+          val azpClaim = Option(decodedJWT.getClaim("azp")).map(_.asString())
+          logger.info(
+            s"🔍 Validating access token with azp: ${azpClaim.getOrElse("NONE")}"
+          )
+
           AccessTokenClaims(
             iss = decodedJWT.getIssuer,
             sub = decodedJWT.getSubject,
@@ -128,14 +213,19 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair]) extends J
             exp = decodedJWT.getExpiresAt.toInstant.getEpochSecond,
             iat = decodedJWT.getIssuedAt.toInstant.getEpochSecond,
             scope = decodedJWT.getClaim("scope").asString(),
-            client_id = decodedJWT.getClaim("client_id").asString()
+            client_id = decodedJWT.getClaim("client_id").asString(),
+            azp = azpClaim
           )
         } match {
           case Success(claims) => claims.asRight[OidcError]
           case Failure(_: JWTVerificationException) =>
-            OidcError("invalid_token", Some("Token validation failed")).asLeft[AccessTokenClaims]
+            OidcError("invalid_token", Some("Token validation failed"))
+              .asLeft[AccessTokenClaims]
           case Failure(ex) =>
-            OidcError("server_error", Some(s"Token validation error: ${ex.getMessage}")).asLeft[AccessTokenClaims]
+            OidcError(
+              "server_error",
+              Some(s"Token validation error: ${ex.getMessage}")
+            ).asLeft[AccessTokenClaims]
         }
       }
     }
@@ -146,8 +236,12 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair]) extends J
       val publicKey = keyPair.getPublic.asInstanceOf[RSAPublicKey]
 
       // Get RSA modulus and exponent as Base64URL encoded strings
-      val modulus = Base64.getUrlEncoder.withoutPadding().encodeToString(publicKey.getModulus.toByteArray)
-      val exponent = Base64.getUrlEncoder.withoutPadding().encodeToString(publicKey.getPublicExponent.toByteArray)
+      val modulus = Base64.getUrlEncoder
+        .withoutPadding()
+        .encodeToString(publicKey.getModulus.toByteArray)
+      val exponent = Base64.getUrlEncoder
+        .withoutPadding()
+        .encodeToString(publicKey.getPublicExponent.toByteArray)
 
       JsonWebKey(
         kty = "RSA",

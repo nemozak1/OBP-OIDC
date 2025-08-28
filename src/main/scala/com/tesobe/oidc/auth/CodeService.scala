@@ -19,7 +19,6 @@
 
 package com.tesobe.oidc.auth
 
-
 import cats.effect.{IO, Ref}
 import cats.syntax.either._
 import com.tesobe.oidc.models.{AuthorizationCode, OidcError}
@@ -28,18 +27,45 @@ import com.tesobe.oidc.config.OidcConfig
 import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration._
+import org.slf4j.LoggerFactory
 
 trait CodeService[F[_]] {
-  def generateCode(clientId: String, redirectUri: String, sub: String, scope: String, state: Option[String] = None, nonce: Option[String] = None): F[String]
-  def validateAndConsumeCode(code: String, clientId: String, redirectUri: String): F[Either[OidcError, AuthorizationCode]]
+  def generateCode(
+      clientId: String,
+      redirectUri: String,
+      sub: String,
+      scope: String,
+      state: Option[String] = None,
+      nonce: Option[String] = None
+  ): F[String]
+  def validateAndConsumeCode(
+      code: String,
+      clientId: String,
+      redirectUri: String
+  ): F[Either[OidcError, AuthorizationCode]]
 }
 
-class InMemoryCodeService(config: OidcConfig, codesRef: Ref[IO, Map[String, AuthorizationCode]]) extends CodeService[IO] {
+class InMemoryCodeService(
+    config: OidcConfig,
+    codesRef: Ref[IO, Map[String, AuthorizationCode]]
+) extends CodeService[IO] {
 
-  def generateCode(clientId: String, redirectUri: String, sub: String, scope: String, state: Option[String] = None, nonce: Option[String] = None): IO[String] = {
+  private val logger = LoggerFactory.getLogger(getClass)
+
+  def generateCode(
+      clientId: String,
+      redirectUri: String,
+      sub: String,
+      scope: String,
+      state: Option[String] = None,
+      nonce: Option[String] = None
+  ): IO[String] = {
     for {
       code <- IO(UUID.randomUUID().toString.replace("-", ""))
-      exp = Instant.now().plusSeconds(config.codeExpirationSeconds).getEpochSecond
+      exp = Instant
+        .now()
+        .plusSeconds(config.codeExpirationSeconds)
+        .getEpochSecond
 
       authCode = AuthorizationCode(
         code = code,
@@ -56,36 +82,106 @@ class InMemoryCodeService(config: OidcConfig, codesRef: Ref[IO, Map[String, Auth
     } yield code
   }
 
-  def validateAndConsumeCode(code: String, clientId: String, redirectUri: String): IO[Either[OidcError, AuthorizationCode]] = {
+  def validateAndConsumeCode(
+      code: String,
+      clientId: String,
+      redirectUri: String
+  ): IO[Either[OidcError, AuthorizationCode]] = {
+    println(
+      s"🚨 EMERGENCY DEBUG: validateAndConsumeCode ENTRY - code: ${code.take(8)}..., clientId: $clientId"
+    )
+    logger.info(
+      s"🔍 DEBUG: validateAndConsumeCode called with code: ${code.take(8)}..., clientId: $clientId"
+    )
     for {
       codes <- codesRef.get
+      _ = println(
+        s"🚨 EMERGENCY DEBUG: Found ${codes.size} stored codes in memory"
+      )
+      _ = logger.info(s"🔍 DEBUG: Found ${codes.size} stored codes")
       result <- codes.get(code) match {
         case Some(authCode) =>
+          println(
+            s"🚨 EMERGENCY DEBUG: FOUND authorization code for client: ${authCode.client_id}, sub: ${authCode.sub}"
+          )
+          logger.info(
+            s"🔍 DEBUG: Found authorization code for client: ${authCode.client_id}, sub: ${authCode.sub}"
+          )
+          logger.info(
+            s"🔍 DEBUG: Code expires at: ${authCode.exp}, current time: ${Instant.now().getEpochSecond}"
+          )
           validateCode(authCode, clientId, redirectUri).flatMap {
             case Right(validCode) =>
+              println(
+                s"🚨 EMERGENCY DEBUG: Authorization code validation SUCCESS for sub: ${validCode.sub}"
+              )
+              logger.info(
+                s"✅ DEBUG: Authorization code validated successfully for sub: ${validCode.sub}"
+              )
               // Consume the code (remove it after use)
               codesRef.update(_ - code).as(validCode.asRight[OidcError])
             case Left(error) =>
+              println(
+                s"🚨 EMERGENCY DEBUG: Authorization code validation FAILED: ${error.error} - ${error.error_description
+                    .getOrElse("No description")}"
+              )
+              logger.warn(
+                s"❌ DEBUG: Authorization code validation failed: ${error.error} - ${error.error_description
+                    .getOrElse("No description")}"
+              )
               // Remove invalid code
               codesRef.update(_ - code).as(error.asLeft[AuthorizationCode])
           }
         case None =>
-          IO.pure(OidcError("invalid_grant", Some("Authorization code not found")).asLeft[AuthorizationCode])
+          println(
+            s"🚨 EMERGENCY DEBUG: Authorization code NOT FOUND: ${code.take(8)}..."
+          )
+          logger.warn(
+            s"❌ DEBUG: Authorization code not found: ${code.take(8)}..."
+          )
+          IO.pure(
+            OidcError("invalid_grant", Some("Authorization code not found"))
+              .asLeft[AuthorizationCode]
+          )
       }
     } yield result
   }
 
-  private def validateCode(authCode: AuthorizationCode, clientId: String, redirectUri: String): IO[Either[OidcError, AuthorizationCode]] = {
+  private def validateCode(
+      authCode: AuthorizationCode,
+      clientId: String,
+      redirectUri: String
+  ): IO[Either[OidcError, AuthorizationCode]] = {
     IO {
       val now = Instant.now().getEpochSecond
 
+      logger.info(
+        s"🔍 DEBUG: Validating code - Expected clientId: ${authCode.client_id}, Provided: $clientId"
+      )
+      logger.info(
+        s"🔍 DEBUG: Validating code - Expected redirectUri: ${authCode.redirect_uri}, Provided: $redirectUri"
+      )
+
       if (authCode.exp < now) {
-        OidcError("invalid_grant", Some("Authorization code expired")).asLeft[AuthorizationCode]
+        logger.warn(
+          s"❌ DEBUG: Authorization code expired (exp: ${authCode.exp}, now: $now)"
+        )
+        OidcError("invalid_grant", Some("Authorization code expired"))
+          .asLeft[AuthorizationCode]
       } else if (authCode.client_id != clientId) {
-        OidcError("invalid_grant", Some("Client ID mismatch")).asLeft[AuthorizationCode]
+        logger.warn(
+          s"❌ DEBUG: Client ID mismatch (expected: ${authCode.client_id}, got: $clientId)"
+        )
+        OidcError("invalid_grant", Some("Client ID mismatch"))
+          .asLeft[AuthorizationCode]
       } else if (authCode.redirect_uri != redirectUri) {
-        OidcError("invalid_grant", Some("Redirect URI mismatch")).asLeft[AuthorizationCode]
+        logger.warn(
+          s"❌ DEBUG: Redirect URI mismatch (expected: ${authCode.redirect_uri}, got: $redirectUri)"
+        )
+        OidcError("invalid_grant", Some("Redirect URI mismatch"))
+          .asLeft[AuthorizationCode]
       } else {
+        logger.info(s"✅ DEBUG: All validations passed for code")
         authCode.asRight[OidcError]
       }
     }
