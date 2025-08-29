@@ -34,15 +34,18 @@ import com.tesobe.oidc.auth.DatabaseUserInstances._
 
 import java.time.Instant
 
-/**
- * Database-based authentication service using PostgreSQL view v_oidc_users
- *
- * This service connects to the OBP database and authenticates users against
- * the authuser table via the read-only view created by the OIDC setup script.
- *
- * Password verification uses BCrypt to match the OBP-API implementation.
- */
-class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Transactor[IO]] = None) extends AuthService[IO] {
+/** Database-based authentication service using PostgreSQL view v_oidc_users
+  *
+  * This service connects to the OBP database and authenticates users against
+  * the authuser table via the read-only view created by the OIDC setup script.
+  *
+  * Password verification uses BCrypt to match the OBP-API implementation.
+  */
+class DatabaseAuthService(
+    transactor: Transactor[IO],
+    adminTransactor: Option[Transactor[IO]] = None,
+    config: OidcConfig
+) extends AuthService[IO] {
 
   private val logger = LoggerFactory.getLogger(getClass)
 
@@ -50,9 +53,8 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
   logger.info("🚀 DatabaseAuthService created - logging is working!")
   println("🚀 DatabaseAuthService created - logging is working!")
 
-  /**
-   * Get available providers for dropdown
-   */
+  /** Get available providers for dropdown
+    */
   def getAvailableProviders(): IO[List[String]] = {
     val query = sql"""
       SELECT DISTINCT provider
@@ -67,56 +69,84 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
     }
   }
 
-  /**
-   * Authenticate a user by username, password, and provider
-   * Returns the user information if authentication succeeds
-   */
-  def authenticate(username: String, password: String, provider: String): IO[Either[OidcError, User]] = {
-    logger.info(s"🔐 Starting authentication for username: '$username' with provider: '$provider'")
-    println(s"🔐 Starting authentication for username: '$username' with provider: '$provider'")
+  /** Authenticate a user by username, password, and provider Returns the user
+    * information if authentication succeeds
+    */
+  def authenticate(
+      username: String,
+      password: String,
+      provider: String
+  ): IO[Either[OidcError, User]] = {
+    logger.info(
+      s"🔐 Starting authentication for username: '$username' with provider: '$provider'"
+    )
+    println(
+      s"🔐 Starting authentication for username: '$username' with provider: '$provider'"
+    )
 
     findUserByUsernameAndProvider(username, provider).flatMap {
       case None =>
         logger.warn(s"❌ User NOT FOUND in database: '$username'")
         println(s"❌ User NOT FOUND in database: '$username'")
-        IO.pure(Left(OidcError("invalid_grant", Some("Invalid username or password"))))
+        IO.pure(
+          Left(OidcError("invalid_grant", Some("Invalid username or password")))
+        )
       case Some(dbUser) =>
-        logger.info(s"✅ User FOUND in database: '$username' (userId: ${dbUser.userId})")
-        println(s"✅ User FOUND in database: '$username' (userId: ${dbUser.userId})")
-        logger.debug(s"🔍 Password hash length: ${dbUser.passwordHash.length}, Salt length: ${dbUser.passwordSalt.length}")
-        println(s"🔍 Password hash length: ${dbUser.passwordHash.length}, Salt length: ${dbUser.passwordSalt.length}")
+        logger.info(
+          s"✅ User FOUND in database: '$username' (userId: ${dbUser.userId})"
+        )
+        println(
+          s"✅ User FOUND in database: '$username' (userId: ${dbUser.userId})"
+        )
+        logger.debug(
+          s"🔍 Password hash length: ${dbUser.passwordHash.length}, Salt length: ${dbUser.passwordSalt.length}"
+        )
+        println(
+          s"🔍 Password hash length: ${dbUser.passwordHash.length}, Salt length: ${dbUser.passwordSalt.length}"
+        )
 
-        verifyPassword(password, dbUser.passwordHash, dbUser.passwordSalt).flatMap { isValid =>
-          if (isValid) {
-            logger.info(s"✅ Password verification SUCCESSFUL for user: '$username'")
-            println(s"✅ Password verification SUCCESSFUL for user: '$username'")
-            IO.pure(Right(dbUser.toUser))
-          } else {
-            logger.warn(s"❌ Password verification FAILED for user: '$username'")
-            println(s"❌ Password verification FAILED for user: '$username'")
-            IO.pure(Left(OidcError("invalid_grant", Some("Invalid username or password"))))
+        verifyPassword(password, dbUser.passwordHash, dbUser.passwordSalt)
+          .flatMap { isValid =>
+            if (isValid) {
+              logger.info(
+                s"✅ Password verification SUCCESSFUL for user: '$username'"
+              )
+              println(
+                s"✅ Password verification SUCCESSFUL for user: '$username'"
+              )
+              IO.pure(Right(dbUser.toUser))
+            } else {
+              logger.warn(
+                s"❌ Password verification FAILED for user: '$username'"
+              )
+              println(s"❌ Password verification FAILED for user: '$username'")
+              IO.pure(
+                Left(
+                  OidcError(
+                    "invalid_grant",
+                    Some("Invalid username or password")
+                  )
+                )
+              )
+            }
           }
-        }
     }
   }
 
-  /**
-   * Get user by ID (for UserInfo endpoint) - required by AuthService interface
-   */
+  /** Get user by ID (for UserInfo endpoint) - required by AuthService interface
+    */
   def getUserById(sub: String): IO[Option[User]] = {
     findUserByUserId(sub).map(_.map(_.toUser))
   }
 
-  /**
-   * Get user information by username (for UserInfo endpoint)
-   */
+  /** Get user information by username (for UserInfo endpoint)
+    */
   def getUserInfo(username: String): IO[Option[UserInfo]] = {
     findUserByUsername(username).map(_.map(_.toUserInfo))
   }
 
-  /**
-   * Find user by user_id from the database view
-   */
+  /** Find user by user_id from the database view
+    */
   private def findUserByUserId(userId: String): IO[Option[DatabaseUser]] = {
     val query = sql"""
       SELECT user_id, username, firstname, lastname, email,
@@ -127,15 +157,14 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
     """.query[DatabaseUser]
 
     query.option.transact(transactor).handleErrorWith { error =>
-      logger.error(s"Database error while finding user by username $userId", error)
+      logger
+        .error(s"Database error while finding user by username $userId", error)
       IO.pure(None)
     }
   }
 
-
-  /**
-   * Find user by username from the database view
-   */
+  /** Find user by username from the database view
+    */
   private def findUserByUsername(username: String): IO[Option[DatabaseUser]] = {
     val query = sql"""
       SELECT user_id, username, firstname, lastname, email,
@@ -151,10 +180,12 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
     }
   }
 
-  /**
-   * Find user by username and provider from the database view
-   */
-  private def findUserByUsernameAndProvider(username: String, provider: String): IO[Option[DatabaseUser]] = {
+  /** Find user by username and provider from the database view
+    */
+  private def findUserByUsernameAndProvider(
+      username: String,
+      provider: String
+  ): IO[Option[DatabaseUser]] = {
     val query = sql"""
       SELECT user_id, username, firstname, lastname, email,
              validated, provider, password_pw, password_slt,
@@ -164,14 +195,16 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
     """.query[DatabaseUser]
 
     query.option.transact(transactor).handleErrorWith { error =>
-      logger.error(s"Database error while finding user by username $username and provider $provider", error)
+      logger.error(
+        s"Database error while finding user by username $username and provider $provider",
+        error
+      )
       IO.pure(None)
     }
   }
 
-  /**
-   * Find OIDC client by client_id
-   */
+  /** Find OIDC client by client_id
+    */
   def findClientById(clientId: String): IO[Option[OidcClient]] = {
     println(s"🔍 DEBUG: findClientById() called for clientId: $clientId")
     println(s"   Looking in v_oidc_clients view with column 'client_id'")
@@ -182,21 +215,28 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
       WHERE client_id = $clientId
     """.query[DatabaseClient]
 
-    query.option.transact(transactor).map { result =>
-      println(s"   📊 DEBUG: Query result: ${if (result.isDefined) "FOUND" else "NOT FOUND"}")
-      result.map { client =>
-        println(s"   ✅ DEBUG: Found client: ${client.client_name} with id: ${client.client_id}")
-        client.toOidcClient
+    query.option
+      .transact(transactor)
+      .map { result =>
+        println(s"   📊 DEBUG: Query result: ${if (result.isDefined) "FOUND"
+          else "NOT FOUND"}")
+        result.map { client =>
+          println(
+            s"   ✅ DEBUG: Found client: ${client.client_name} with id: ${client.client_id}"
+          )
+          client.toOidcClient
+        }
       }
-    }.handleErrorWith { error =>
-      println(s"   ❌ DEBUG: Query error: ${error.getClass.getSimpleName}: ${error.getMessage}")
-      IO.pure(None)
-    }
+      .handleErrorWith { error =>
+        println(
+          s"   ❌ DEBUG: Query error: ${error.getClass.getSimpleName}: ${error.getMessage}"
+        )
+        IO.pure(None)
+      }
   }
 
-  /**
-   * Find raw DatabaseClient by client_id (for configuration printing)
-   */
+  /** Find raw DatabaseClient by client_id (for configuration printing)
+    */
   def findDatabaseClientById(clientId: String): IO[Option[DatabaseClient]] = {
     val query = sql"""
       SELECT client_id, client_secret, client_name, consumer_id, redirect_uris,
@@ -208,32 +248,36 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
     query.option.transact(transactor)
   }
 
-  /**
-   * Validate client and redirect URI
-   */
+  /** Validate client and redirect URI
+    */
   def validateClient(clientId: String, redirectUri: String): IO[Boolean] = {
     findClientById(clientId).map {
       case Some(client) => client.redirect_uris.contains(redirectUri)
-      case None => false
+      case None         => false
     }
   }
 
   // Admin client management methods using the admin transactor
 
-  /**
-   * Create a new OIDC client using the admin database connection
-   * Requires write access to v_oidc_admin_clients view
-   */
+  /** Create a new OIDC client using the admin database connection Requires
+    * write access to v_oidc_admin_clients view
+    */
   def createClient(client: OidcClient): IO[Either[OidcError, OidcClient]] = {
-    logger.info(s"🔍 createClient() called for: ${client.client_name} (${client.client_id})")
+    logger.info(
+      s"🔍 createClient() called for: ${client.client_name} (${client.client_id})"
+    )
     adminTransactor match {
       case Some(adminTx) =>
-        logger.info(s"✅ Admin transactor available, preparing INSERT for: ${client.client_id}")
-        val adminClient = AdminDatabaseClient.fromOidcClient(client)
+        logger.info(
+          s"✅ Admin transactor available, preparing INSERT for: ${client.client_id}"
+        )
+        val adminClient = AdminDatabaseClient.fromOidcClient(client, config)
         logger.info(s"🔧 Mapped OIDC client to database format:")
         logger.info(s"   name: ${adminClient.name}")
         logger.info(s"   consumerid: ${adminClient.consumerid}")
-        logger.info(s"   secret: ${adminClient.secret.map(_.take(10)).getOrElse("None")}...")
+        logger.info(
+          s"   secret: ${adminClient.secret.map(_.take(10)).getOrElse("None")}..."
+        )
         logger.info(s"   redirecturl: ${adminClient.redirecturl}")
 
         val insertQuery = sql"""
@@ -249,34 +293,71 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
           )
         """.update
 
-        logger.info(s"🔄 Executing INSERT query for client: ${client.client_id}")
-        insertQuery.run.transact(adminTx).map { rowsAffected =>
-          logger.info(s"📊 INSERT result: $rowsAffected rows affected for client: ${client.client_id}")
-          if (rowsAffected > 0) {
-            logger.info(s"✅ Successfully created OIDC client: ${client.client_id}")
-            Right(client)
-          } else {
-            logger.error(s"❌ INSERT returned 0 rows affected for client: ${client.client_id}")
-            Left(OidcError("server_error", Some("Failed to create client - no rows inserted")))
+        logger.info(
+          s"🔄 Executing INSERT query for client: ${client.client_id}"
+        )
+        insertQuery.run
+          .transact(adminTx)
+          .map { rowsAffected =>
+            logger.info(
+              s"📊 INSERT result: $rowsAffected rows affected for client: ${client.client_id}"
+            )
+            if (rowsAffected > 0) {
+              logger.info(
+                s"✅ Successfully created OIDC client: ${client.client_id}"
+              )
+              Right(client)
+            } else {
+              logger.error(
+                s"❌ INSERT returned 0 rows affected for client: ${client.client_id}"
+              )
+              Left(
+                OidcError(
+                  "server_error",
+                  Some("Failed to create client - no rows inserted")
+                )
+              )
+            }
           }
-        }.handleErrorWith { error =>
-          logger.error(s"❌ Database error creating client ${client.client_id}: ${error.getMessage}", error)
-          logger.error(s"💡 Error type: ${error.getClass.getSimpleName}")
-          IO.pure(Left(OidcError("server_error", Some(s"Database error: ${error.getMessage}"))))
-        }
+          .handleErrorWith { error =>
+            logger.error(
+              s"❌ Database error creating client ${client.client_id}: ${error.getMessage}",
+              error
+            )
+            logger.error(s"💡 Error type: ${error.getClass.getSimpleName}")
+            IO.pure(
+              Left(
+                OidcError(
+                  "server_error",
+                  Some(s"Database error: ${error.getMessage}")
+                )
+              )
+            )
+          }
       case None =>
-        logger.error(s"❌ Admin database connection not available for client: ${client.client_id}")
-        IO.pure(Left(OidcError("server_error", Some("Admin database connection not available"))))
+        logger.error(
+          s"❌ Admin database connection not available for client: ${client.client_id}"
+        )
+        IO.pure(
+          Left(
+            OidcError(
+              "server_error",
+              Some("Admin database connection not available")
+            )
+          )
+        )
     }
   }
 
-  /**
-   * Update an existing OIDC client using the admin database connection
-   */
-  def updateClient(clientId: String, client: OidcClient): IO[Either[OidcError, OidcClient]] = {
+  /** Update an existing OIDC client using the admin database connection
+    */
+  def updateClient(
+      clientId: String,
+      client: OidcClient
+  ): IO[Either[OidcError, OidcClient]] = {
     adminTransactor match {
       case Some(adminTx) =>
-        val adminClient = AdminDatabaseClient.fromOidcClient(client)
+        val adminClient = AdminDatabaseClient.fromOidcClient(client, config)
         val updateQuery = sql"""
           UPDATE v_oidc_admin_clients SET
             name = ${adminClient.name},
@@ -287,49 +368,92 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
           WHERE consumerid = $clientId
         """.update
 
-        updateQuery.run.transact(adminTx).map { rowsAffected =>
-          if (rowsAffected > 0) {
-            logger.info(s"Successfully updated OIDC client: $clientId")
-            Right(client)
-          } else {
-            Left(OidcError("invalid_client", Some(s"Client not found: $clientId")))
+        updateQuery.run
+          .transact(adminTx)
+          .map { rowsAffected =>
+            if (rowsAffected > 0) {
+              logger.info(s"Successfully updated OIDC client: $clientId")
+              Right(client)
+            } else {
+              Left(
+                OidcError(
+                  "invalid_client",
+                  Some(s"Client not found: $clientId")
+                )
+              )
+            }
           }
-        }.handleErrorWith { error =>
-          logger.error(s"Failed to update client $clientId", error)
-          IO.pure(Left(OidcError("server_error", Some(s"Database error: ${error.getMessage}"))))
-        }
+          .handleErrorWith { error =>
+            logger.error(s"Failed to update client $clientId", error)
+            IO.pure(
+              Left(
+                OidcError(
+                  "server_error",
+                  Some(s"Database error: ${error.getMessage}")
+                )
+              )
+            )
+          }
       case None =>
-        IO.pure(Left(OidcError("server_error", Some("Admin database connection not available"))))
+        IO.pure(
+          Left(
+            OidcError(
+              "server_error",
+              Some("Admin database connection not available")
+            )
+          )
+        )
     }
   }
 
-  /**
-   * Delete an OIDC client using the admin database connection
-   */
+  /** Delete an OIDC client using the admin database connection
+    */
   def deleteClient(clientId: String): IO[Either[OidcError, String]] = {
     adminTransactor match {
       case Some(adminTx) =>
-        val deleteQuery = sql"DELETE FROM v_oidc_admin_clients WHERE consumerid = $clientId".update
+        val deleteQuery =
+          sql"DELETE FROM v_oidc_admin_clients WHERE consumerid = $clientId".update
 
-        deleteQuery.run.transact(adminTx).map { rowsAffected =>
-          if (rowsAffected > 0) {
-            logger.info(s"Successfully deleted OIDC client: $clientId")
-            Right(s"Client $clientId deleted successfully")
-          } else {
-            Left(OidcError("invalid_client", Some(s"Client not found: $clientId")))
+        deleteQuery.run
+          .transact(adminTx)
+          .map { rowsAffected =>
+            if (rowsAffected > 0) {
+              logger.info(s"Successfully deleted OIDC client: $clientId")
+              Right(s"Client $clientId deleted successfully")
+            } else {
+              Left(
+                OidcError(
+                  "invalid_client",
+                  Some(s"Client not found: $clientId")
+                )
+              )
+            }
           }
-        }.handleErrorWith { error =>
-          logger.error(s"Failed to delete client $clientId", error)
-          IO.pure(Left(OidcError("server_error", Some(s"Database error: ${error.getMessage}"))))
-        }
+          .handleErrorWith { error =>
+            logger.error(s"Failed to delete client $clientId", error)
+            IO.pure(
+              Left(
+                OidcError(
+                  "server_error",
+                  Some(s"Database error: ${error.getMessage}")
+                )
+              )
+            )
+          }
       case None =>
-        IO.pure(Left(OidcError("server_error", Some("Admin database connection not available"))))
+        IO.pure(
+          Left(
+            OidcError(
+              "server_error",
+              Some("Admin database connection not available")
+            )
+          )
+        )
     }
   }
 
-  /**
-   * List all clients using the admin database connection
-   */
+  /** List all clients using the admin database connection
+    */
   def listClients(): IO[Either[OidcError, List[OidcClient]]] = {
     println("🔍 DEBUG: listClients() called")
     logger.info("🔍 listClients() called")
@@ -347,27 +471,61 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
 
         println("🔄 DEBUG: Executing SELECT query on v_oidc_admin_clients")
         logger.info("🔄 Executing SELECT query on v_oidc_admin_clients")
-        query.to[List].transact(adminTx).map { clients =>
-          println(s"📊 DEBUG: SELECT result: Found ${clients.length} clients in v_oidc_admin_clients")
-          logger.info(s"📊 SELECT result: Found ${clients.length} clients in v_oidc_admin_clients")
-          clients.foreach(client => logger.info(s"   - ${client.name.getOrElse("No Name")} (consumerid: ${client.consumerid.getOrElse("No Key")})"))
-          Right(clients.map(_.toOidcClient))
-        }.handleErrorWith { error =>
-          println(s"❌ DEBUG: Database error listing clients: ${error.getClass.getSimpleName}: ${error.getMessage}")
-          logger.error(s"❌ Database error listing clients: ${error.getMessage}", error)
-          logger.error(s"💡 Error type: ${error.getClass.getSimpleName}")
-          IO.pure(Left(OidcError("server_error", Some(s"Database error: ${error.getMessage}"))))
-        }
+        query
+          .to[List]
+          .transact(adminTx)
+          .map { clients =>
+            println(
+              s"📊 DEBUG: SELECT result: Found ${clients.length} clients in v_oidc_admin_clients"
+            )
+            logger.info(
+              s"📊 SELECT result: Found ${clients.length} clients in v_oidc_admin_clients"
+            )
+            clients.foreach(client =>
+              logger.info(
+                s"   - ${client.name.getOrElse("No Name")} (consumerid: ${client.consumerid.getOrElse("No Key")})"
+              )
+            )
+            Right(clients.map(_.toOidcClient))
+          }
+          .handleErrorWith { error =>
+            println(
+              s"❌ DEBUG: Database error listing clients: ${error.getClass.getSimpleName}: ${error.getMessage}"
+            )
+            logger.error(
+              s"❌ Database error listing clients: ${error.getMessage}",
+              error
+            )
+            logger.error(s"💡 Error type: ${error.getClass.getSimpleName}")
+            IO.pure(
+              Left(
+                OidcError(
+                  "server_error",
+                  Some(s"Database error: ${error.getMessage}")
+                )
+              )
+            )
+          }
       case None =>
-        logger.error("❌ Admin database connection not available for listClients")
-        println("❌ DEBUG: Admin database connection not available for listClients")
-        IO.pure(Left(OidcError("server_error", Some("Admin database connection not available"))))
+        logger.error(
+          "❌ Admin database connection not available for listClients"
+        )
+        println(
+          "❌ DEBUG: Admin database connection not available for listClients"
+        )
+        IO.pure(
+          Left(
+            OidcError(
+              "server_error",
+              Some("Admin database connection not available")
+            )
+          )
+        )
     }
   }
 
-  /**
-   * Find client by ID from admin view for configuration printing
-   */
+  /** Find client by ID from admin view for configuration printing
+    */
   def findAdminClientById(clientId: String): IO[Option[OidcClient]] = {
     println(s"🔍 DEBUG: findAdminClientById() called for clientId: $clientId")
     println(s"   Looking in v_oidc_admin_clients view with column 'consumerid'")
@@ -381,30 +539,47 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
           WHERE consumerid = $clientId
         """.query[AdminDatabaseClient]
 
-        query.option.transact(adminTx).map { result =>
-          println(s"   📊 DEBUG: Query result: ${if (result.isDefined) "FOUND" else "NOT FOUND"}")
-          result.map { client =>
-            println(s"   ✅ DEBUG: Found client: ${client.name.getOrElse("No Name")} with consumerid: ${client.consumerid.getOrElse("No Key")}")
-            println(s"   🔑 DEBUG: Database secret: ${client.secret.map(_.take(20)).getOrElse("None")}...")
-            val oidcClient = client.toOidcClient
-            println(s"   🔑 DEBUG: Converted secret: ${oidcClient.client_secret.map(_.take(20)).getOrElse("None")}...")
-            oidcClient
+        query.option
+          .transact(adminTx)
+          .map { result =>
+            println(s"   📊 DEBUG: Query result: ${if (result.isDefined) "FOUND"
+              else "NOT FOUND"}")
+            result.map { client =>
+              println(
+                s"   ✅ DEBUG: Found client: ${client.name.getOrElse("No Name")} with consumerid: ${client.consumerid
+                    .getOrElse("No Key")}"
+              )
+              println(
+                s"   🔑 DEBUG: Database secret: ${client.secret.map(_.take(20)).getOrElse("None")}..."
+              )
+              val oidcClient = client.toOidcClient
+              println(
+                s"   🔑 DEBUG: Converted secret: ${oidcClient.client_secret.map(_.take(20)).getOrElse("None")}..."
+              )
+              oidcClient
+            }
           }
-        }.handleErrorWith { error =>
-          println(s"   ❌ DEBUG: Query error: ${error.getClass.getSimpleName}: ${error.getMessage}")
-          IO.pure(None)
-        }
+          .handleErrorWith { error =>
+            println(
+              s"   ❌ DEBUG: Query error: ${error.getClass.getSimpleName}: ${error.getMessage}"
+            )
+            IO.pure(None)
+          }
       case None =>
         println("   ❌ DEBUG: Admin transactor not available")
         IO.pure(None)
     }
   }
 
-/**
- * Verify password using BCrypt - compatible with OBP-API Lift MegaProtoUser implementation
- * Based on OBP-API pattern: BCrypt.hashpw(password, salt).substring(0, 44)
- */
-  private def verifyPassword(plainPassword: String, storedHash: String, salt: String): IO[Boolean] = {
+  /** Verify password using BCrypt - compatible with OBP-API Lift MegaProtoUser
+    * implementation Based on OBP-API pattern: BCrypt.hashpw(password,
+    * salt).substring(0, 44)
+    */
+  private def verifyPassword(
+      plainPassword: String,
+      storedHash: String,
+      salt: String
+  ): IO[Boolean] = {
     IO {
       try {
         logger.info(s"🔐 Starting password verification...")
@@ -417,10 +592,18 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
         println(s"🔑 Plain password length: ${plainPassword.length}")
 
         // Log hex representation for debugging
-        logger.debug(s"📝 Stored hash (hex): ${storedHash.getBytes("UTF-8").map("%02x".format(_)).mkString}")
-        logger.debug(s"🧂 Salt (hex): ${salt.getBytes("UTF-8").map("%02x".format(_)).mkString}")
-        println(s"📝 Stored hash (hex): ${storedHash.getBytes("UTF-8").map("%02x".format(_)).mkString}")
-        println(s"🧂 Salt (hex): ${salt.getBytes("UTF-8").map("%02x".format(_)).mkString}")
+        logger.debug(
+          s"📝 Stored hash (hex): ${storedHash.getBytes("UTF-8").map("%02x".format(_)).mkString}"
+        )
+        logger.debug(
+          s"🧂 Salt (hex): ${salt.getBytes("UTF-8").map("%02x".format(_)).mkString}"
+        )
+        println(
+          s"📝 Stored hash (hex): ${storedHash.getBytes("UTF-8").map("%02x".format(_)).mkString}"
+        )
+        println(
+          s"🧂 Salt (hex): ${salt.getBytes("UTF-8").map("%02x".format(_)).mkString}"
+        )
 
         val result = if (storedHash.startsWith("b;")) {
           // Lift MegaProtoUser BCrypt format: "b;" + BCrypt.hashpw(password, salt).substring(0, 44)
@@ -434,16 +617,24 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
             import org.mindrot.jbcrypt.{BCrypt => JBCrypt}
 
             println(s"🔧 About to call JBCrypt.hashpw with:")
-            println(s"   - password: [REDACTED] (length: ${plainPassword.length})")
+            println(
+              s"   - password: [REDACTED] (length: ${plainPassword.length})"
+            )
             println(s"   - salt: '$salt' (length: ${salt.length})")
 
             // Generate hash using the same method as OBP-API: BCrypt.hashpw(password, salt).substring(0, 44)
             val fullGeneratedHash = JBCrypt.hashpw(plainPassword, salt)
-            println(s"🔨 Full generated hash: '$fullGeneratedHash' (length: ${fullGeneratedHash.length})")
+            println(
+              s"🔨 Full generated hash: '$fullGeneratedHash' (length: ${fullGeneratedHash.length})"
+            )
 
             val generatedHash = fullGeneratedHash.substring(0, 44)
-            println(s"🔨 Truncated hash: '$generatedHash' (length: ${generatedHash.length})")
-            println(s"🔍 Expected hash:  '$hashWithoutPrefix' (length: ${hashWithoutPrefix.length})")
+            println(
+              s"🔨 Truncated hash: '$generatedHash' (length: ${generatedHash.length})"
+            )
+            println(
+              s"🔍 Expected hash:  '$hashWithoutPrefix' (length: ${hashWithoutPrefix.length})"
+            )
 
             val isMatch = generatedHash == hashWithoutPrefix
             println(s"🧪 Hash comparison result: $isMatch")
@@ -451,7 +642,8 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
             // Log character-by-character comparison for debugging
             if (!isMatch) {
               println(s"🔍 Character comparison:")
-              val minLength = math.min(generatedHash.length, hashWithoutPrefix.length)
+              val minLength =
+                math.min(generatedHash.length, hashWithoutPrefix.length)
               var firstDifference = -1
               for (i <- 0 until minLength if firstDifference == -1) {
                 val genChar = generatedHash.charAt(i)
@@ -464,7 +656,9 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
                 }
               }
               if (generatedHash.length != hashWithoutPrefix.length) {
-                println(s"   Length difference: ${generatedHash.length} vs ${hashWithoutPrefix.length}")
+                println(
+                  s"   Length difference: ${generatedHash.length} vs ${hashWithoutPrefix.length}"
+                )
               }
             }
 
@@ -477,9 +671,17 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
               try {
                 // Try direct verification with reconstructed hash
                 val reconstructedHash = hashWithoutPrefix + salt
-                println(s"🔨 Fallback: trying reconstructed hash '$reconstructedHash'")
+                println(
+                  s"🔨 Fallback: trying reconstructed hash '$reconstructedHash'"
+                )
 
-                val fallbackResult = BCrypt.verifyer().verify(plainPassword.toCharArray, reconstructedHash.toCharArray).verified
+                val fallbackResult = BCrypt
+                  .verifyer()
+                  .verify(
+                    plainPassword.toCharArray,
+                    reconstructedHash.toCharArray
+                  )
+                  .verified
                 println(s"🧪 Fallback verification result: $fallbackResult")
                 fallbackResult
               } catch {
@@ -492,10 +694,15 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
           // Standard BCrypt hash format
           println(s"🔍 Standard BCrypt format detected")
           try {
-            BCrypt.verifyer().verify(plainPassword.toCharArray, storedHash.toCharArray).verified
+            BCrypt
+              .verifyer()
+              .verify(plainPassword.toCharArray, storedHash.toCharArray)
+              .verified
           } catch {
             case e: Exception =>
-              println(s"🧪 Standard BCrypt verification failed: ${e.getMessage}")
+              println(
+                s"🧪 Standard BCrypt verification failed: ${e.getMessage}"
+              )
               false
           }
         }
@@ -512,7 +719,10 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
       } catch {
         case e: Exception =>
           println(s"💥 Error during password verification: ${e.getMessage}")
-          logger.error(s"💥 Error during password verification: ${e.getMessage}", e)
+          logger.error(
+            s"💥 Error during password verification: ${e.getMessage}",
+            e
+          )
           e.printStackTrace()
           false
       }
@@ -520,25 +730,25 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
   }
 }
 
-/**
- * Database user representation matching the v_oidc_users view structure
- */
+/** Database user representation matching the v_oidc_users view structure
+  */
 case class DatabaseUser(
-  userId: String,      // user_id column
-  username: String,
-  firstname: String,
-  lastname: String,
-  email: String,
-  validated: Boolean,
-  provider: String,
-  passwordHash: String,  // password_pw column
-  passwordSalt: String,  // password_slt column
-  createdAt: Instant,
-  updatedAt: Instant
+    userId: String, // user_id column
+    username: String,
+    firstname: String,
+    lastname: String,
+    email: String,
+    validated: Boolean,
+    provider: String,
+    passwordHash: String, // password_pw column
+    passwordSalt: String, // password_slt column
+    createdAt: Instant,
+    updatedAt: Instant
 ) {
 
   def toUser: User = User(
-    sub = username, // Use username as subject identifier for OBP-API compatibility
+    sub =
+      username, // Use username as subject identifier for OBP-API compatibility
     username = username,
     password = "", // Never expose password, even if hashed
     name = Some(s"$firstname $lastname".trim),
@@ -548,7 +758,8 @@ case class DatabaseUser(
   )
 
   def toUserInfo: UserInfo = UserInfo(
-    sub = username, // Use username as subject identifier for OBP-API compatibility
+    sub =
+      username, // Use username as subject identifier for OBP-API compatibility
     name = Some(s"$firstname $lastname".trim),
     given_name = Some(firstname),
     family_name = Some(lastname),
@@ -557,20 +768,19 @@ case class DatabaseUser(
   )
 }
 
-/**
- * Database client representation matching the v_oidc_clients view structure
- */
+/** Database client representation matching the v_oidc_clients view structure
+  */
 case class DatabaseClient(
-  client_id: String,
-  client_secret: Option[String],
-  client_name: String,
-  consumer_id: String,
-  redirect_uris: String, // Simple string from database
-  grant_types: String,   // Simple string from database
-  response_types: String, // Simple string from database
-  scopes: String,        // Simple string from database
-  token_endpoint_auth_method: String,
-  created_at: Option[String]
+    client_id: String,
+    client_secret: Option[String],
+    client_name: String,
+    consumer_id: String,
+    redirect_uris: String, // Simple string from database
+    grant_types: String, // Simple string from database
+    response_types: String, // Simple string from database
+    scopes: String, // Simple string from database
+    token_endpoint_auth_method: String,
+    created_at: Option[String]
 ) {
   def toOidcClient: OidcClient = OidcClient(
     client_id = client_id,
@@ -595,28 +805,28 @@ case class DatabaseClient(
   }
 }
 
-/**
- * Admin database client representation matching the new v_oidc_admin_clients schema
- */
+/** Admin database client representation matching the new v_oidc_admin_clients
+  * schema
+  */
 case class AdminDatabaseClient(
-  name: Option[String],          // client_name
-  apptype: Option[String],       // application type
-  description: Option[String],   // description
-  developeremail: Option[String], // developer email
-  sub: Option[String],           // subject (not used for client_id)
-  consumerid: Option[String],    // auto-generated ID
-  createdat: Option[String], // created timestamp
-  updatedat: Option[String], // updated timestamp
-  secret: Option[String],        // client_secret
-  azp: Option[String],           // authorized party
-  aud: Option[String],           // audience
-  iss: Option[String],           // issuer
-  redirecturl: Option[String],   // redirect_uris
-  logourl: Option[String],       // logo URL
-  userauthenticationurl: Option[String], // user auth URL
-  clientcertificate: Option[String],     // client certificate
-  company: Option[String],       // company name
-  isactive: Option[Boolean]      // is active
+    name: Option[String], // client_name
+    apptype: Option[String], // application type
+    description: Option[String], // description
+    developeremail: Option[String], // developer email
+    sub: Option[String], // subject (not used for client_id)
+    consumerid: Option[String], // auto-generated ID
+    createdat: Option[String], // created timestamp
+    updatedat: Option[String], // updated timestamp
+    secret: Option[String], // client_secret
+    azp: Option[String], // authorized party
+    aud: Option[String], // audience
+    iss: Option[String], // issuer
+    redirecturl: Option[String], // redirect_uris
+    logourl: Option[String], // logo URL
+    userauthenticationurl: Option[String], // user auth URL
+    clientcertificate: Option[String], // client certificate
+    company: Option[String], // company name
+    isactive: Option[Boolean] // is active
 ) {
   def toOidcClient: OidcClient = OidcClient(
     client_id = consumerid.getOrElse(""),
@@ -641,7 +851,10 @@ case class AdminDatabaseClient(
 }
 
 object AdminDatabaseClient {
-  def fromOidcClient(client: OidcClient): AdminDatabaseClient = AdminDatabaseClient(
+  def fromOidcClient(
+      client: OidcClient,
+      config: OidcConfig
+  ): AdminDatabaseClient = AdminDatabaseClient(
     name = Some(client.client_name),
     apptype = Some("WEB"), // Default app type
     description = Some(s"OIDC client for ${client.client_name}"),
@@ -653,7 +866,7 @@ object AdminDatabaseClient {
     secret = client.client_secret,
     azp = Some(client.client_id),
     aud = Some("obp-api"),
-    iss = Some("obp-oidc"),
+    iss = Some(config.issuer),
     redirecturl = Some(client.redirect_uris.mkString(",")),
     logourl = None,
     userauthenticationurl = None,
@@ -667,30 +880,60 @@ object DatabaseAuthService {
 
   private val logger = LoggerFactory.getLogger(getClass)
 
-  /**
-   * Create a DatabaseAuthService with HikariCP connection pooling
-   */
+  /** Create a DatabaseAuthService with HikariCP connection pooling
+    */
   def create(config: OidcConfig): Resource[IO, DatabaseAuthService] = {
     for {
-      _ <- Resource.eval(IO(logger.info("🔧 Creating DatabaseAuthService with read and admin transactors")))
-      _ <- Resource.eval(IO(logger.info(s"   Read DB: ${config.database.username}@${config.database.host}:${config.database.port}/${config.database.database}")))
-      _ <- Resource.eval(IO(logger.info(s"   Admin DB: ${config.adminDatabase.username}@${config.adminDatabase.host}:${config.adminDatabase.port}/${config.adminDatabase.database}")))
+      _ <- Resource.eval(
+        IO(
+          logger.info(
+            "🔧 Creating DatabaseAuthService with read and admin transactors"
+          )
+        )
+      )
+      _ <- Resource.eval(
+        IO(
+          logger.info(
+            s"   Read DB: ${config.database.username}@${config.database.host}:${config.database.port}/${config.database.database}"
+          )
+        )
+      )
+      _ <- Resource.eval(
+        IO(
+          logger.info(
+            s"   Admin DB: ${config.adminDatabase.username}@${config.adminDatabase.host}:${config.adminDatabase.port}/${config.adminDatabase.database}"
+          )
+        )
+      )
       readTransactor <- createTransactor(config.database)
-      _ <- Resource.eval(IO(logger.info("✅ Read transactor created successfully")))
+      _ <- Resource.eval(
+        IO(logger.info("✅ Read transactor created successfully"))
+      )
       adminTransactor <- createTransactor(config.adminDatabase)
-      _ <- Resource.eval(IO(logger.info("✅ Admin transactor created successfully")))
-      service = new DatabaseAuthService(readTransactor, Some(adminTransactor))
-      _ <- Resource.eval(IO(logger.info("✅ DatabaseAuthService created with admin capabilities")))
+      _ <- Resource.eval(
+        IO(logger.info("✅ Admin transactor created successfully"))
+      )
+      service = new DatabaseAuthService(
+        readTransactor,
+        Some(adminTransactor),
+        config
+      )
+      _ <- Resource.eval(
+        IO(logger.info("✅ DatabaseAuthService created with admin capabilities"))
+      )
     } yield service
   }
 
-  /**
-   * Create HikariCP transactor for database connections
-   */
-  private def createTransactor(dbConfig: DatabaseConfig): Resource[IO, HikariTransactor[IO]] = {
+  /** Create HikariCP transactor for database connections
+    */
+  private def createTransactor(
+      dbConfig: DatabaseConfig
+  ): Resource[IO, HikariTransactor[IO]] = {
     val hikariConfig = new HikariConfig()
     hikariConfig.setDriverClassName("org.postgresql.Driver")
-    hikariConfig.setJdbcUrl(s"jdbc:postgresql://${dbConfig.host}:${dbConfig.port}/${dbConfig.database}")
+    hikariConfig.setJdbcUrl(
+      s"jdbc:postgresql://${dbConfig.host}:${dbConfig.port}/${dbConfig.database}"
+    )
     hikariConfig.setUsername(dbConfig.username)
     hikariConfig.setPassword(dbConfig.password)
     hikariConfig.setMaximumPoolSize(dbConfig.maxConnections)
@@ -708,110 +951,187 @@ object DatabaseAuthService {
     HikariTransactor.fromHikariConfig[IO](hikariConfig)
   }
 
-  /**
-   * Test database connection and setup
-   */
+  /** Test database connection and setup
+    */
   def testConnection(config: OidcConfig): IO[Either[String, String]] = {
     createTransactor(config.database).use { transactor =>
       val testQuery = sql"SELECT COUNT(*) FROM v_oidc_users".query[Int]
 
-      testQuery.unique.transact(transactor).map { count =>
-        val message = s"Database connection successful. Found $count validated users in v_oidc_users view."
-        logger.info(message)
-        Right(message)
-      }.handleErrorWith { error =>
-        val message = s"Database connection failed: ${error.getMessage}"
-        logger.error(message, error)
-        IO.pure(Left(message))
-      }
+      testQuery.unique
+        .transact(transactor)
+        .map { count =>
+          val message =
+            s"Database connection successful. Found $count validated users in v_oidc_users view."
+          logger.info(message)
+          Right(message)
+        }
+        .handleErrorWith { error =>
+          val message = s"Database connection failed: ${error.getMessage}"
+          logger.error(message, error)
+          IO.pure(Left(message))
+        }
     }
   }
 
-  /**
-   * Test client view access
-   */
+  /** Test client view access
+    */
   def testClientConnection(config: OidcConfig): IO[Either[String, String]] = {
     createTransactor(config.database).use { transactor =>
       val testQuery = sql"SELECT COUNT(*) FROM v_oidc_clients".query[Int]
 
-      testQuery.unique.transact(transactor).map { count =>
-        val message = s"Client database connection successful. Found $count registered clients in v_oidc_clients view."
-        logger.info(message)
-        Right(message)
-      }.handleErrorWith { error =>
-        val message = s"Client database connection failed: ${error.getMessage}"
-        logger.error(message, error)
-        IO.pure(Left(message))
-      }
+      testQuery.unique
+        .transact(transactor)
+        .map { count =>
+          val message =
+            s"Client database connection successful. Found $count registered clients in v_oidc_clients view."
+          logger.info(message)
+          Right(message)
+        }
+        .handleErrorWith { error =>
+          val message =
+            s"Client database connection failed: ${error.getMessage}"
+          logger.error(message, error)
+          IO.pure(Left(message))
+        }
     }
   }
 
-  /**
-   * Test admin database connection and v_oidc_admin_clients view access
-   */
+  /** Test admin database connection and v_oidc_admin_clients view access
+    */
   def testAdminConnection(config: OidcConfig): IO[Either[String, String]] = {
     createTransactor(config.adminDatabase).use { transactor =>
       val testQuery = sql"SELECT COUNT(*) FROM v_oidc_admin_clients".query[Int]
 
-      testQuery.unique.transact(transactor).map { count =>
-        val message = s"Admin database connection successful. Found $count clients accessible via v_oidc_admin_clients view."
-        logger.info(message)
-        Right(message)
-      }.handleErrorWith { error =>
-        val message = s"Admin database connection failed: ${error.getMessage}"
-        logger.error(message, error)
-        IO.pure(Left(message))
-      }
+      testQuery.unique
+        .transact(transactor)
+        .map { count =>
+          val message =
+            s"Admin database connection successful. Found $count clients accessible via v_oidc_admin_clients view."
+          logger.info(message)
+          Right(message)
+        }
+        .handleErrorWith { error =>
+          val message = s"Admin database connection failed: ${error.getMessage}"
+          logger.error(message, error)
+          IO.pure(Left(message))
+        }
     }
   }
 }
 
-/**
- * Doobie Read instance for DatabaseUser
- */
+/** Doobie Read instance for DatabaseUser
+  */
 object DatabaseUserInstances {
   import doobie.util.Read
 
   implicit val databaseUserRead: Read[DatabaseUser] =
-    Read[(String, String, String, String, String, Boolean, String, String, String, Instant, Instant)]
-      .map { case (userId, username, firstname, lastname, email, validated, provider, passwordPw, passwordSalt, createdAt, updatedAt) =>
-        DatabaseUser(
-          userId = userId,
-          username = username,
-          firstname = firstname,
-          lastname = lastname,
-          email = email,
-          validated = validated,
-          provider = provider,
-          passwordHash = passwordPw,
-          passwordSalt = passwordSalt,
-          createdAt = createdAt,
-          updatedAt = updatedAt
-        )
+    Read[
+      (
+          String,
+          String,
+          String,
+          String,
+          String,
+          Boolean,
+          String,
+          String,
+          String,
+          Instant,
+          Instant
+      )
+    ]
+      .map {
+        case (
+              userId,
+              username,
+              firstname,
+              lastname,
+              email,
+              validated,
+              provider,
+              passwordPw,
+              passwordSalt,
+              createdAt,
+              updatedAt
+            ) =>
+          DatabaseUser(
+            userId = userId,
+            username = username,
+            firstname = firstname,
+            lastname = lastname,
+            email = email,
+            validated = validated,
+            provider = provider,
+            passwordHash = passwordPw,
+            passwordSalt = passwordSalt,
+            createdAt = createdAt,
+            updatedAt = updatedAt
+          )
       }
 
   implicit val adminDatabaseClientRead: Read[AdminDatabaseClient] =
-    Read[(Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[Boolean])]
-      .map { case (name, apptype, description, developeremail, sub, createdat, updatedat, secret, azp, aud, iss, redirecturl, logourl, userauthenticationurl, clientcertificate, company, consumerid, isactive) =>
-        AdminDatabaseClient(
-          name = name,
-          apptype = apptype,
-          description = description,
-          developeremail = developeremail,
-          sub = sub,
-          createdat = createdat,
-          updatedat = updatedat,
-          secret = secret,
-          azp = azp,
-          aud = aud,
-          iss = iss,
-          redirecturl = redirecturl,
-          logourl = logourl,
-          userauthenticationurl = userauthenticationurl,
-          clientcertificate = clientcertificate,
-          company = company,
-          consumerid = consumerid,
-          isactive = isactive
-        )
+    Read[
+      (
+          Option[String],
+          Option[String],
+          Option[String],
+          Option[String],
+          Option[String],
+          Option[String],
+          Option[String],
+          Option[String],
+          Option[String],
+          Option[String],
+          Option[String],
+          Option[String],
+          Option[String],
+          Option[String],
+          Option[String],
+          Option[String],
+          Option[String],
+          Option[Boolean]
+      )
+    ]
+      .map {
+        case (
+              name,
+              apptype,
+              description,
+              developeremail,
+              sub,
+              createdat,
+              updatedat,
+              secret,
+              azp,
+              aud,
+              iss,
+              redirecturl,
+              logourl,
+              userauthenticationurl,
+              clientcertificate,
+              company,
+              consumerid,
+              isactive
+            ) =>
+          AdminDatabaseClient(
+            name = name,
+            apptype = apptype,
+            description = description,
+            developeremail = developeremail,
+            sub = sub,
+            createdat = createdat,
+            updatedat = updatedat,
+            secret = secret,
+            azp = azp,
+            aud = aud,
+            iss = iss,
+            redirecturl = redirecturl,
+            logourl = logourl,
+            userauthenticationurl = userauthenticationurl,
+            clientcertificate = clientcertificate,
+            company = company,
+            consumerid = consumerid,
+            isactive = isactive
+          )
       }
 }
