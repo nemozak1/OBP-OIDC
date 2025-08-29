@@ -238,11 +238,11 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
 
         val insertQuery = sql"""
           INSERT INTO v_oidc_admin_clients (
-            name, apptype, description, developeremail, sub, consumerid,
+            name, apptype, description, developeremail, sub,
             secret, azp, aud, iss, redirecturl, company, consumerid, isactive
           ) VALUES (
             ${adminClient.name}, ${adminClient.apptype}, ${adminClient.description},
-            ${adminClient.developeremail}, ${adminClient.sub}, ${adminClient.consumerid},
+            ${adminClient.developeremail}, ${adminClient.sub},
             ${adminClient.secret}, ${adminClient.azp}, ${adminClient.aud},
             ${adminClient.iss}, ${adminClient.redirecturl}, ${adminClient.company},
             ${adminClient.consumerid}, ${adminClient.isactive}
@@ -338,7 +338,7 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
         println("✅ DEBUG: Admin transactor available, executing SELECT query")
         logger.info("✅ Admin transactor available, executing SELECT query")
         val query = sql"""
-          SELECT name, apptype, description, developeremail, sub, consumerid,
+          SELECT name, apptype, description, developeremail, sub,
                  createdat, updatedat, secret, azp, aud, iss, redirecturl,
                  logourl, userauthenticationurl, clientcertificate, company, consumerid, isactive
           FROM v_oidc_admin_clients
