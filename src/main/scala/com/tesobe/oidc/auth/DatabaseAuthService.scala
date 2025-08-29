@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory
 import com.tesobe.oidc.auth.DatabaseUserInstances._
 
 import java.time.Instant
+import java.util.UUID
 
 /** Database-based authentication service using PostgreSQL view v_oidc_users
   *
@@ -259,8 +260,12 @@ class DatabaseAuthService(
 
   // Admin client management methods using the admin transactor
 
-  /** Create a new OIDC client using the admin database connection Requires
-    * write access to v_oidc_admin_clients view
+  /** Create a new OIDC client using INSERT-only approach
+    *
+    * If a client with the same consumerid already exists, this will fail.
+    * Clients are immutable after creation - no updates allowed.
+    *
+    * Requires write access to v_oidc_admin_clients view.
     */
   def createClient(client: OidcClient): IO[Either[OidcError, OidcClient]] = {
     logger.info(
@@ -283,13 +288,13 @@ class DatabaseAuthService(
         val insertQuery = sql"""
           INSERT INTO v_oidc_admin_clients (
             name, apptype, description, developeremail, sub,
-            secret, azp, aud, iss, redirecturl, company, consumerid, isactive
+            secret, azp, aud, iss, redirecturl, company, key_c, consumerid, isactive
           ) VALUES (
             ${adminClient.name}, ${adminClient.apptype}, ${adminClient.description},
             ${adminClient.developeremail}, ${adminClient.sub},
             ${adminClient.secret}, ${adminClient.azp}, ${adminClient.aud},
             ${adminClient.iss}, ${adminClient.redirecturl}, ${adminClient.company},
-            ${adminClient.consumerid}, ${adminClient.isactive}
+            ${adminClient.key_c}, ${adminClient.consumerid}, ${adminClient.isactive}
           )
         """.update
 
@@ -329,7 +334,9 @@ class DatabaseAuthService(
               Left(
                 OidcError(
                   "server_error",
-                  Some(s"Database error: ${error.getMessage}")
+                  Some(
+                    s"Database error: ${error.getMessage}. Client may already exist or database constraint violation."
+                  )
                 )
               )
             )
@@ -349,62 +356,9 @@ class DatabaseAuthService(
     }
   }
 
-  /** Update an existing OIDC client using the admin database connection
+  /** Create client with INSERT-only approach (upsert pattern) If client exists,
+    * this will fail - clients should be immutable after creation
     */
-  def updateClient(
-      clientId: String,
-      client: OidcClient
-  ): IO[Either[OidcError, OidcClient]] = {
-    adminTransactor match {
-      case Some(adminTx) =>
-        val adminClient = AdminDatabaseClient.fromOidcClient(client, config)
-        val updateQuery = sql"""
-          UPDATE v_oidc_admin_clients SET
-            name = ${adminClient.name},
-            description = ${adminClient.description},
-            secret = ${adminClient.secret},
-            redirecturl = ${adminClient.redirecturl},
-            updatedat = CURRENT_TIMESTAMP
-          WHERE consumerid = $clientId
-        """.update
-
-        updateQuery.run
-          .transact(adminTx)
-          .map { rowsAffected =>
-            if (rowsAffected > 0) {
-              logger.info(s"Successfully updated OIDC client: $clientId")
-              Right(client)
-            } else {
-              Left(
-                OidcError(
-                  "invalid_client",
-                  Some(s"Client not found: $clientId")
-                )
-              )
-            }
-          }
-          .handleErrorWith { error =>
-            logger.error(s"Failed to update client $clientId", error)
-            IO.pure(
-              Left(
-                OidcError(
-                  "server_error",
-                  Some(s"Database error: ${error.getMessage}")
-                )
-              )
-            )
-          }
-      case None =>
-        IO.pure(
-          Left(
-            OidcError(
-              "server_error",
-              Some("Admin database connection not available")
-            )
-          )
-        )
-    }
-  }
 
   /** Delete an OIDC client using the admin database connection
     */
@@ -464,7 +418,7 @@ class DatabaseAuthService(
         val query = sql"""
           SELECT name, apptype, description, developeremail, sub,
                  createdat, updatedat, secret, azp, aud, iss, redirecturl,
-                 logourl, userauthenticationurl, clientcertificate, company, consumerid, isactive
+                 logourl, userauthenticationurl, clientcertificate, company, key_c, consumerid, isactive
           FROM v_oidc_admin_clients
           ORDER BY createdat DESC
         """.query[AdminDatabaseClient]
@@ -534,7 +488,7 @@ class DatabaseAuthService(
         val query = sql"""
           SELECT name, apptype, description, developeremail, sub,
                  createdat, updatedat, secret, azp, aud, iss, redirecturl,
-                 logourl, userauthenticationurl, clientcertificate, company, consumerid, isactive
+                 logourl, userauthenticationurl, clientcertificate, company, key_c, consumerid, isactive
           FROM v_oidc_admin_clients
           WHERE consumerid = $clientId
         """.query[AdminDatabaseClient]
@@ -826,6 +780,7 @@ case class AdminDatabaseClient(
     userauthenticationurl: Option[String], // user auth URL
     clientcertificate: Option[String], // client certificate
     company: Option[String], // company name
+    key_c: Option[String], // OAuth1 consumer key (UUID)
     isactive: Option[Boolean] // is active
 ) {
   def toOidcClient: OidcClient = OidcClient(
@@ -871,7 +826,8 @@ object AdminDatabaseClient {
     logourl = None,
     userauthenticationurl = None,
     clientcertificate = None,
-    company = Some("TESOBE"), // This is the OIDC client_id
+    company = Some("TESOBE"),
+    key_c = Some(UUID.randomUUID().toString), // OAuth1 consumer key UUID
     isactive = Some(true)
   )
 }
@@ -1089,6 +1045,7 @@ object DatabaseUserInstances {
           Option[String],
           Option[String],
           Option[String],
+          Option[String],
           Option[Boolean]
       )
     ]
@@ -1110,6 +1067,7 @@ object DatabaseUserInstances {
               userauthenticationurl,
               clientcertificate,
               company,
+              key_c,
               consumerid,
               isactive
             ) =>
@@ -1130,6 +1088,7 @@ object DatabaseUserInstances {
             userauthenticationurl = userauthenticationurl,
             clientcertificate = clientcertificate,
             company = company,
+            key_c = key_c,
             consumerid = consumerid,
             isactive = isactive
           )
