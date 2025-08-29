@@ -99,7 +99,7 @@ TEST_SECRET="test-secret-$(date +%s)"
 INSERT_RESULT=$(psql "postgresql://$OIDC_ADMIN_USER:$OIDC_ADMIN_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME" -t -c "
 INSERT INTO v_oidc_admin_clients (
   name, apptype, description, developeremail, sub,
-  secret, azp, aud, iss, redirecturl, company, key_c, isactive
+  secret, azp, aud, iss, redirecturl, company, consumerid, isactive
 ) VALUES (
   'Test Client New Schema',
   'WEB',
@@ -114,7 +114,7 @@ INSERT INTO v_oidc_admin_clients (
   'TESOBE',
   '$TEST_CLIENT_ID',
   true
-) RETURNING key_c;" 2>&1)
+) RETURNING consumerid;" 2>&1)
 
 if echo "$INSERT_RESULT" | grep -q "$TEST_CLIENT_ID"; then
     echo "✅ INSERT with new schema successful"
@@ -126,8 +126,8 @@ if echo "$INSERT_RESULT" | grep -q "$TEST_CLIENT_ID"; then
     SET name = 'Updated Test Client',
         description = 'Updated test description',
         redirecturl = 'http://localhost:3000/updated/callback'
-    WHERE key_c = '$TEST_CLIENT_ID' 
-    RETURNING key_c;" 2>&1)
+    WHERE consumerid = '$TEST_CLIENT_ID'
+    RETURNING consumerid;" 2>&1)
 
     if echo "$UPDATE_RESULT" | grep -q "$TEST_CLIENT_ID"; then
         echo "✅ UPDATE with new schema successful"
@@ -138,9 +138,9 @@ if echo "$INSERT_RESULT" | grep -q "$TEST_CLIENT_ID"; then
     # Test SELECT to verify data
     echo "📋 Testing SELECT with new schema..."
     SELECT_RESULT=$(psql "postgresql://$OIDC_ADMIN_USER:$OIDC_ADMIN_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME" -t -c "
-    SELECT name, key_c, secret, redirecturl, isactive
+    SELECT name, consumerid, secret, redirecturl, isactive
     FROM v_oidc_admin_clients 
-    WHERE key_c = '$TEST_CLIENT_ID';" 2>&1)
+    WHERE consumerid = '$TEST_CLIENT_ID';" 2>&1)
 
     if echo "$SELECT_RESULT" | grep -q "Updated Test Client"; then
         echo "✅ SELECT with new schema successful"
@@ -153,8 +153,8 @@ if echo "$INSERT_RESULT" | grep -q "$TEST_CLIENT_ID"; then
     echo "🗑️  Testing DELETE with new schema..."
     DELETE_RESULT=$(psql "postgresql://$OIDC_ADMIN_USER:$OIDC_ADMIN_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME" -t -c "
     DELETE FROM v_oidc_admin_clients 
-    WHERE key_c = '$TEST_CLIENT_ID' 
-    RETURNING key_c;" 2>&1)
+    WHERE consumerid = '$TEST_CLIENT_ID'
+    RETURNING consumerid;" 2>&1)
 
     if echo "$DELETE_RESULT" | grep -q "$TEST_CLIENT_ID"; then
         echo "✅ DELETE with new schema successful"
@@ -187,10 +187,10 @@ echo "   2. The server will automatically use the new schema"
 echo "   3. Check server logs for client creation status"
 echo ""
 echo "📋 Column Mapping (OIDC Standard → Your Database):"
-echo "   client_id         → key_c"
+echo "   client_id         → consumerid"
 echo "   client_secret     → secret"
 echo "   client_name       → name"
 echo "   redirect_uris     → redirecturl"
 echo "   created_at        → createdat"
 echo "   updated_at        → updatedat"
-echo "   consumerid        → AUTO-GENERATED (don't set manually)"
+echo "   consumer_id       → consumerid
