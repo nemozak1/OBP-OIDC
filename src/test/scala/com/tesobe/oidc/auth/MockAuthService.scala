@@ -59,9 +59,11 @@ class MockAuthService extends AuthService[IO] {
     )
   )
 
-
-  def authenticate(username: String, password: String, provider: String): IO[Either[OidcError, User]] = IO {
-
+  def authenticate(
+      username: String,
+      password: String,
+      provider: String
+  ): IO[Either[OidcError, User]] = IO {
     users.get(username) match {
       case Some(user)
           if user.password == password && user.provider.contains(provider) =>
@@ -81,7 +83,6 @@ class MockAuthService extends AuthService[IO] {
 
   def getAvailableProviders(): IO[List[String]] = IO {
     List("obp", "test")
-
   }
 
   def validateClient(clientId: String, redirectUri: String): IO[Boolean] = IO {
@@ -91,23 +92,7 @@ class MockAuthService extends AuthService[IO] {
 
   def findClientById(clientId: String): IO[Option[OidcClient]] = IO {
     // Mock implementation for testing
-    Some(OidcClient(
-      client_id = clientId,
-      client_secret = Some("test-secret"),
-      client_name = "Test Client",
-      consumer_id = "test-consumer",
-      redirect_uris = List("https://example.com/callback"),
-      grant_types = List("authorization_code"),
-      response_types = List("code"),
-      scopes = List("openid", "profile", "email")
-    ))
-  }
-
-  def findAdminClientById(clientId: String): IO[Option[OidcClient]] = findClientById(clientId)
-
-  def listClients(): IO[Either[OidcError, List[OidcClient]]] = IO {
-    Right(List(
-
+    Some(
       OidcClient(
         client_id = clientId,
         client_secret = Some("test-secret"),
@@ -131,6 +116,7 @@ class MockAuthService extends AuthService[IO] {
           client_id = "test-client",
           client_secret = Some("test-secret"),
           client_name = "Test Client",
+          consumer_id = "test-consumer",
           redirect_uris = List("https://example.com/callback"),
           grant_types = List("authorization_code"),
           response_types = List("code"),
