@@ -84,6 +84,7 @@ object DebugClientCreation extends IOApp {
             client_id = "debug-test-client",
             client_secret = Some("debug-secret-123"),
             client_name = "Debug Test Client",
+            consumer_id = "debug-test-client",
             redirect_uris = List("http://localhost:3000/debug/callback"),
             grant_types = List("authorization_code"),
             response_types = List("code"),
