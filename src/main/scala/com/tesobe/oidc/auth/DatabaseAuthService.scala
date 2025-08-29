@@ -232,20 +232,20 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
         val adminClient = AdminDatabaseClient.fromOidcClient(client)
         logger.info(s"🔧 Mapped OIDC client to database format:")
         logger.info(s"   name: ${adminClient.name}")
-        logger.info(s"   key_c: ${adminClient.key_c}")
+        logger.info(s"   consumerid: ${adminClient.consumerid}")
         logger.info(s"   secret: ${adminClient.secret.map(_.take(10)).getOrElse("None")}...")
         logger.info(s"   redirecturl: ${adminClient.redirecturl}")
 
         val insertQuery = sql"""
           INSERT INTO v_oidc_admin_clients (
             name, apptype, description, developeremail, sub, consumerid,
-            secret, azp, aud, iss, redirecturl, company, key_c, isactive
+            secret, azp, aud, iss, redirecturl, company, consumerid, isactive
           ) VALUES (
             ${adminClient.name}, ${adminClient.apptype}, ${adminClient.description},
             ${adminClient.developeremail}, ${adminClient.sub}, ${adminClient.consumerid},
             ${adminClient.secret}, ${adminClient.azp}, ${adminClient.aud},
             ${adminClient.iss}, ${adminClient.redirecturl}, ${adminClient.company},
-            ${adminClient.key_c}, ${adminClient.isactive}
+            ${adminClient.consumerid}, ${adminClient.isactive}
           )
         """.update
 
@@ -284,7 +284,7 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
             secret = ${adminClient.secret},
             redirecturl = ${adminClient.redirecturl},
             updatedat = CURRENT_TIMESTAMP
-          WHERE key_c = $clientId
+          WHERE consumerid = $clientId
         """.update
 
         updateQuery.run.transact(adminTx).map { rowsAffected =>
@@ -309,7 +309,7 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
   def deleteClient(clientId: String): IO[Either[OidcError, String]] = {
     adminTransactor match {
       case Some(adminTx) =>
-        val deleteQuery = sql"DELETE FROM v_oidc_admin_clients WHERE key_c = $clientId".update
+        val deleteQuery = sql"DELETE FROM v_oidc_admin_clients WHERE consumerid = $clientId".update
 
         deleteQuery.run.transact(adminTx).map { rowsAffected =>
           if (rowsAffected > 0) {
@@ -340,7 +340,7 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
         val query = sql"""
           SELECT name, apptype, description, developeremail, sub, consumerid,
                  createdat, updatedat, secret, azp, aud, iss, redirecturl,
-                 logourl, userauthenticationurl, clientcertificate, company, key_c, isactive
+                 logourl, userauthenticationurl, clientcertificate, company, consumerid, isactive
           FROM v_oidc_admin_clients
           ORDER BY createdat DESC
         """.query[AdminDatabaseClient]
@@ -350,7 +350,7 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
         query.to[List].transact(adminTx).map { clients =>
           println(s"📊 DEBUG: SELECT result: Found ${clients.length} clients in v_oidc_admin_clients")
           logger.info(s"📊 SELECT result: Found ${clients.length} clients in v_oidc_admin_clients")
-          clients.foreach(client => logger.info(s"   - ${client.name.getOrElse("No Name")} (key_c: ${client.key_c.getOrElse("No Key")})"))
+          clients.foreach(client => logger.info(s"   - ${client.name.getOrElse("No Name")} (consumerid: ${client.consumerid.getOrElse("No Key")})"))
           Right(clients.map(_.toOidcClient))
         }.handleErrorWith { error =>
           println(s"❌ DEBUG: Database error listing clients: ${error.getClass.getSimpleName}: ${error.getMessage}")
@@ -370,21 +370,21 @@ class DatabaseAuthService(transactor: Transactor[IO], adminTransactor: Option[Tr
    */
   def findAdminClientById(clientId: String): IO[Option[OidcClient]] = {
     println(s"🔍 DEBUG: findAdminClientById() called for clientId: $clientId")
-    println(s"   Looking in v_oidc_admin_clients view with column 'key_c'")
+    println(s"   Looking in v_oidc_admin_clients view with column 'consumerid'")
     adminTransactor match {
       case Some(adminTx) =>
         val query = sql"""
-          SELECT name, apptype, description, developeremail, sub, consumerid,
+          SELECT name, apptype, description, developeremail, sub,
                  createdat, updatedat, secret, azp, aud, iss, redirecturl,
-                 logourl, userauthenticationurl, clientcertificate, company, key_c, isactive
+                 logourl, userauthenticationurl, clientcertificate, company, consumerid, isactive
           FROM v_oidc_admin_clients
-          WHERE key_c = $clientId
+          WHERE consumerid = $clientId
         """.query[AdminDatabaseClient]
 
         query.option.transact(adminTx).map { result =>
           println(s"   📊 DEBUG: Query result: ${if (result.isDefined) "FOUND" else "NOT FOUND"}")
           result.map { client =>
-            println(s"   ✅ DEBUG: Found client: ${client.name.getOrElse("No Name")} with key_c: ${client.key_c.getOrElse("No Key")}")
+            println(s"   ✅ DEBUG: Found client: ${client.name.getOrElse("No Name")} with consumerid: ${client.consumerid.getOrElse("No Key")}")
             println(s"   🔑 DEBUG: Database secret: ${client.secret.map(_.take(20)).getOrElse("None")}...")
             val oidcClient = client.toOidcClient
             println(s"   🔑 DEBUG: Converted secret: ${oidcClient.client_secret.map(_.take(20)).getOrElse("None")}...")
@@ -616,11 +616,10 @@ case class AdminDatabaseClient(
   userauthenticationurl: Option[String], // user auth URL
   clientcertificate: Option[String],     // client certificate
   company: Option[String],       // company name
-  key_c: Option[String],         // key
   isactive: Option[Boolean]      // is active
 ) {
   def toOidcClient: OidcClient = OidcClient(
-    client_id = key_c.getOrElse(""),
+    client_id = consumerid.getOrElse(""),
     client_secret = secret,
     client_name = name.getOrElse(""),
     consumer_id = consumerid.getOrElse(""),
@@ -659,8 +658,7 @@ object AdminDatabaseClient {
     logourl = None,
     userauthenticationurl = None,
     clientcertificate = None,
-    company = Some("TESOBE"),
-    key_c = Some(client.client_id), // This is the OIDC client_id
+    company = Some("TESOBE"), // This is the OIDC client_id
     isactive = Some(true)
   )
 }
@@ -793,15 +791,14 @@ object DatabaseUserInstances {
       }
 
   implicit val adminDatabaseClientRead: Read[AdminDatabaseClient] =
-    Read[(Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[Boolean])]
-      .map { case (name, apptype, description, developeremail, sub, consumerid, createdat, updatedat, secret, azp, aud, iss, redirecturl, logourl, userauthenticationurl, clientcertificate, company, key_c, isactive) =>
+    Read[(Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Option[Boolean])]
+      .map { case (name, apptype, description, developeremail, sub, createdat, updatedat, secret, azp, aud, iss, redirecturl, logourl, userauthenticationurl, clientcertificate, company, consumerid, isactive) =>
         AdminDatabaseClient(
           name = name,
           apptype = apptype,
           description = description,
           developeremail = developeremail,
           sub = sub,
-          consumerid = consumerid,
           createdat = createdat,
           updatedat = updatedat,
           secret = secret,
@@ -813,7 +810,7 @@ object DatabaseUserInstances {
           userauthenticationurl = userauthenticationurl,
           clientcertificate = clientcertificate,
           company = company,
-          key_c = key_c,
+          consumerid = consumerid,
           isactive = isactive
         )
       }

@@ -458,7 +458,7 @@ export DB_ADMIN_MAX_CONNECTIONS=5
         logger.info(s"""
 INSERT INTO v_oidc_admin_clients (
   name, apptype, description, developeremail, sub,
-  secret, azp, aud, iss, redirecturl, company, key_c, isactive
+  secret, azp, aud, iss, redirecturl, company, consumerid, isactive
 ) VALUES (
   '${client.client_name}',
   'WEB',

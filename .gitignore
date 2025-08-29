@@ -151,3 +151,6 @@ logs/
 
 # Local run scripts (allow customization)
 run-server.sh
+
+# Don't upload generated files
+obp-oidc-generated-config.txt

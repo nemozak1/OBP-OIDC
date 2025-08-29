@@ -613,12 +613,12 @@ If you encounter redirect issues where the system redirects to `http://localhost
    ```sql
    UPDATE consumer
    SET redirecturl = 'http://localhost:8080/auth/openid-connect/callback'
-   WHERE key_c = 'obp-api-client';
+   WHERE consumerid = 'obp-api-client';
    ```
 
 3. **Verify the fix:**
    ```sql
-   SELECT key_c, name, redirecturl FROM consumer WHERE key_c = 'obp-api-client';
+   SELECT consumerid, name, redirecturl FROM consumer WHERE consumerid = 'obp-api-client';
    ```
 
 **Expected Output:**
@@ -744,7 +744,7 @@ If authentication succeeds but redirects to wrong URL:
 1. Check the `consumer` table `redirecturl` field:
 
    ```sql
-   SELECT key_c, redirecturl FROM consumer WHERE key_c = 'obp-api-client';
+   SELECT consumerid, redirecturl FROM consumer WHERE consumerid = 'obp-api-client';
    ```
 
 2. Should be: `http://localhost:8080/auth/openid-connect/callback` (not `/oauth/callback`)
