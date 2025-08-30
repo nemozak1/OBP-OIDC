@@ -231,7 +231,6 @@ export DB_ADMIN_MAX_CONNECTIONS=5
               println("🔧 DEBUG: Starting configurable client creation...")
             )
             _ <- createConfiguredClients()
-            _ <- logClientConfiguration()
           } yield {
             println(
               "✅ DEBUG: All OBP ecosystem clients initialized successfully"
@@ -411,32 +410,6 @@ export DB_ADMIN_MAX_CONNECTIONS=5
             )
             IO.unit
         }
-    }
-  }
-
-  /** Log configuration for all clients with ready-to-copy configs
-    */
-  private def logClientConfiguration(): IO[Unit] = {
-    val clients = CLIENT_DEFINITIONS.map(createClient)
-
-    IO {
-      println()
-      println("=" * 80)
-      println("🚀 DEVELOPER HELPER: Client Configurations")
-      println("=" * 80)
-      println()
-
-      clients.foreach { client =>
-        println(s"consumer_id: ${client.consumer_id}")
-        println(s"client_id: ${client.client_id}")
-        println(s"client_secret: ${client.client_secret.getOrElse("NOT_SET")}")
-        println(s"redirect_uris: ${client.redirect_uris.mkString(",")}")
-        println("-" * 50)
-      }
-
-      println("=" * 80)
-      println("✅ All configurations ready!")
-      println("=" * 80)
     }
   }
 
