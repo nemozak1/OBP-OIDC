@@ -372,251 +372,50 @@ object OidcServer extends IOApp {
     } *> IO.pure(ExitCode.Success)
   }
 
-  /** Print configuration for all OBP projects using existing ClientBootstrap
-    * clients
+  /** Print configuration for all clients from database
     */
   private def printOBPConfiguration(
       baseUri: String,
       authService: DatabaseAuthService
   ): IO[Unit] = {
-    // Get client configurations from the bootstrap system
-    val obpApiClientId =
-      sys.env.getOrElse("OIDC_CLIENT_OBP_API_ID", "obp-api-client")
-    val portalClientId =
-      sys.env.getOrElse("OIDC_CLIENT_PORTAL_ID", "obp-portal-client")
-    val explorerClientId =
-      sys.env.getOrElse("OIDC_CLIENT_EXPLORER_ID", "obp-explorer-ii-client")
-    val opeyClientId =
-      sys.env.getOrElse("OIDC_CLIENT_OPEY_ID", "obp-opey-ii-client")
-
     for {
-      _ <- IO(println(s"🔍 DEBUG: Looking for clients with IDs:"))
-      _ <- IO(println(s"   OBP-API: $obpApiClientId"))
-      _ <- IO(println(s"   Portal: $portalClientId"))
-      _ <- IO(println(s"   Explorer: $explorerClientId"))
-      _ <- IO(println(s"   Opey: $opeyClientId"))
-
-      // Fetch actual client configurations from database
-      obpApiClient <- authService.findAdminClientById(obpApiClientId)
-      portalClient <- authService.findAdminClientById(portalClientId)
-      explorerClient <- authService.findAdminClientById(explorerClientId)
-      opeyClient <- authService.findAdminClientById(opeyClientId)
-
-      _ <- IO(println(s"🔍 DEBUG: Client lookup results:"))
-      _ <- IO(
-        println(
-          s"   OBP-API: ${if (obpApiClient.isDefined) "FOUND" else "NOT FOUND"}"
-        )
-      )
-      _ <- IO(
-        println(
-          s"   Portal: ${if (portalClient.isDefined) "FOUND" else "NOT FOUND"}"
-        )
-      )
-      _ <- IO(println(s"   Explorer: ${if (explorerClient.isDefined) "FOUND"
-        else "NOT FOUND"}"))
-      _ <- IO(
-        println(
-          s"   Opey: ${if (opeyClient.isDefined) "FOUND" else "NOT FOUND"}"
-        )
-      )
-      _ <- IO(println())
-
-      _ <- IO(println())
       _ <- IO(println("=" * 100))
       _ <- IO(println("🚀 OBP PROJECT CONFIGURATIONS - Ready to copy & paste"))
       _ <- IO(println("=" * 100))
       _ <- IO(println())
 
-      _ <- printOBPApiConfig(baseUri, obpApiClient)
-      _ <- printPortalConfig(baseUri, portalClient)
-      _ <- printApiExplorerConfig(baseUri, explorerClient)
-      _ <- printOpeyConfig(baseUri, opeyClient)
+      clientsResult <- authService.listClients()
+      _ <- clientsResult match {
+        case Right(clients) if clients.nonEmpty =>
+          clients.foldLeft(IO.unit) { (acc, client) =>
+            acc.flatMap(_ => printClient(Some(client)))
+          }
+        case Right(_) =>
+          IO(println("No Clients Found"))
+        case Left(error) =>
+          IO(println(s"Error retrieving clients: ${error.error}"))
+      }
 
       _ <- IO(println("=" * 100))
-      _ <- IO(println("✅ All configurations printed above. Happy coding! 🎉"))
-      _ <- IO(
-        println(
-          "💡 Note: Client secrets shown above are from your v_oidc_clients database"
-        )
-      )
-      _ <- IO(println("=" * 100))
-      _ <- IO(println())
     } yield ()
   }
 
-  /** Print OBP-API configuration for props file
+  /** Print client configuration in standardized format
     */
-  private def printOBPApiConfig(
-      baseUri: String,
-      client: Option[OidcClient]
-  ): IO[Unit] = {
-    val clientId = client.map(_.client_id).getOrElse("obp-api-client")
-    val clientSecret =
-      client.flatMap(_.client_secret).getOrElse("CLIENT_NOT_REGISTERED")
-    println(s"🔑 DEBUG: OBP-API client id: ${clientId}")
-
-    for {
-      _ <- IO(println("📋 1. OBP-API Configuration (props file):"))
-      _ <- IO(println("-" * 50))
-      _ <- IO(println("# Add to your OBP-API props file"))
-      _ <- IO(println("openid_connect.scope=openid email profile"))
-      _ <- IO(println())
-      _ <- IO(println("# OBP-API OIDC Provider Settings"))
-      _ <- IO(println("openid_connect_1.button_text=OBP-OIDC"))
-      _ <- IO(println(s"openid_connect_1.client_id=$clientId"))
-      _ <- IO(println(s"openid_connect_1.client_secret=$clientSecret"))
-      _ <- IO(
-        println(
-          s"openid_connect_1.callback_url=${sys.env.getOrElse("OBP_API_URL", "http://localhost:8080")}/auth/openid-connect/callback"
-        )
-      )
-      _ <- IO(
-        println(
-          s"openid_connect_1.endpoint.discovery=$baseUri/obp-oidc/.well-known/openid-configuration"
-        )
-      )
-      _ <- IO(
-        println(
-          s"openid_connect_1.endpoint.authorization=$baseUri/obp-oidc/auth"
-        )
-      )
-      _ <- IO(
-        println(
-          s"openid_connect_1.endpoint.userinfo=$baseUri/obp-oidc/userinfo"
-        )
-      )
-      _ <- IO(
-        println(s"openid_connect_1.endpoint.token=$baseUri/obp-oidc/token")
-      )
-      _ <- IO(
-        println(s"openid_connect_1.endpoint.jwks_uri=$baseUri/obp-oidc/jwks")
-      )
-      _ <- IO(println("openid_connect_1.access_type_offline=true"))
-      _ <- IO(println())
-      _ <-
-        if (client.isEmpty) {
-          IO(
-            println(
-              "⚠️  Client not found in database - check ClientBootstrap logs"
-            )
+  private def printClient(client: Option[OidcClient]): IO[Unit] = {
+    client match {
+      case Some(c) =>
+        for {
+          _ <- IO(println(s"Consumer ID: ${c.consumer_id}"))
+          _ <- IO(println(s"Client ID: ${c.client_id}"))
+          _ <- IO(
+            println(s"Client Secret: ${c.client_secret.getOrElse("NOT_SET")}")
           )
-        } else IO.unit
-    } yield ()
-  }
-
-  /** Print Portal configuration for .env file
-    */
-  private def printPortalConfig(
-      baseUri: String,
-      client: Option[OidcClient]
-  ): IO[Unit] = {
-    val clientId = client.map(_.client_id).getOrElse("obp-portal-client")
-    val clientSecret =
-      client.flatMap(_.client_secret).getOrElse("CLIENT_NOT_REGISTERED")
-    println(s"🔑 DEBUG: Portal client id: $clientId")
-
-    for {
-      _ <- IO(println("🌐 2. OBP-Portal Configuration (.env file):"))
-      _ <- IO(println("-" * 50))
-      _ <- IO(println("# Add to OBP-Portal .env file"))
-      _ <- IO(println(s"PUBLIC_OBP_BASE_URL=${sys.env.getOrElse("OBP_API_URL", "http://localhost:8080")}"))
-      _ <- IO(println(s"OBP_OAUTH_CLIENT_ID=$clientId"))
-      _ <- IO(println(s"OBP_OAUTH_CLIENT_SECRET=$clientSecret"))
-      _ <- IO(println("APP_CALLBACK_URL=http://localhost:5174/login/obp/callback"))
-      _ <- IO(println("OPEY_CONSUMER_ID=<SEE BELOW OPEY CONFIG for setting>"))
-
-      _ <- IO(println())
-      _ <-
-        if (client.isEmpty) {
-          IO(
-            println(
-              "⚠️  Client not found in database - check ClientBootstrap logs"
-            )
-          )
-        } else IO.unit
-    } yield ()
-  }
-
-  /** Print API Explorer II configuration for .env file
-    */
-  private def printApiExplorerConfig(
-      baseUri: String,
-      client: Option[OidcClient]
-  ): IO[Unit] = {
-    val clientId = client.map(_.client_id).getOrElse("explorer-ii-client")
-    val clientSecret =
-      client.flatMap(_.client_secret).getOrElse("CLIENT_NOT_REGISTERED")
-    println(s"🔑 DEBUG: Explorer client id: $clientId")
-
-    for {
-      _ <- IO(println("🔍 3. API-Explorer-II Configuration (.env file):"))
-      _ <- IO(println("-" * 50))
-      _ <- IO(println("# Add to API-Explorer-II .env file"))
-      _ <- IO(
-        println(
-          s"REACT_APP_API_HOST=${sys.env.getOrElse("OBP_API_URL", "http://localhost:8080")}"
-        )
-      )
-      _ <- IO(println(s"REACT_APP_OIDC_ISSUER=$baseUri"))
-      _ <- IO(println(s"REACT_APP_OIDC_AUTH_URL=$baseUri/obp-oidc/auth"))
-      _ <- IO(println(s"REACT_APP_OIDC_TOKEN_URL=$baseUri/obp-oidc/token"))
-      _ <- IO(
-        println(s"REACT_APP_OIDC_USERINFO_URL=$baseUri/obp-oidc/userinfo")
-      )
-      _ <- IO(println(s"REACT_APP_OIDC_CLIENT_ID=$clientId"))
-      _ <- IO(println(s"REACT_APP_OIDC_CLIENT_SECRET=$clientSecret"))
-      _ <- IO(
-        println("REACT_APP_OIDC_REDIRECT_URI=http://localhost:3001/callback")
-      )
-      _ <- IO(println("REACT_APP_OIDC_SCOPE=openid profile email"))
-      _ <- IO(println("PORT=3001"))
-      _ <- IO(println("HTTPS=false"))
-      _ <- IO(println())
-      _ <-
-        if (client.isEmpty) {
-          IO(
-            println(
-              "⚠️  Client not found in database - check ClientBootstrap logs"
-            )
-          )
-        } else IO.unit
-    } yield ()
-  }
-
-  /** Print Opey II configuration for .env file
-    */
-  private def printOpeyConfig(
-      baseUri: String,
-      client: Option[OidcClient]
-  ): IO[Unit] = {
-    val clientId = client.map(_.client_id).getOrElse("opey-ii-client")
-    val clientSecret = client.flatMap(_.client_secret).getOrElse("CLIENT_NOT_REGISTERED")
-    val consumerId = client.map(_.consumer_id).getOrElse("COULD_NOT_FIND_CONSUMER_ID")
-
-    println(s"🔑 DEBUG: Opey client id: $clientId")
-
-    for {
-      _ <- IO(println("🤖 4. Opey-II Configuration (.env file):"))
-      _ <- IO(println("-" * 50))
-      _ <- IO(println("# Add to Opey-II .env file"))
-      _ <- IO(println(s"OBP_BASE_URL=${sys.env.getOrElse("OBP_API_HOST", "localhost:8080")}"))
-      _ <- IO(println(s"OBP_CONSUMER_ID=$consumerId"))
-      _ <- IO(println(s"OBP_CONSUMER_KEY=$clientSecret"))
-      _ <- IO(println())
-      _ <- IO(println("# Add to OBP-Portal .env file"))
-      _ <- IO(println(s"OPEY_CONSUMER_ID=$consumerId"))
-
-      _ <- IO(println())
-      _ <-
-        if (client.isEmpty) {
-          IO(
-            println(
-              "⚠️  Client not found in database - check ClientBootstrap logs"
-            )
-          )
-        } else IO.unit
-    } yield ()
+          _ <- IO(println("-" * 50))
+        } yield ()
+      case None =>
+        IO(println("Client not found"))
+    }
   }
 
 }

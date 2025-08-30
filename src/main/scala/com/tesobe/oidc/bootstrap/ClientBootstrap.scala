@@ -44,6 +44,41 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
   private val logger = LoggerFactory.getLogger(getClass)
   private val secureRandom = new SecureRandom()
 
+  // Constants for client configuration
+  private val DEFAULT_GRANT_TYPES = List("authorization_code", "refresh_token")
+  private val DEFAULT_RESPONSE_TYPES = List("code")
+  private val DEFAULT_SCOPES = List("openid", "profile", "email")
+  private val DEFAULT_TOKEN_ENDPOINT_AUTH_METHOD = "client_secret_basic"
+
+  // Simple client definition
+  case class ClientDefinition(
+      consumer_id: String,
+      redirect_uris: String
+  )
+
+  // List of clients to create
+  private val CLIENT_DEFINITIONS = List(
+    ClientDefinition(
+      consumer_id = "obp-api-client",
+      redirect_uris = "http://localhost:8080/auth/openid-connect/callback"
+    ),
+    ClientDefinition(
+      consumer_id = "obp-portal-client",
+      redirect_uris =
+        "http://localhost:3000/callback,http://localhost:3000/oauth/callback"
+    ),
+    ClientDefinition(
+      consumer_id = "obp-explorer-ii-client",
+      redirect_uris =
+        "http://localhost:3001/callback,http://localhost:3001/oauth/callback"
+    ),
+    ClientDefinition(
+      consumer_id = "obp-opey-ii-client",
+      redirect_uris =
+        "http://localhost:3002/callback,http://localhost:3002/oauth/callback"
+    )
+  )
+
   /** Generate secure database passwords and print ready-to-use configuration
     */
   def generateDeveloperConfig(): IO[Unit] = {
@@ -236,147 +271,30 @@ export DB_ADMIN_MAX_CONNECTIONS=5
     } yield ()
   }
 
-  /** Get list of enabled clients based on environment variables
+  /** Get list of clients to create from CLIENT_DEFINITIONS
     */
   private def getEnabledClients(): List[OidcClient] = {
-    val clients = List(
-      ("OIDC_ENABLE_OBP_API_CLIENT", createOBPAPIClient _),
-      ("OIDC_ENABLE_PORTAL_CLIENT", createPortalClient _),
-      ("OIDC_ENABLE_EXPLORER_CLIENT", createExplorerIIClient _),
-      ("OIDC_ENABLE_OPEY_CLIENT", createOpeyIIClient _)
-    )
-
-    clients.flatMap { case (envVar, clientFactory) =>
-      val enabled = sys.env.getOrElse(envVar, "true").toLowerCase match {
-        case "true" | "1" | "yes" | "on" => true
-        case _                           => false
-      }
-
-      if (enabled) {
-        println(s"✅ DEBUG: $envVar=enabled - including client")
-        Some(clientFactory())
-      } else {
-        println(s"❌ DEBUG: $envVar=disabled - skipping client")
-        None
-      }
+    CLIENT_DEFINITIONS.map { clientDef =>
+      createClient(clientDef)
     }
   }
 
-  /** Create OBP-API client configuration
+  /** Create a client configuration from ClientDefinition
     */
-  private def createOBPAPIClient(): OidcClient = {
-    val clientId = sys.env.getOrElse("OIDC_CLIENT_OBP_API_ID", "obp-api-client")
-    val clientSecret = generateFreshSecretIfPlaceholder(
-      sys.env.get("OIDC_CLIENT_OBP_API_SECRET")
-    )
-    val redirectUris = sys.env
-      .getOrElse(
-        "OIDC_CLIENT_OBP_API_REDIRECTS",
-        s"${sys.env.getOrElse("OBP_API_URL", "http://localhost:8080")}/auth/openid-connect/callback"
-      )
-      .split(",")
-      .toList
+  private def createClient(clientDef: ClientDefinition): OidcClient = {
+    val clientSecret = generateSecureSecret()
+    val redirectUris = clientDef.redirect_uris.split(",").toList
 
     OidcClient(
-      client_id = clientId,
+      client_id = clientDef.consumer_id,
       client_secret = Some(clientSecret),
-      client_name = "OBP-API Core Service",
-      consumer_id = clientId,
+      client_name = clientDef.consumer_id,
+      consumer_id = clientDef.consumer_id,
       redirect_uris = redirectUris,
-      grant_types = List("authorization_code", "refresh_token"),
-      response_types = List("code"),
-      scopes = List("openid", "profile", "email"),
-      token_endpoint_auth_method = "client_secret_basic",
-      created_at = None
-    )
-  }
-
-  /** Create Portal client configuration
-    */
-  private def createPortalClient(): OidcClient = {
-    val clientId =
-      sys.env.getOrElse("OIDC_CLIENT_PORTAL_ID", "obp-portal-client")
-    val clientSecret = generateFreshSecretIfPlaceholder(
-      sys.env.get("OIDC_CLIENT_PORTAL_SECRET")
-    )
-    val redirectUris = sys.env
-      .getOrElse(
-        "OIDC_CLIENT_PORTAL_REDIRECTS",
-        "http://localhost:5174/login/obp/callback"
-      )
-      .split(",")
-      .toList
-
-    OidcClient(
-      client_id = clientId,
-      client_secret = Some(clientSecret),
-      client_name = "OBP Portal Web Application",
-      consumer_id = clientId,
-      redirect_uris = redirectUris,
-      grant_types = List("authorization_code", "refresh_token"),
-      response_types = List("code"),
-      scopes = List("openid", "profile", "email"),
-      token_endpoint_auth_method = "client_secret_basic",
-      created_at = None
-    )
-  }
-
-  /** Create Explorer II client configuration
-    */
-  private def createExplorerIIClient(): OidcClient = {
-    val clientId =
-      sys.env.getOrElse("OIDC_CLIENT_EXPLORER_ID", "obp-explorer-ii-client")
-    val clientSecret = generateFreshSecretIfPlaceholder(
-      sys.env.get("OIDC_CLIENT_EXPLORER_SECRET")
-    )
-    val redirectUris = sys.env
-      .getOrElse(
-        "OIDC_CLIENT_EXPLORER_REDIRECTS",
-        "http://localhost:3001/callback,http://localhost:3001/oauth/callback"
-      )
-      .split(",")
-      .toList
-
-    OidcClient(
-      client_id = clientId,
-      client_secret = Some(clientSecret),
-      client_name = "OBP Explorer II API Tool",
-      consumer_id = clientId,
-      redirect_uris = redirectUris,
-      grant_types = List("authorization_code", "refresh_token"),
-      response_types = List("code"),
-      scopes = List("openid", "profile", "email"),
-      token_endpoint_auth_method = "client_secret_basic",
-      created_at = None
-    )
-  }
-
-  /** Create Opey II client configuration
-    */
-  private def createOpeyIIClient(): OidcClient = {
-    val clientId =
-      sys.env.getOrElse("OIDC_CLIENT_OPEY_ID", "obp-opey-ii-client")
-    val clientSecret = generateFreshSecretIfPlaceholder(
-      sys.env.get("OIDC_CLIENT_OPEY_SECRET")
-    )
-    val redirectUris = sys.env
-      .getOrElse(
-        "OIDC_CLIENT_OPEY_REDIRECTS",
-        "http://localhost:3002/callback,http://localhost:3002/oauth/callback"
-      )
-      .split(",")
-      .toList
-
-    OidcClient(
-      client_id = clientId,
-      client_secret = Some(clientSecret),
-      client_name = "Opey II Mobile/Web Client",
-      consumer_id = clientId,
-      redirect_uris = redirectUris,
-      grant_types = List("authorization_code", "refresh_token"),
-      response_types = List("code"),
-      scopes = List("openid", "profile", "email"),
-      token_endpoint_auth_method = "client_secret_basic",
+      grant_types = DEFAULT_GRANT_TYPES,
+      response_types = DEFAULT_RESPONSE_TYPES,
+      scopes = DEFAULT_SCOPES,
+      token_endpoint_auth_method = DEFAULT_TOKEN_ENDPOINT_AUTH_METHOD,
       created_at = None
     )
   }
@@ -499,12 +417,7 @@ export DB_ADMIN_MAX_CONNECTIONS=5
   /** Log configuration for all clients with ready-to-copy configs
     */
   private def logClientConfiguration(): IO[Unit] = {
-    val clients = List(
-      createOBPAPIClient(),
-      createPortalClient(),
-      createExplorerIIClient(),
-      createOpeyIIClient()
-    )
+    val clients = CLIENT_DEFINITIONS.map(createClient)
 
     IO {
       println()
@@ -600,12 +513,7 @@ export DB_ADMIN_MAX_CONNECTIONS=5
   /** Log manual client creation SQL when admin database is not available
     */
   private def logManualClientCreationSQL(): IO[Unit] = {
-    val clients = List(
-      createOBPAPIClient(),
-      createPortalClient(),
-      createExplorerIIClient(),
-      createOpeyIIClient()
-    )
+    val clients = CLIENT_DEFINITIONS.map(createClient)
 
     IO {
       logger.info("📋 Manual Client Creation SQL:")
