@@ -406,11 +406,12 @@ object OidcServer extends IOApp {
     client match {
       case Some(c) =>
         for {
-          _ <- IO(println(s"Consumer ID: ${c.consumer_id}"))
-          _ <- IO(println(s"Client ID: ${c.client_id}"))
+          _ <- IO(println(s"consumer_id: ${c.consumer_id}"))
+          _ <- IO(println(s"client_id: ${c.client_id}"))
           _ <- IO(
-            println(s"Client Secret: ${c.client_secret.getOrElse("NOT_SET")}")
+            println(s"client_secret: ${c.client_secret.getOrElse("NOT_SET")}")
           )
+          _ <- IO(println(s"redirect_uris: ${c.redirect_uris.mkString(",")}"))
           _ <- IO(println("-" * 50))
         } yield ()
       case None =>
