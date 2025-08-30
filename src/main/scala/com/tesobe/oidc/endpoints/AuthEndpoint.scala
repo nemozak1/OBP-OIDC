@@ -40,47 +40,72 @@ class AuthEndpoint(authService: AuthService[IO], codeService: CodeService[IO]) {
 
   val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
     case GET -> Root / "obp-oidc" / "auth" :?
-      ResponseTypeQueryParamMatcher(responseType) +&
-      ClientIdQueryParamMatcher(clientId) +&
-      RedirectUriQueryParamMatcher(redirectUri) +&
-      ScopeQueryParamMatcher(scope) +&
-      StateQueryParamMatcher(state) +&
-      NonceQueryParamMatcher(nonce) =>
-      handleAuthorizationRequest(responseType, clientId, redirectUri, scope, state, nonce)
+        ResponseTypeQueryParamMatcher(responseType) +&
+        ClientIdQueryParamMatcher(clientId) +&
+        RedirectUriQueryParamMatcher(redirectUri) +&
+        ScopeQueryParamMatcher(scope) +&
+        StateQueryParamMatcher(state) +&
+        NonceQueryParamMatcher(nonce) =>
+      handleAuthorizationRequest(
+        responseType,
+        clientId,
+        redirectUri,
+        scope,
+        state,
+        nonce
+      )
 
     case req @ POST -> Root / "obp-oidc" / "auth" =>
       req.as[UrlForm].flatMap(handleLoginSubmission)
   }
 
   // Query parameter matchers
-  object ResponseTypeQueryParamMatcher extends QueryParamDecoderMatcher[String]("response_type")
-  object ClientIdQueryParamMatcher extends QueryParamDecoderMatcher[String]("client_id")
-  object RedirectUriQueryParamMatcher extends QueryParamDecoderMatcher[String]("redirect_uri")
-  object ScopeQueryParamMatcher extends QueryParamDecoderMatcher[String]("scope")
-  object StateQueryParamMatcher extends OptionalQueryParamDecoderMatcher[String]("state")
-  object NonceQueryParamMatcher extends OptionalQueryParamDecoderMatcher[String]("nonce")
+  object ResponseTypeQueryParamMatcher
+      extends QueryParamDecoderMatcher[String]("response_type")
+  object ClientIdQueryParamMatcher
+      extends QueryParamDecoderMatcher[String]("client_id")
+  object RedirectUriQueryParamMatcher
+      extends QueryParamDecoderMatcher[String]("redirect_uri")
+  object ScopeQueryParamMatcher
+      extends QueryParamDecoderMatcher[String]("scope")
+  object StateQueryParamMatcher
+      extends OptionalQueryParamDecoderMatcher[String]("state")
+  object NonceQueryParamMatcher
+      extends OptionalQueryParamDecoderMatcher[String]("nonce")
 
   private def handleAuthorizationRequest(
-    responseType: String,
-    clientId: String,
-    redirectUri: String,
-    scope: String,
-    state: Option[String],
-    nonce: Option[String]
+      responseType: String,
+      clientId: String,
+      redirectUri: String,
+      scope: String,
+      state: Option[String],
+      nonce: Option[String]
   ): IO[Response[IO]] = {
 
     // Validate request parameters
     if (responseType != "code") {
-      val error = OidcError("unsupported_response_type", Some("Only 'code' response type is supported"), state = state)
+      val error = OidcError(
+        "unsupported_response_type",
+        Some("Only 'code' response type is supported"),
+        state = state
+      )
       redirectWithError(redirectUri, error)
     } else if (!scope.contains("openid")) {
-      val error = OidcError("invalid_scope", Some("'openid' scope is required"), state = state)
+      val error = OidcError(
+        "invalid_scope",
+        Some("'openid' scope is required"),
+        state = state
+      )
       redirectWithError(redirectUri, error)
     } else {
       // Validate client and redirect URI
       authService.validateClient(clientId, redirectUri).flatMap { isValid =>
         if (!isValid) {
-          val error = OidcError("invalid_client", Some("Invalid client_id or redirect_uri"), state = state)
+          val error = OidcError(
+            "invalid_client",
+            Some("Invalid client_id or redirect_uri"),
+            state = state
+          )
           redirectWithError(redirectUri, error)
         } else {
           // Show login form
@@ -96,42 +121,73 @@ class AuthEndpoint(authService: AuthService[IO], codeService: CodeService[IO]) {
     for {
       _ <- IO(logger.info("🔥 LOGIN FORM SUBMISSION STARTED"))
       _ <- IO(println("🔥 LOGIN FORM SUBMISSION STARTED"))
-      username <- IO.fromOption(formData.get("username"))(new RuntimeException("Missing username"))
+      username <- IO.fromOption(formData.get("username"))(
+        new RuntimeException("Missing username")
+      )
       _ <- IO(logger.info(s"📋 Auth form submitted for username: '$username'"))
       _ <- IO(println(s"📋 Auth form submitted for username: '$username'"))
-      password <- IO.fromOption(formData.get("password"))(new RuntimeException("Missing password"))
-      _ <- IO(logger.debug(s"🔑 Password received (length: ${password.length})"))
-      provider <- IO.fromOption(formData.get("provider"))(new RuntimeException("Missing provider"))
+      password <- IO.fromOption(formData.get("password"))(
+        new RuntimeException("Missing password")
+      )
+      _ <- IO(
+        logger.debug(s"🔑 Password received (length: ${password.length})")
+      )
+      provider <- IO.fromOption(formData.get("provider"))(
+        new RuntimeException("Missing provider")
+      )
       _ <- IO(logger.info(s"🏢 Provider selected: '$provider'"))
-      clientId <- IO.fromOption(formData.get("client_id"))(new RuntimeException("Missing client_id"))
-      redirectUri <- IO.fromOption(formData.get("redirect_uri"))(new RuntimeException("Missing redirect_uri"))
-      scope <- IO.fromOption(formData.get("scope"))(new RuntimeException("Missing scope"))
+      clientId <- IO.fromOption(formData.get("client_id"))(
+        new RuntimeException("Missing client_id")
+      )
+      redirectUri <- IO.fromOption(formData.get("redirect_uri"))(
+        new RuntimeException("Missing redirect_uri")
+      )
+      scope <- IO.fromOption(formData.get("scope"))(
+        new RuntimeException("Missing scope")
+      )
       state = formData.get("state")
       nonce = formData.get("nonce")
 
-      _ <- IO(logger.info(s"🔄 Calling authentication service for username: '$username' with provider: '$provider'"))
-      response <- authenticateAndGenerateCode(username, password, provider, clientId, redirectUri, scope, state, nonce)
+      _ <- IO(
+        logger.info(
+          s"🔄 Calling authentication service for username: '$username' with provider: '$provider'"
+        )
+      )
+      response <- authenticateAndGenerateCode(
+        username,
+        password,
+        provider,
+        clientId,
+        redirectUri,
+        scope,
+        state,
+        nonce
+      )
     } yield response
   }.handleErrorWith { error =>
-    logger.error(s"💥 Error handling login submission: ${error.getMessage}", error)
+    logger.error(
+      s"💥 Error handling login submission: ${error.getMessage}",
+      error
+    )
     BadRequest("Invalid form data")
   }
 
   private def authenticateAndGenerateCode(
-    username: String,
-    password: String,
-    provider: String,
-    clientId: String,
-    redirectUri: String,
-    scope: String,
-    state: Option[String],
-    nonce: Option[String]
+      username: String,
+      password: String,
+      provider: String,
+      clientId: String,
+      redirectUri: String,
+      scope: String,
+      state: Option[String],
+      nonce: Option[String]
   ): IO[Response[IO]] = {
 
     authService.authenticate(username, password, provider).flatMap {
       case Right(user) =>
         for {
-          code <- codeService.generateCode(clientId, redirectUri, user.sub, scope, state, nonce)
+          code <- codeService
+            .generateCode(clientId, redirectUri, user.sub, scope, state, nonce)
           response <- redirectWithCode(redirectUri, code, state)
         } yield response
 
@@ -141,22 +197,34 @@ class AuthEndpoint(authService: AuthService[IO], codeService: CodeService[IO]) {
   }
 
   private def showLoginForm(
-    clientId: String,
-    redirectUri: String,
-    scope: String,
-    state: Option[String],
-    nonce: Option[String]
+      clientId: String,
+      redirectUri: String,
+      scope: String,
+      state: Option[String],
+      nonce: Option[String]
   ): IO[Response[IO]] = {
 
-    authService.getAvailableProviders().flatMap { providers =>
-      val stateParam = state.map(s => s"""<input type="hidden" name="state" value="$s">""").getOrElse("")
-      val nonceParam = nonce.map(n => s"""<input type="hidden" name="nonce" value="$n">""").getOrElse("")
+    for {
+      providers <- authService.getAvailableProviders()
+      clientOpt <- authService.findClientById(clientId)
 
-      val providerOptions = providers.map { provider =>
-        s"""<option value="$provider">$provider</option>"""
-      }.mkString("\n            ")
+      stateParam = state
+        .map(s => s"""<input type="hidden" name="state" value="$s">""")
+        .getOrElse("")
+      nonceParam = nonce
+        .map(n => s"""<input type="hidden" name="nonce" value="$n">""")
+        .getOrElse("")
 
-      val html = s"""
+      providerOptions = providers
+        .map { provider =>
+          s"""<option value="$provider">$provider</option>"""
+        }
+        .mkString("\n            ")
+
+      clientName = clientOpt.map(_.client_name).getOrElse("Unknown Client")
+      consumerId = clientOpt.map(_.consumer_id).getOrElse("Unknown Consumer")
+
+      html = s"""
       <!DOCTYPE html>
       <html>
       <head>
@@ -173,14 +241,16 @@ class AuthEndpoint(authService: AuthService[IO], codeService: CodeService[IO]) {
             border: none; border-radius: 4px; cursor: pointer; width: 100%;
           }
           button:hover { background: #0056b3; }
-          .info { background: #f8f9fa; padding: 15px; border-radius: 4px; margin-bottom: 20px; }
+          .info { background: #f8f9fa; padding: 8px; border-radius: 4px; margin-bottom: 15px; font-size: 14px; }
 
         </style>
       </head>
       <body>
         <h2>Sign In</h2>
         <div class="info">
-          <strong>Client:</strong> $clientId<br>
+          <strong>Consumer ID:</strong> $consumerId<br>
+          <strong>Client Name:</strong> $clientName<br>
+          <strong>Client ID:</strong> $clientId<br>
           <strong>Requested Scopes:</strong> $scope
         </div>
 
@@ -214,25 +284,42 @@ class AuthEndpoint(authService: AuthService[IO], codeService: CodeService[IO]) {
       </html>
     """
 
-      Ok(html).map(_.withContentType(org.http4s.headers.`Content-Type`(MediaType.text.html)))
-    }
+      response <- Ok(html).map(
+        _.withContentType(
+          org.http4s.headers.`Content-Type`(MediaType.text.html)
+        )
+      )
+    } yield response
   }
 
-  private def redirectWithCode(redirectUri: String, code: String, state: Option[String]): IO[Response[IO]] = {
+  private def redirectWithCode(
+      redirectUri: String,
+      code: String,
+      state: Option[String]
+  ): IO[Response[IO]] = {
     val stateParam = state.map(s => s"&state=$s").getOrElse("")
     val location = s"$redirectUri?code=$code$stateParam"
     SeeOther(Location(Uri.unsafeFromString(location)))
   }
 
-  private def redirectWithError(redirectUri: String, error: OidcError): IO[Response[IO]] = {
+  private def redirectWithError(
+      redirectUri: String,
+      error: OidcError
+  ): IO[Response[IO]] = {
     val stateParam = error.state.map(s => s"&state=$s").getOrElse("")
-    val descriptionParam = error.error_description.map(d => s"&error_description=${java.net.URLEncoder.encode(d, "UTF-8")}").getOrElse("")
-    val location = s"$redirectUri?error=${error.error}$descriptionParam$stateParam"
+    val descriptionParam = error.error_description
+      .map(d => s"&error_description=${java.net.URLEncoder.encode(d, "UTF-8")}")
+      .getOrElse("")
+    val location =
+      s"$redirectUri?error=${error.error}$descriptionParam$stateParam"
     SeeOther(Location(Uri.unsafeFromString(location)))
   }
 }
 
 object AuthEndpoint {
-  def apply(authService: AuthService[IO], codeService: CodeService[IO]): AuthEndpoint =
+  def apply(
+      authService: AuthService[IO],
+      codeService: CodeService[IO]
+  ): AuthEndpoint =
     new AuthEndpoint(authService, codeService)
 }
