@@ -422,91 +422,21 @@ export DB_ADMIN_MAX_CONNECTIONS=5
     IO {
       println()
       println("=" * 80)
-      println("🚀 DEVELOPER HELPER: Ready-to-Copy OBP Project Configurations")
+      println("🚀 DEVELOPER HELPER: Client Configurations")
       println("=" * 80)
       println()
 
-      // OBP-API Configuration
-      val obpClient = clients.find(_.client_id.contains("api")).get
-      println("📋 1. OBP-API Configuration (Props file):")
-      println("-" * 50)
-      println("# Add to your OBP-API props file")
-      println("openid_connect.scope=openid email profile")
-      println()
-      println("# OBP-API OIDC Provider Settings")
-      println(
-        s"openid_connect.endpoint=${config.issuer}/.well-known/openid_configuration"
-      )
-      println(s"oauth2.client_id=${obpClient.client_id}")
-      println(
-        s"oauth2.client_secret=${obpClient.client_secret.getOrElse("NOT_SET")}"
-      )
-      println(s"oauth2.callback_url=${obpClient.redirect_uris.head}")
-      println()
-
-      // Portal Configuration
-      val portalClient = clients.find(_.client_id.contains("portal")).get
-      println("📋 2. OBP-Portal Configuration (.env file):")
-      println("-" * 50)
-      println("# Add to your OBP-Portal .env file")
-      println(s"OBP_OAUTH_CLIENT_ID=${portalClient.client_id}")
-      println(
-        s"OBP_OAUTH_CLIENT_SECRET=${portalClient.client_secret.getOrElse("NOT_SET")}"
-      )
-      println(
-        s"OBP_OAUTH_WELL_KNOWN_URL=${config.issuer}/.well-known/openid-configuration"
-      )
-      println("APP_CALLBACK_URL=http://localhost:5174/login/obp/callback")
-      println(
-        s"VITE_API_URL=${sys.env.getOrElse("OBP_API_URL", "http://localhost:8080")}"
-      )
-      println(s"VITE_OIDC_ISSUER=${config.issuer}")
-      println(s"VITE_CLIENT_ID=${portalClient.client_id}")
-      println()
-
-      // Explorer II Configuration
-      val explorerClient = clients.find(_.client_id.contains("explorer")).get
-      println("📋 3. API-Explorer-II Configuration (environment variables):")
-      println("-" * 50)
-      println("# Add to your API-Explorer-II environment")
-      println(s"export REACT_APP_OAUTH_CLIENT_ID=${explorerClient.client_id}")
-      println(
-        s"export REACT_APP_OAUTH_CLIENT_SECRET=${explorerClient.client_secret.getOrElse("NOT_SET")}"
-      )
-      println(s"export REACT_APP_OAUTH_AUTHORIZATION_URL=${config.issuer}/auth")
-      println(s"export REACT_APP_OAUTH_TOKEN_URL=${config.issuer}/token")
-      println(
-        s"export REACT_APP_OAUTH_REDIRECT_URI=${explorerClient.redirect_uris.head}"
-      )
-      println()
-
-      // Opey II Configuration
-      val opeyClient = clients.find(_.client_id.contains("opey")).get
-      println("📋 4. Opey-II Configuration (environment variables):")
-      println("-" * 50)
-      println("# Add to your Opey-II environment")
-      println(s"export VUE_APP_OAUTH_CLIENT_ID=${opeyClient.client_id}")
-      println(
-        s"export VUE_APP_OAUTH_CLIENT_SECRET=${opeyClient.client_secret.getOrElse("NOT_SET")}"
-      )
-      println(s"export VUE_APP_OAUTH_AUTHORIZATION_URL=${config.issuer}/auth")
-      println(s"export VUE_APP_OAUTH_TOKEN_URL=${config.issuer}/token")
-      println(
-        s"export VUE_APP_OAUTH_REDIRECT_URI=${opeyClient.redirect_uris.head}"
-      )
-      println()
+      clients.foreach { client =>
+        println(s"consumer_id: ${client.consumer_id}")
+        println(s"client_id: ${client.client_id}")
+        println(s"client_secret: ${client.client_secret.getOrElse("NOT_SET")}")
+        println(s"redirect_uris: ${client.redirect_uris.mkString(",")}")
+        println("-" * 50)
+      }
 
       println("=" * 80)
-      println("✅ All configurations ready! Copy & paste the sections you need.")
-      println(
-        "🔐 Fresh secure secrets have been generated and stored in database."
-      )
-      println(s"💡 OIDC Server will be available at: ${config.issuer}")
+      println("✅ All configurations ready!")
       println("=" * 80)
-      println()
-
-      // Also write to config file for easy access
-      writeConfigurationFile(clients)
     }
   }
 
