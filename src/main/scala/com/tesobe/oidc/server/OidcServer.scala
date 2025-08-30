@@ -406,6 +406,7 @@ object OidcServer extends IOApp {
     client match {
       case Some(c) =>
         for {
+          _ <- IO(println(s"CLIENT_NAME: ${c.client_name}"))
           _ <- IO(println(s"CONSUMER_ID: ${c.consumer_id}"))
           _ <- IO(println(s"CLIENT_ID: ${c.client_id}"))
           _ <- IO(

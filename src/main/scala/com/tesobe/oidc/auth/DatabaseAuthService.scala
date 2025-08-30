@@ -258,6 +258,107 @@ class DatabaseAuthService(
     }
   }
 
+  /** Find OIDC client by client_name to prevent duplicates
+    */
+  def findClientByName(clientName: String): IO[Option[OidcClient]] = {
+    println(s"🔍 DEBUG: findClientByName() called for clientName: $clientName")
+    println(s"   Looking in v_oidc_clients view with column 'client_name'")
+    val query = sql"""
+      SELECT client_id, client_secret, client_name, consumer_id, redirect_uris,
+             grant_types, response_types, scopes, token_endpoint_auth_method, created_at
+      FROM v_oidc_clients
+      WHERE client_name = $clientName
+      LIMIT 1
+    """.query[DatabaseClient]
+
+    query.option
+      .transact(transactor)
+      .map { result =>
+        println(s"   📊 DEBUG: Query result: ${if (result.isDefined) "FOUND"
+          else "NOT FOUND"}")
+        result.map { client =>
+          println(
+            s"   ✅ DEBUG: Found client: ${client.client_name} with id: ${client.client_id}"
+          )
+          client.toOidcClient
+        }
+      }
+      .handleErrorWith { error =>
+        println(
+          s"   ❌ DEBUG: Query error: ${error.getClass.getSimpleName}: ${error.getMessage}"
+        )
+        IO.pure(None)
+      }
+  }
+
+  /** Find all clients with duplicate names for cleanup purposes
+    */
+  def findDuplicateClientNames(): IO[List[String]] = {
+    println("🔍 DEBUG: findDuplicateClientNames() called")
+    val query = sql"""
+      SELECT client_name, COUNT(*) as count
+      FROM v_oidc_clients
+      GROUP BY client_name
+      HAVING COUNT(*) > 1
+    """.query[(String, Int)]
+
+    query
+      .to[List]
+      .transact(transactor)
+      .map { duplicates =>
+        println(
+          s"   📊 DEBUG: Found ${duplicates.length} client names with duplicates"
+        )
+        duplicates.foreach { case (name, count) =>
+          println(s"   ⚠️ WARNING: Client '$name' has $count duplicate entries")
+          logger.warn(s"Client '$name' has $count duplicate entries")
+        }
+        duplicates.map(_._1)
+      }
+      .handleErrorWith { error =>
+        println(
+          s"   ❌ DEBUG: Query error: ${error.getClass.getSimpleName}: ${error.getMessage}"
+        )
+        IO.pure(List.empty[String])
+      }
+  }
+
+  /** Get all clients with a specific name for cleanup purposes
+    */
+  def findAllClientsByName(clientName: String): IO[List[OidcClient]] = {
+    println(
+      s"🔍 DEBUG: findAllClientsByName() called for clientName: $clientName"
+    )
+    val query = sql"""
+      SELECT client_id, client_secret, client_name, consumer_id, redirect_uris,
+             grant_types, response_types, scopes, token_endpoint_auth_method, created_at
+      FROM v_oidc_clients
+      WHERE client_name = $clientName
+      ORDER BY created_at ASC
+    """.query[DatabaseClient]
+
+    query
+      .to[List]
+      .transact(transactor)
+      .map { clients =>
+        println(
+          s"   📊 DEBUG: Found ${clients.length} clients with name: $clientName"
+        )
+        clients.foreach { client =>
+          println(
+            s"     - ID: ${client.client_id}, Created: ${client.created_at.getOrElse("Unknown")}"
+          )
+        }
+        clients.map(_.toOidcClient)
+      }
+      .handleErrorWith { error =>
+        println(
+          s"   ❌ DEBUG: Query error: ${error.getClass.getSimpleName}: ${error.getMessage}"
+        )
+        IO.pure(List.empty[OidcClient])
+      }
+  }
+
   // Admin client management methods using the admin transactor
 
   /** Create a new OIDC client using INSERT-only approach
@@ -411,71 +512,52 @@ class DatabaseAuthService(
   def listClients(): IO[Either[OidcError, List[OidcClient]]] = {
     println("🔍 DEBUG: listClients() called")
     logger.info("🔍 listClients() called")
-    adminTransactor match {
-      case Some(adminTx) =>
-        println("✅ DEBUG: Admin transactor available, executing SELECT query")
-        logger.info("✅ Admin transactor available, executing SELECT query")
-        val query = sql"""
-          SELECT name, apptype, description, developeremail, sub,
-                 createdat, updatedat, secret, azp, aud, iss, redirecturl,
-                 logourl, userauthenticationurl, clientcertificate, company, key_c, consumerid, isactive
-          FROM v_oidc_admin_clients
-          ORDER BY createdat DESC
-        """.query[AdminDatabaseClient]
 
-        println("🔄 DEBUG: Executing SELECT query on v_oidc_admin_clients")
-        logger.info("🔄 Executing SELECT query on v_oidc_admin_clients")
-        query
-          .to[List]
-          .transact(adminTx)
-          .map { clients =>
-            println(
-              s"📊 DEBUG: SELECT result: Found ${clients.length} clients in v_oidc_admin_clients"
-            )
-            logger.info(
-              s"📊 SELECT result: Found ${clients.length} clients in v_oidc_admin_clients"
-            )
-            clients.foreach(client =>
-              logger.info(
-                s"   - ${client.name.getOrElse("No Name")} (consumerid: ${client.consumerid.getOrElse("No Key")})"
-              )
-            )
-            Right(clients.map(_.toOidcClient))
-          }
-          .handleErrorWith { error =>
-            println(
-              s"❌ DEBUG: Database error listing clients: ${error.getClass.getSimpleName}: ${error.getMessage}"
-            )
-            logger.error(
-              s"❌ Database error listing clients: ${error.getMessage}",
-              error
-            )
-            logger.error(s"💡 Error type: ${error.getClass.getSimpleName}")
-            IO.pure(
-              Left(
-                OidcError(
-                  "server_error",
-                  Some(s"Database error: ${error.getMessage}")
-                )
-              )
-            )
-          }
-      case None =>
-        logger.error(
-          "❌ Admin database connection not available for listClients"
-        )
+    // Use the regular transactor and v_oidc_clients view to get proper client_id and consumer_id mapping
+    val query = sql"""
+      SELECT client_id, client_secret, client_name, consumer_id, redirect_uris,
+             grant_types, response_types, scopes, token_endpoint_auth_method, created_at
+      FROM v_oidc_clients
+      ORDER BY created_at DESC
+    """.query[DatabaseClient]
+
+    println("🔄 DEBUG: Executing SELECT query on v_oidc_clients")
+    logger.info("🔄 Executing SELECT query on v_oidc_clients")
+    query
+      .to[List]
+      .transact(transactor)
+      .map { clients =>
         println(
-          "❌ DEBUG: Admin database connection not available for listClients"
+          s"📊 DEBUG: SELECT result: Found ${clients.length} clients in v_oidc_clients"
         )
+        logger.info(
+          s"📊 DEBUG: SELECT result: Found ${clients.length} clients in v_oidc_clients"
+        )
+        clients.foreach(client =>
+          logger.info(
+            s"   - ${client.client_name} (client_id: ${client.client_id}, consumer_id: ${client.consumer_id})"
+          )
+        )
+        Right(clients.map(_.toOidcClient))
+      }
+      .handleErrorWith { error =>
+        println(
+          s"❌ DEBUG: Database error listing clients: ${error.getClass.getSimpleName}: ${error.getMessage}"
+        )
+        logger.error(
+          s"❌ Database error listing clients: ${error.getMessage}",
+          error
+        )
+        logger.error(s"💡 Error type: ${error.getClass.getSimpleName}")
         IO.pure(
           Left(
             OidcError(
               "server_error",
-              Some("Admin database connection not available")
+              Some(s"Database error: ${error.getMessage}")
             )
           )
         )
-    }
+      }
   }
 
   /** Find client by ID from admin view for configuration printing

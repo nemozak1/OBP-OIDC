@@ -27,7 +27,7 @@ import com.tesobe.oidc.models.OidcClient
 import org.slf4j.LoggerFactory
 
 import java.security.SecureRandom
-import java.util.Base64
+import java.util.{Base64, UUID}
 import scala.concurrent.duration._
 
 /** Client Bootstrap Service
@@ -52,30 +52,29 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
 
   // Simple client definition
   case class ClientDefinition(
-      consumer_id: String,
+      name: String,
       redirect_uris: String
   )
 
   // List of clients to create
   private val CLIENT_DEFINITIONS = List(
     ClientDefinition(
-      consumer_id = "obp-api-client",
+      name = "obp-api-client",
       redirect_uris = "http://localhost:8080/auth/openid-connect/callback"
     ),
     ClientDefinition(
-      consumer_id = "obp-portal-client",
-      redirect_uris =
-        "http://localhost:3000/callback,http://localhost:3000/oauth/callback"
+      name = "obp-portal-client",
+      redirect_uris = "http://localhost:5174/login/obp/callback"
     ),
     ClientDefinition(
-      consumer_id = "obp-explorer-ii-client",
+      name = "obp-explorer-ii-client",
       redirect_uris =
         "http://localhost:3001/callback,http://localhost:3001/oauth/callback"
     ),
     ClientDefinition(
-      consumer_id = "obp-opey-ii-client",
+      name = "obp-opey-ii-client",
       redirect_uris =
-        "http://localhost:3002/callback,http://localhost:3002/oauth/callback"
+        "http://localhost:5000/callback,http://localhost:5000/oauth/callback"
     )
   )
 
@@ -284,11 +283,15 @@ export DB_ADMIN_MAX_CONNECTIONS=5
     val clientSecret = generateSecureSecret()
     val redirectUris = clientDef.redirect_uris.split(",").toList
 
+    // Generate distinct UUIDs for different purposes
+    val consumerId = UUID.randomUUID().toString // Internal consumer tracking ID
+    val clientId = UUID.randomUUID().toString // OAuth2/OIDC client identifier
+
     OidcClient(
-      client_id = clientDef.consumer_id,
+      client_id = clientId,
       client_secret = Some(clientSecret),
-      client_name = clientDef.consumer_id,
-      consumer_id = clientDef.consumer_id,
+      client_name = clientDef.name,
+      consumer_id = consumerId,
       redirect_uris = redirectUris,
       grant_types = DEFAULT_GRANT_TYPES,
       response_types = DEFAULT_RESPONSE_TYPES,
@@ -363,21 +366,21 @@ export DB_ADMIN_MAX_CONNECTIONS=5
 
   private def performClientOperation(clientConfig: OidcClient): IO[Unit] = {
     println(
-      s"   🔍 DEBUG: Checking if client exists: ${clientConfig.client_name} (${clientConfig.client_id})"
+      s"   🔍 DEBUG: Checking if client exists by name: ${clientConfig.client_name}"
     )
     logger.info(
-      s"   🔍 Checking if client exists: ${clientConfig.client_name} (${clientConfig.client_id})"
+      s"   🔍 Checking if client exists by name: ${clientConfig.client_name}"
     )
-    authService.findClientById(clientConfig.client_id).flatMap {
+    authService.findClientByName(clientConfig.client_name).flatMap {
       case Some(existingClient) =>
         println(
-          s"   ✅ DEBUG: Client exists: ${existingClient.client_name} - SKIPPING (read-only mode)"
+          s"   ✅ DEBUG: Client exists: ${existingClient.client_name} (${existingClient.client_id}) - SKIPPING (read-only mode)"
         )
         logger.info(
           s"   ✅ Client exists: ${existingClient.client_name} - preserving existing configuration"
         )
         logger.info(
-          s"   📖 READ-ONLY: Not modifying existing client ${clientConfig.client_id}"
+          s"   📖 READ-ONLY: Not modifying existing client ${existingClient.client_name}"
         )
         IO.unit
       case None =>
@@ -508,10 +511,10 @@ INSERT INTO v_oidc_admin_clients (
   /** Generate configuration file content
     */
   private def generateConfigFileContent(clients: List[OidcClient]): String = {
-    val obpClient = clients.find(_.client_id.contains("api")).get
-    val portalClient = clients.find(_.client_id.contains("portal")).get
-    val explorerClient = clients.find(_.client_id.contains("explorer")).get
-    val opeyClient = clients.find(_.client_id.contains("opey")).get
+    val obpClient = clients.find(_.client_name.contains("api")).get
+    val portalClient = clients.find(_.client_name.contains("portal")).get
+    val explorerClient = clients.find(_.client_name.contains("explorer")).get
+    val opeyClient = clients.find(_.client_name.contains("opey")).get
 
     s"""# OBP-OIDC Generated Configuration
 # Generated at: ${java.time.Instant.now()}
