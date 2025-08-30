@@ -86,11 +86,11 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
       // the issuer of this token is this application.
       issuer = config.issuer
 
-      _ = println(
-        s"🚨 EMERGENCY DEBUG: Generating ID token for user: ${user.sub}, client: $clientId"
+      _ = logger.trace(
+        s"Generating ID token for user: ${user.sub}, client: $clientId"
       )
-      _ = println(
-        s"🚨 EMERGENCY DEBUG: Setting azp (Authorized Party) claim to: $clientId"
+      _ = logger.trace(
+        s"Setting azp (Authorized Party) claim to: $clientId"
       )
       _ = logger.info(
         s"🎫 Generating ID token for user: ${user.sub}, client: $clientId"
@@ -114,14 +114,14 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
           user.provider.getOrElse(config.issuer)
         )
 
-      _ = println(s"🚨 EMERGENCY DEBUG: Added azp claim with value: $clientId")
+      _ = logger.trace(s"Added azp claim with value: $clientId")
       tokenWithNonce = nonce.fold(token)(n => token.withClaim("nonce", n))
       signedToken = tokenWithNonce.sign(algorithm)
 
-      _ = println(
-        s"🚨 EMERGENCY DEBUG: ID token generated successfully with azp: $clientId"
+      _ = logger.trace(
+        s"ID token generated successfully with azp: $clientId"
       )
-      _ = println(s"🚨 EMERGENCY DEBUG: ID Token JWT: $signedToken")
+      _ = logger.trace(s"ID Token JWT: $signedToken")
       _ = logger.info(s"✅ ID token generated successfully with azp: $clientId")
     } yield signedToken
   }
@@ -140,15 +140,15 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
 
       // my_audience = user.provider
 
-      _ = println(
-        s"🚨 EMERGENCY DEBUG: issuer is : $issuer"
+      _ = logger.trace(
+        s"issuer is : $issuer"
       )
 
-      _ = println(
-        s"🚨 EMERGENCY DEBUG: Generating Access token for user: ${user.sub}, client: $clientId"
+      _ = logger.trace(
+        s"Generating Access token for user: ${user.sub}, client: $clientId"
       )
-      _ = println(
-        s"🚨 EMERGENCY DEBUG: Setting azp (Authorized Party) claim to: $clientId"
+      _ = logger.trace(
+        s"Setting azp (Authorized Party) claim to: $clientId"
       )
       _ = logger.info(
         s"🎫 Generating Access token for user: ${user.sub}, client: $clientId"
@@ -168,15 +168,15 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
         .withClaim("scope", scope)
         .withClaim("client_id", clientId)
 
-      _ = println(
-        s"🚨 EMERGENCY DEBUG: Added azp claim to access token with value: $clientId"
+      _ = logger.trace(
+        s"Added azp claim to access token with value: $clientId"
       )
       signedToken = token.sign(algorithm)
 
-      _ = println(
-        s"🚨 EMERGENCY DEBUG: Access token generated successfully with azp: $clientId"
+      _ = logger.trace(
+        s"Access token generated successfully with azp: $clientId"
       )
-      _ = println(s"🚨 EMERGENCY DEBUG: Access Token JWT: $signedToken")
+      _ = logger.trace(s"Access Token JWT: $signedToken")
       _ = logger.info(
         s"✅ Access token generated successfully with azp: $clientId"
       )

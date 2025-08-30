@@ -106,16 +106,16 @@ class TokenEndpoint(
         logger.info(
           s"✅ Processing authorization_code grant for client: $clientIdValue"
         )
-        println(
-          s"🚨 EMERGENCY DEBUG: About to call processAuthorizationCodeGrant"
+        logger.trace(
+          s"About to call processAuthorizationCodeGrant"
         )
         val result = processAuthorizationCodeGrant(
           authCode,
           redirectUriValue,
           clientIdValue
         )
-        println(
-          s"🚨 EMERGENCY DEBUG: processAuthorizationCodeGrant call completed"
+        logger.trace(
+          s"processAuthorizationCodeGrant call completed"
         )
         result
       case (Some(unsupportedGrant), _, _, _) =>
@@ -153,36 +153,36 @@ class TokenEndpoint(
     logger.info(
       s"🔍 DEBUG: Code: ${code.take(8)}..., RedirectUri: $redirectUri"
     )
-    println(
-      s"🚨 EMERGENCY DEBUG: About to call validateAndConsumeCode with code: ${code.take(8)}..."
+    logger.trace(
+      s"About to call validateAndConsumeCode with code: ${code.take(8)}..."
     )
     codeService.validateAndConsumeCode(code, clientId, redirectUri).flatMap {
       case Right(authCode) =>
-        println(
-          s"🚨 EMERGENCY DEBUG: Authorization code validation SUCCESS for user: ${authCode.sub}"
+        logger.trace(
+          s"Authorization code validation SUCCESS for user: ${authCode.sub}"
         )
         logger.info(s"✅ Authorization code validated for user: ${authCode.sub}")
         logger.info(
           s"🔍 DEBUG: AuthCode details - scope: ${authCode.scope}, nonce: ${authCode.nonce}"
         )
         // Get user information
-        println(
-          s"🚨 EMERGENCY DEBUG: About to call getUserById for sub: ${authCode.sub}"
+        logger.trace(
+          s"About to call getUserById for sub: ${authCode.sub}"
         )
         authService.getUserById(authCode.sub).flatMap {
           case Some(user) =>
-            println(s"🚨 EMERGENCY DEBUG: User FOUND: ${user.username}")
+            logger.trace(s"User FOUND: ${user.username}")
             logger.info(s"✅ User found: ${user.username}, generating tokens...")
             logger.info(
               s"🎯 DEBUG: About to generate tokens with azp claim set to clientId: $clientId"
             )
-            println(
-              s"🚨 EMERGENCY DEBUG: Entering for comprehension for token generation"
+            logger.trace(
+              s"Entering for comprehension for token generation"
             )
             for {
               // Generate tokens
               _ <- IO.pure(
-                println(s"🚨 EMERGENCY DEBUG: About to generate ID token")
+                logger.trace(s"About to generate ID token")
               )
               _ <- IO.pure(
                 logger.info(
@@ -192,7 +192,7 @@ class TokenEndpoint(
               idToken <- jwtService
                 .generateIdToken(user, clientId, authCode.nonce)
               _ <- IO.pure(
-                println(s"🚨 EMERGENCY DEBUG: ID token generated successfully")
+                logger.trace(s"ID token generated successfully")
               )
               _ <- IO.pure(
                 logger.info(
@@ -202,8 +202,8 @@ class TokenEndpoint(
               accessToken <- jwtService
                 .generateAccessToken(user, clientId, authCode.scope)
               _ <- IO.pure(
-                println(
-                  s"🚨 EMERGENCY DEBUG: Access token generated successfully"
+                logger.trace(
+                  s"Access token generated successfully"
                 )
               )
               _ <- IO.pure(
@@ -220,8 +220,8 @@ class TokenEndpoint(
               )
 
               _ <- IO.pure(
-                println(
-                  s"🚨 EMERGENCY DEBUG: Token response created, about to send OK response"
+                logger.trace(
+                  s"Token response created, about to send OK response"
                 )
               )
               _ <- IO.pure(
@@ -236,14 +236,14 @@ class TokenEndpoint(
                   )
                 )
               _ <- IO.pure(
-                println(s"🚨 EMERGENCY DEBUG: OK response created successfully")
+                logger.trace(s"OK response created successfully")
               )
 
             } yield response
 
           case None =>
-            println(
-              s"🚨 EMERGENCY DEBUG: User NOT FOUND for sub: ${authCode.sub}"
+            logger.trace(
+              s"User NOT FOUND for sub: ${authCode.sub}"
             )
             logger.warn(s"❌ User not found for sub: ${authCode.sub}")
             BadRequest(
@@ -252,8 +252,8 @@ class TokenEndpoint(
         }
 
       case Left(error) =>
-        println(
-          s"🚨 EMERGENCY DEBUG: Authorization code validation FAILED: ${error.error} - ${error.error_description
+        logger.trace(
+          s"Authorization code validation FAILED: ${error.error} - ${error.error_description
               .getOrElse("No description")}"
         )
         logger.warn(

@@ -87,22 +87,22 @@ class InMemoryCodeService(
       clientId: String,
       redirectUri: String
   ): IO[Either[OidcError, AuthorizationCode]] = {
-    println(
-      s"🚨 EMERGENCY DEBUG: validateAndConsumeCode ENTRY - code: ${code.take(8)}..., clientId: $clientId"
+    logger.trace(
+      s"validateAndConsumeCode ENTRY - code: ${code.take(8)}..., clientId: $clientId"
     )
     logger.info(
       s"🔍 DEBUG: validateAndConsumeCode called with code: ${code.take(8)}..., clientId: $clientId"
     )
     for {
       codes <- codesRef.get
-      _ = println(
-        s"🚨 EMERGENCY DEBUG: Found ${codes.size} stored codes in memory"
+      _ = logger.trace(
+        s"Found ${codes.size} stored codes in memory"
       )
       _ = logger.info(s"🔍 DEBUG: Found ${codes.size} stored codes")
       result <- codes.get(code) match {
         case Some(authCode) =>
-          println(
-            s"🚨 EMERGENCY DEBUG: FOUND authorization code for client: ${authCode.client_id}, sub: ${authCode.sub}"
+          logger.trace(
+            s"FOUND authorization code for client: ${authCode.client_id}, sub: ${authCode.sub}"
           )
           logger.info(
             s"🔍 DEBUG: Found authorization code for client: ${authCode.client_id}, sub: ${authCode.sub}"
@@ -112,8 +112,8 @@ class InMemoryCodeService(
           )
           validateCode(authCode, clientId, redirectUri).flatMap {
             case Right(validCode) =>
-              println(
-                s"🚨 EMERGENCY DEBUG: Authorization code validation SUCCESS for sub: ${validCode.sub}"
+              logger.trace(
+                s"Authorization code validation SUCCESS for sub: ${validCode.sub}"
               )
               logger.info(
                 s"✅ DEBUG: Authorization code validated successfully for sub: ${validCode.sub}"
@@ -121,8 +121,8 @@ class InMemoryCodeService(
               // Consume the code (remove it after use)
               codesRef.update(_ - code).as(validCode.asRight[OidcError])
             case Left(error) =>
-              println(
-                s"🚨 EMERGENCY DEBUG: Authorization code validation FAILED: ${error.error} - ${error.error_description
+              logger.trace(
+                s"Authorization code validation FAILED: ${error.error} - ${error.error_description
                     .getOrElse("No description")}"
               )
               logger.warn(
@@ -133,8 +133,8 @@ class InMemoryCodeService(
               codesRef.update(_ - code).as(error.asLeft[AuthorizationCode])
           }
         case None =>
-          println(
-            s"🚨 EMERGENCY DEBUG: Authorization code NOT FOUND: ${code.take(8)}..."
+          logger.trace(
+            s"Authorization code NOT FOUND: ${code.take(8)}..."
           )
           logger.warn(
             s"❌ DEBUG: Authorization code not found: ${code.take(8)}..."
