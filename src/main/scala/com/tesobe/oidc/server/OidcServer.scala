@@ -380,7 +380,7 @@ object OidcServer extends IOApp {
   ): IO[Unit] = {
     for {
       _ <- IO(println("=" * 100))
-      _ <- IO(println("🚀 OBP PROJECT CONFIGURATIONS - Ready to copy & paste"))
+      _ <- IO(println("🚀 OBP clients from the database"))
       _ <- IO(println("=" * 100))
       _ <- IO(println())
 
