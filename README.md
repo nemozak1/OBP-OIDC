@@ -10,11 +10,9 @@ Designed to create clients for the OBP Apps as it starts up. It will print clien
 
 Designed to read / write to the OBP Users and Consumers tables via SQL views defined in https://github.com/OpenBankProject/OBP-API/blob/develop/obp-api/src/main/scripts/sql/create_oidc_user_and_views.sql
 
-
 Very Work in Progress.
 
 Please take the following with a very big pinch of salt!
-
 
 ## Features
 
@@ -752,6 +750,55 @@ If authentication succeeds but redirects to wrong URL:
 3. Fix with: `psql -d sandbox -f fix-callback-url.sql`
 
 4. Restart OBP-OIDC service after database changes
+
+## TRACE Logging
+
+### Enabling Detailed Debug Logs
+
+For troubleshooting authentication flows, token generation, and other detailed operations, you can enable TRACE level logging:
+
+**Normal logging (DEBUG level):**
+
+```bash
+./run-server.sh
+```
+
+**TRACE logging enabled:**
+
+```bash
+OIDC_ENABLE_TRACE_LOGGING=true ./run-server.sh
+```
+
+### What TRACE Logs Show
+
+When TRACE logging is enabled, you'll see detailed information about:
+
+- **Authorization code validation**: Entry points, code lookup, validation results
+- **Token generation**: ID token creation, access token creation, JWT signing
+- **User authentication**: Database queries, password verification steps
+- **Client operations**: Client lookup, validation processes
+- **Internal state**: Memory storage contents, processing steps
+
+**Example TRACE output:**
+
+```
+validateAndConsumeCode ENTRY - code: 12345678..., clientId: abc123
+Found 5 stored codes in memory
+Authorization code validation SUCCESS for sub: user123
+Generating ID token for user: user123, client: abc123
+Setting azp (Authorized Party) claim to: abc123
+ID token generated successfully with azp: abc123
+```
+
+### Use Cases for TRACE Logging
+
+- **Debugging authentication failures**: See exactly where the process fails
+- **Token generation issues**: Track JWT creation and claims
+- **Integration problems**: Understand the complete OIDC flow
+- **Performance analysis**: Identify bottlenecks in the authentication process
+- **Development**: Understand internal workings during feature development
+
+**Note:** TRACE logging is temporary per session and doesn't modify configuration files. It uses system properties to override the default DEBUG level logging.
 
 ## License
 
