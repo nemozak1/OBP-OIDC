@@ -1284,17 +1284,9 @@ object AdminDatabaseClient {
     description = Some(s"OIDC client for ${client.client_name}"),
     developeremail = Some("admin@tesobe.com"), // Default email
     sub = Some(client.client_name), // Use client name as sub
-<<<<<<< HEAD
     consumerid = Some(client.consumer_id),
     createdat = None, // Let database set this
     updatedat = None, // Let database set this
-=======
-    consumerid = Some(
-      client.consumer_id
-    ), // Use consumer_id for internal tracking (primary key)
-    createdat = Some(Instant.now()), // Set creation timestamp
-    updatedat = Some(Instant.now()), // Set update timestamp
->>>>>>> 1fbcbdd001dd3a27622cc4145c8fb2187c4743b5
     secret = client.client_secret,
     azp = Some(client.client_id),
     aud = Some("obp-api"),
