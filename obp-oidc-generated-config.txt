@@ -1,5 +1,5 @@
 # OBP-OIDC Generated Configuration
-# Generated at: 2025-08-28T17:22:26.717936Z
+# Generated at: 2025-08-29T13:47:28.569688Z
 # Copy the sections you need to your project configuration files
 
 # ============================================================================
@@ -11,7 +11,7 @@ openid_connect.scope=openid email profile
 # OBP-API OIDC Provider Settings
 openid_connect.endpoint=http://localhost:9000/obp-oidc/.well-known/openid_configuration
 oauth2.client_id=obp-api-client
-oauth2.client_secret=8kcibFnrIzlSrm2Z-1beo3CdwNrFT9dISL_ANIYjkuw
+oauth2.client_secret=iQZPiGjZ4ZgKP63sYJGl17lkIpWvihX4f5_iKrVXYfI
 oauth2.callback_url=http://localhost:8080/auth/openid-connect/callback
 
 # ============================================================================
@@ -19,7 +19,7 @@ oauth2.callback_url=http://localhost:8080/auth/openid-connect/callback
 # ============================================================================
 # Add to your OBP-Portal .env file
 OBP_OAUTH_CLIENT_ID=obp-portal-client
-OBP_OAUTH_CLIENT_SECRET=duUeGucp5u6J8W3vGQnfR_22hAYjyzHyS3w-EmPixXw
+OBP_OAUTH_CLIENT_SECRET=2sev_vjY94fHeCstao2PcOh0K5tFFPs7kEOFQhmoME4
 OBP_OAUTH_WELL_KNOWN_URL=http://localhost:9000/obp-oidc/.well-known/openid-configuration
 APP_CALLBACK_URL=http://localhost:5174/login/obp/callback
 VITE_API_URL=http://localhost:8080
@@ -31,7 +31,7 @@ VITE_CLIENT_ID=obp-portal-client
 # ============================================================================
 # Add to your API-Explorer-II environment
 export REACT_APP_OAUTH_CLIENT_ID=obp-explorer-ii-client
-export REACT_APP_OAUTH_CLIENT_SECRET=RH-45hufH5XK_lWQTxrzHXHUNvvb2wKX1WuIeWtlB0k
+export REACT_APP_OAUTH_CLIENT_SECRET=EHtey9xcSBaU0SGUzkSS8orjXuM3a7FqD987FzTHxio
 export REACT_APP_OAUTH_AUTHORIZATION_URL=http://localhost:9000/obp-oidc/auth
 export REACT_APP_OAUTH_TOKEN_URL=http://localhost:9000/obp-oidc/token
 export REACT_APP_OAUTH_REDIRECT_URI=http://localhost:3001/callback
@@ -41,7 +41,7 @@ export REACT_APP_OAUTH_REDIRECT_URI=http://localhost:3001/callback
 # ============================================================================
 # Add to your Opey-II environment
 export VUE_APP_OAUTH_CLIENT_ID=obp-opey-ii-client
-export VUE_APP_OAUTH_CLIENT_SECRET=WTl6ej-WF4xz8MmSv-7WNZNaV8Amks3Ie8gzu_OHP90
+export VUE_APP_OAUTH_CLIENT_SECRET=5rZntd0jUp_-3j--BHSGfj6HmzyILiYuZaaM7UGfUEU
 export VUE_APP_OAUTH_AUTHORIZATION_URL=http://localhost:9000/obp-oidc/auth
 export VUE_APP_OAUTH_TOKEN_URL=http://localhost:9000/obp-oidc/token
 export VUE_APP_OAUTH_REDIRECT_URI=http://localhost:3002/callback

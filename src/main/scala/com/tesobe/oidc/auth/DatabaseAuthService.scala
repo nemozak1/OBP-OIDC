@@ -897,7 +897,7 @@ object AdminDatabaseClient {
     description = Some(s"OIDC client for ${client.client_name}"),
     developeremail = Some("admin@tesobe.com"), // Default email
     sub = Some(client.client_name), // Use client name as sub
-    consumerid = Some(client.client_id),
+    consumerid = Some(client.consumer_id),
     createdat = None, // Let database set this
     updatedat = None, // Let database set this
     secret = client.client_secret,
