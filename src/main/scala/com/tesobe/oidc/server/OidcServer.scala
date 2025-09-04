@@ -175,7 +175,7 @@ object OidcServer extends IOApp {
                      |<p>OpenID Connect provider is running</p>
                      |<p><strong>Version:</strong> v2.0.0-DEBUG-${java.time.Instant
                          .now()}</p>
-                     |<p><em>🐛 Debug mode enabled - Enhanced logging for azp claim troubleshooting</em></p>
+                     |<p><em>Debug mode enabled - Enhanced logging for azp claim troubleshooting</em></p>
                      |<h2>Endpoints:</h2>
                      |<ul>
                      |<li><a href="/obp-oidc/.well-known/openid-configuration">Discovery</a></li>
