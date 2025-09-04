@@ -68,6 +68,8 @@ Now you can try and run the server
 
 ```
 
+NOTE: you should make sure the OBP-API well known url returns the OBP-OIDC address.
+
 **That's it!** 🎉 Copy the printed OIDC client configurations to your OBP projects.
 
 # The long story.
