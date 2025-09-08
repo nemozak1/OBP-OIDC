@@ -94,10 +94,10 @@ object OidcServer extends IOApp {
           // Initialize standard OBP ecosystem clients (create-only mode)
           _ <- IO(
             println(
-              "🔧 DEBUG: Starting ClientBootstrap initialization (create-only mode)..."
+              "DEBUG: Starting ClientBootstrap initialization (create-only mode)..."
             )
           )
-          _ <- IO(println("🔧 Starting ClientBootstrap initialization..."))
+          _ <- IO(println("Starting ClientBootstrap initialization..."))
           _ <- IO
             .race(
               IO.sleep(15.seconds),
@@ -107,31 +107,31 @@ object OidcServer extends IOApp {
               case Left(_) =>
                 IO(
                   println(
-                    "⚠️ DEBUG: Client initialization TIMED OUT after 15 seconds"
+                    "DEBUG: Client initialization TIMED OUT after 15 seconds"
                   )
                 )
                 IO(
                   println(
-                    "⚠️ Client initialization timed out after 15 seconds - continuing server startup"
+                    "Client initialization timed out after 15 seconds - continuing server startup"
                   )
                 )
               case Right(_) =>
                 IO(
                   println(
-                    "✅ DEBUG: Client initialization completed successfully"
+                    "DEBUG: Client initialization completed successfully"
                   )
                 )
-                IO(println("✅ Client initialization completed successfully"))
+                IO(println("Client initialization completed successfully"))
             }
             .handleErrorWith { error =>
               IO(
                 println(
-                  s"❌ DEBUG: Client initialization FAILED with error: ${error.getClass.getSimpleName}: ${error.getMessage}"
+                  s"DEBUG: Client initialization FAILED with error: ${error.getClass.getSimpleName}: ${error.getMessage}"
                 )
               )
               IO(
                 println(
-                  s"⚠️ Client initialization failed: ${error.getMessage} - continuing server startup"
+                  s"Client initialization failed: ${error.getMessage} - continuing server startup"
                 )
               )
               IO(error.printStackTrace())
@@ -152,6 +152,7 @@ object OidcServer extends IOApp {
             config
           )
           userInfoEndpoint = UserInfoEndpoint(authService, jwtService)
+          clientsEndpoint = ClientsEndpoint(authService)
 
           // Create all routes in a single HttpRoutes definition
           routes = {
@@ -174,11 +175,12 @@ object OidcServer extends IOApp {
                      |<p>OpenID Connect provider is running</p>
                      |<p><strong>Version:</strong> v2.0.0-DEBUG-${java.time.Instant
                          .now()}</p>
-                     |<p><em>🐛 Debug mode enabled - Enhanced logging for azp claim troubleshooting</em></p>
+                     |<p><em>Debug mode enabled - Enhanced logging for azp claim troubleshooting</em></p>
                      |<h2>Endpoints:</h2>
                      |<ul>
                      |<li><a href="/obp-oidc/.well-known/openid-configuration">Discovery</a></li>
                      |<li><a href="/obp-oidc/jwks">JWKS</a></li>
+                     |<li><a href="/clients">OIDC Clients</a></li>
                      |<li><a href="/health">Health Check</a></li>
                      |</ul>
                      |</body>
@@ -261,10 +263,28 @@ object OidcServer extends IOApp {
                                   case None =>
                                     IO(
                                       println(
-                                        s"❌ No endpoint handled the request: ${req.method} ${req.uri}"
+                                        s"👤 UserInfoEndpoint did not handle request, trying ClientsEndpoint"
                                       )
                                     ) *>
-                                      NotFound("Endpoint not found")
+                                      clientsEndpoint.routes
+                                        .run(req)
+                                        .value
+                                        .flatMap {
+                                          case Some(resp) =>
+                                            IO(
+                                              println(
+                                                s"📋 Request handled by ClientsEndpoint"
+                                              )
+                                            ) *>
+                                              IO.pure(resp)
+                                          case None =>
+                                            IO(
+                                              println(
+                                                s"❌ No endpoint handled the request: ${req.method} ${req.uri}"
+                                              )
+                                            ) *>
+                                              NotFound("Endpoint not found")
+                                        }
                                 }
                           }
                     }
@@ -288,8 +308,7 @@ object OidcServer extends IOApp {
             .build
             .use { server =>
               val baseUriString = server.baseUri.toString.stripSuffix("/")
-              IO(println(s"OIDC Provider started at ${server.baseUri}")) *>
-                IO(println("Available endpoints:")) *>
+              IO(println("Available endpoints:")) *>
                 IO(
                   println(
                     s"  Discovery: $baseUriString/.well-known/openid-configuration"
@@ -299,8 +318,10 @@ object OidcServer extends IOApp {
                 IO(println(s"  Token: $baseUriString/token")) *>
                 IO(println(s"  UserInfo: $baseUriString/userinfo")) *>
                 IO(println(s"  JWKS: $baseUriString/jwks")) *>
+                IO(println(s"  Clients: $baseUriString/clients")) *>
                 IO(println(s"  Health Check: $baseUriString/health")) *>
                 printOBPConfiguration(baseUriString, authService) *>
+                IO(println(s"OIDC Provider started at ${server.baseUri}")) *>
                 IO.never
             }
         } yield ExitCode.Success

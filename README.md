@@ -1,61 +1,56 @@
 # OBP-OIDC
 
-A bare bones OpenID Connect (OIDC) provider built with http4s and functional programming in Scala. This implementation follows the same technology stack as OBP-API-II and integrates with PostgreSQL database for real user authentication.
+# TLDR;
 
-It's meant to be used with OBP-API and apps such as the OBP Portal.
+This is a bare bones OpenID Connect (OIDC) provider built with http4s and functional programming in Scala.
+
+This implementation follows the same technology stack as OBP-API-II and integrates with PostgreSQL database for real user authentication.
+
+It's meant to be used with OBP-API and apps such as the OBP Portal by developers.
+
+Its not a production grade OIDC server. For that use Keyclock or Hydra etc.
 
 If you're having trouble understanding OIDC with OBP this tool might help.
 
 Designed to create clients for the OBP Apps as it starts up. It will print client_id, secrets and other info so you can copy and paste into your Props or env files.
 
-Designed to read / write to the OBP Users and Consumers tables via SQL views defined in https://github.com/OpenBankProject/OBP-API/blob/develop/obp-api/src/main/scripts/sql/create_oidc_user_and_views.sql
+Designed to read / write to the OBP Users and Consumers tables via SQL views defined in [OBP-API](https://github.com/OpenBankProject/OBP-API/blob/develop/obp-api/src/main/scripts/sql/create_oidc_user_and_views.sql)
 
-Very Work in Progress.
+### 1. Create OIDC Database Users and Views
 
-Please take the following with a very big pinch of salt!
+This application assumes you have an OBP database running locally.
 
-## Features
+The following script in OBP-API will create the SQL roles and views (2 or 3 of them) that this application needs to work.
 
-- **Pure Functional Programming**: Built with Cats Effect IO and immutable data structures
-- **Modern Scala**: Uses http4s, Circe for JSON, and functional error handling
-- **PostgreSQL Database**: Authenticates real users from OBP authuser table via read-only view
-- **Complete OIDC Support**: All essential endpoints for authorization code flow
-- **Client Management**: CRUD operations for OIDC clients via admin database user
-- **Automatic Client Creation**: Auto-creates OBP-API, Portal, Explorer II, and Opey II clients on startup
-- **JWT Tokens**: RS256 signed ID tokens and access tokens
-- **BCrypt Password Verification**: Compatible with OBP-API password hashing
-- **Integration Tests**: Comprehensive test suite demonstrating full OIDC flow
+https://github.com/OpenBankProject/OBP-API/blob/develop/obp-api/src/main/scripts/sql/create_oidc_user_and_views.sql
 
-## Technology Stack
-
-- **Language**: Scala 2.13 with functional programming principles
-- **HTTP Framework**: http4s with Ember server
-- **Effect System**: Cats Effect IO
-- **Database**: PostgreSQL with Doobie for functional database access
-- **JSON**: Circe for serialization/deserialization
-- **JWT**: Auth0 Java JWT library
-- **Build Tool**: Maven
-- **Testing**: ScalaTest
-
-## Quick Start for Developers 🚀
-
-**New to OBP-OIDC? Get up and running in 3 steps:**
-
-### Step 1: Generate Configuration
+If you have OBP source code locally you can run the file thus:
 
 ```bash
-# Interactive configuration generator
-./generate-config.sh
-
-# Or generate directly
-mvn exec:java -Dexec.args="--generate-config"
+psql -h localhost -p 5432 -d sandbox -U obp -f workspace_2024/OBP-API-C/OBP-API/obp-api/src/main/scripts/sql/create_oidc_user_and_views.sql
 ```
 
-### Step 2: Locate your OBP database.
+or from with in psql thus
 
-see below
+```psql
 
-### Step 3: Start OBP-OIDC
+\i PATH-TO-OBP-API-SOURCE-CODE/obp-api/src/main/scripts/sql/create_oidc_user_and_views.sql
+
+```
+
+### Step 2: Make sure your passwords are good.
+
+# Copy the example run server script
+
+#
+
+```bash
+
+cp ./run-server.example.sh ./run-server.sh
+
+```
+
+Maybe this involves an export
 
 ```bash
 # Export the generated environment variables
@@ -63,13 +58,21 @@ export OIDC_USER_PASSWORD=YourGeneratedPassword123!
 export OIDC_ADMIN_PASSWORD=YourGeneratedAdminPass456#
 # ... (other exports from generated config)
 
-# Start the server
-./run-server.sh
 ```
+
+Now you can try and run the server
+
+```bash
+
+./run-server.sh
+
+```
+
+NOTE: you should make sure the OBP-API well known url returns the OBP-OIDC address.
 
 **That's it!** 🎉 Copy the printed OIDC client configurations to your OBP projects.
 
----
+# The long story.
 
 ## Prerequisites
 
@@ -84,19 +87,7 @@ export OIDC_ADMIN_PASSWORD=YourGeneratedAdminPass456#
 
 Ensure you have a PostgreSQL database with the OBP authuser table populated with users.
 
-### 2. Create OIDC Database User and View
-
-Run the OIDC setup script to create a read-only database user and view:
-
-```bash
-psql -h localhost -p 5432 -d sandbox -U obp -f workspace_2024/OBP-API-C/OBP-API/obp-api/src/main/scripts/sql/create_oidc_user_and_views.sql
-```
-
-This script will:
-
-- Create `oidc_user` with read-only access
-- Create `v_authuser_oidc` view exposing validated users
-- Set up proper permissions and security measures
+See above.
 
 ### 3. Database Configuration
 
@@ -104,66 +95,7 @@ Set environment variables for database connection:
 
 **Read-Only Database User** (for user authentication):
 
-```bash
-export DB_HOST=localhost
-export DB_PORT=5432
-export DB_NAME=sandbox
-export OIDC_USER_USERNAME=oidc_user
-export OIDC_USER_PASSWORD=CHANGE_THIS_TO_A_VERY_STRONG_PASSWORD_2024!
-export DB_MAX_CONNECTIONS=10
-```
-
-**Admin Database User** (for client management via v_oidc_admin_clients):
-
-```bash
-export OIDC_ADMIN_USERNAME=oidc_admin_user
-export OIDC_ADMIN_PASSWORD=CHANGE_THIS_TO_A_VERY_STRONG_ADMIN_PASSWORD_2024!
-export DB_ADMIN_MAX_CONNECTIONS=5
-```
-
-**OBP Ecosystem Client Configuration** (optional - auto-generated if not set):
-
-```bash
-export OIDC_CLIENT_OBP_API_ID=obp-api-client
-export OIDC_CLIENT_OBP_API_SECRET=YOUR_SECURE_SECRET_HERE
-export OIDC_CLIENT_OBP_API_REDIRECTS=http://localhost:8080/auth/openid-connect/callback
-
-export OIDC_CLIENT_PORTAL_ID=obp-portal-client
-export OIDC_CLIENT_PORTAL_SECRET=YOUR_SECURE_SECRET_HERE
-export OIDC_CLIENT_PORTAL_REDIRECTS=http://localhost:5174/login/obp/callback
-
-export OIDC_CLIENT_EXPLORER_ID=obp-explorer-ii-client
-export OIDC_CLIENT_EXPLORER_SECRET=YOUR_SECURE_SECRET_HERE
-export OIDC_CLIENT_EXPLORER_REDIRECTS=http://localhost:3001/callback,http://localhost:3001/oauth/callback
-
-export OIDC_CLIENT_OPEY_ID=obp-opey-ii-client
-export OIDC_CLIENT_OPEY_SECRET=YOUR_SECURE_SECRET_HERE
-export OIDC_CLIENT_OPEY_REDIRECTS=http://localhost:3002/callback,http://localhost:3002/oauth/callback
-```
-
-⚠️ **Security Note**: Use a strong password and follow the security recommendations in the setup script.
-
-### 4. Test Admin Database Connection (Optional)
-
-Before running the server, you can test your admin database configuration:
-
-```bash
-# Copy and customize the test script
-cp test-admin-db.example.sh test-admin-db.sh
-nano test-admin-db.sh  # Edit with your admin database credentials
-chmod +x test-admin-db.sh
-
-# Run the test
-./test-admin-db.sh
-```
-
-This will verify:
-
-- Basic admin database connection
-- Access to `v_oidc_admin_clients` view
-- INSERT, UPDATE, and DELETE permissions
-
-## Quick Start
+See the sql script.
 
 ### Build and Run
 
@@ -191,13 +123,13 @@ For easier configuration and running:
 1. **Copy the example script:**
 
    ```bash
-   cp run-server.sh run-server.sh
+   cp run-server.example.sh run-server.sh
    ```
 
 2. **Edit your database credentials:**
 
    ```bash
-   nano run-server.sh
+   vim run-server.sh
    # Edit the DB_* environment variables with your actual database settings
    ```
 
@@ -232,53 +164,6 @@ mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
 # Or set inline
 OIDC_PORT=8080 mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
 ```
-
-#### All Configuration Options
-
-Configure via environment variables:
-
-```bash
-export OIDC_HOST=localhost
-export OIDC_PORT=9000
-export OIDC_ISSUER=http://localhost:9000
-export OIDC_KEY_ID=oidc-key-1
-export OIDC_TOKEN_EXPIRATION=3600
-export OIDC_CODE_EXPIRATION=600
-```
-
-#### OBP-API Configuration Output
-
-When the server starts, it automatically prints the complete OBP-API configuration:
-
-```
-📋 OBP-API CONFIGURATION - Copy and paste into your props file:
-================================================================================
-
-# OIDC Configuration for OBP-OIDC Provider
-openid_connect.scope=openid email profile
-
-# OBP-API OIDC Provider Settings
-openid_connect_1.button_text=OBP-OIDC
-openid_connect_1.client_id=obp-api-client
-openid_connect_1.client_secret=generated-secret-here
-openid_connect_1.callback_url=http://127.0.0.1:8080/auth/openid-connect/callback
-
-# OIDC Endpoints
-openid_connect_1.endpoint.discovery=http://localhost:9000/.well-known/openid-configuration
-# ... plus SQL for client registration
-```
-
-Simply copy this output to your OBP-API props file!
-
-#### Security Note
-
-⚠️ **Important**: The `run-server.sh` file is in `.gitignore` to prevent accidentally committing database credentials. Always:
-
-- Keep your database passwords secure
-- Never commit `run-server.sh` with real credentials
-- Use the `run-server.example.sh` template for sharing configurations
-
-## OIDC Endpoints
 
 ### Discovery Document
 
@@ -803,3 +688,26 @@ ID token generated successfully with azp: abc123
 ## License
 
 This project is licensed under the same terms as the Open Bank Project.
+
+## Features
+
+- **Pure Functional Programming**: Built with Cats Effect IO and immutable data structures
+- **Modern Scala**: Uses http4s, Circe for JSON, and functional error handling
+- **PostgreSQL Database**: Authenticates real users from OBP authuser table via read-only view
+- **Complete OIDC Support**: All essential endpoints for authorization code flow
+- **Client Management**: CRUD operations for OIDC clients via admin database user
+- **Automatic Client Creation**: Auto-creates OBP-API, Portal, Explorer II, and Opey II clients on startup
+- **JWT Tokens**: RS256 signed ID tokens and access tokens
+- **BCrypt Password Verification**: Compatible with OBP-API password hashing
+- **Integration Tests**: Comprehensive test suite demonstrating full OIDC flow
+
+## Technology Stack
+
+- **Language**: Scala 2.13 with functional programming principles
+- **HTTP Framework**: http4s with Ember server
+- **Effect System**: Cats Effect IO
+- **Database**: PostgreSQL with Doobie for functional database access
+- **JSON**: Circe for serialization/deserialization
+- **JWT**: Auth0 Java JWT library
+- **Build Tool**: Maven
+- **Testing**: ScalaTest
