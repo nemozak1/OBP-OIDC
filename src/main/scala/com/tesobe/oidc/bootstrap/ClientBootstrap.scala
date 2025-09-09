@@ -123,45 +123,6 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
       println("export DB_ADMIN_MAX_CONNECTIONS=5")
       println()
 
-      // Write to file
-      val configContent = s"""# OBP-OIDC Database Configuration
-# Generated at: ${java.time.Instant.now()}
-
-# Database Setup Commands
-# Run these as postgres user:
-sudo -u postgres psql << EOF
-CREATE DATABASE sandbox;
-CREATE USER oidc_user WITH PASSWORD '$dbUserPassword';
-CREATE USER oidc_admin WITH PASSWORD '$dbAdminPassword';
-GRANT CONNECT ON DATABASE sandbox TO oidc_user;
-GRANT CONNECT ON DATABASE sandbox TO oidc_admin;
-\\q
-EOF
-
-# Environment Variables for OBP-OIDC
-export DB_HOST=localhost
-export DB_PORT=5432
-export DB_NAME=sandbox
-export OIDC_USER_USERNAME=oidc_user
-export OIDC_USER_PASSWORD=$dbUserPassword
-export DB_MAX_CONNECTIONS=10
-export OIDC_ADMIN_USERNAME=oidc_admin
-export OIDC_ADMIN_PASSWORD=$dbAdminPassword
-export DB_ADMIN_MAX_CONNECTIONS=5
-"""
-
-      try {
-        val file = new java.io.PrintWriter("obp-oidc-database-config.txt")
-        file.write(configContent)
-        file.close()
-        println(
-          "📄 Database configuration also saved to: obp-oidc-database-config.txt"
-        )
-      } catch {
-        case e: Exception =>
-          println(s"⚠️  Could not write database config file: ${e.getMessage}")
-      }
-
       println("=" * 80)
       println(
         "✅ Database configuration ready! Set up your database first, then run OBP-OIDC."
@@ -498,88 +459,6 @@ INSERT INTO v_oidc_admin_clients (
     }
   }
 
-  /** Write configuration to file for easy access
-    */
-  private def writeConfigurationFile(clients: List[OidcClient]): Unit = {
-    try {
-      val configContent = generateConfigFileContent(clients)
-      val file = new java.io.PrintWriter("obp-oidc-generated-config.txt")
-      file.write(configContent)
-      file.close()
-      println("📄 Configuration also saved to: obp-oidc-generated-config.txt")
-    } catch {
-      case e: Exception =>
-        println(s"⚠️  Could not write config file: ${e.getMessage}")
-    }
-  }
-
-  /** Generate configuration file content
-    */
-  private def generateConfigFileContent(clients: List[OidcClient]): String = {
-    val obpClient = clients.find(_.client_name.contains("api")).get
-    val portalClient = clients.find(_.client_name.contains("portal")).get
-    val explorerClient = clients.find(_.client_name.contains("explorer")).get
-    val opeyClient = clients.find(_.client_name.contains("opey")).get
-
-    s"""# OBP-OIDC Generated Configuration
-# Generated at: ${java.time.Instant.now()}
-# Copy the sections you need to your project configuration files
-
-# ============================================================================
-# 1. OBP-API Configuration (Props file)
-# ============================================================================
-# Add to your OBP-API props file
-openid_connect.scope=openid email profile
-
-# OBP-API OIDC Provider Settings
-openid_connect.endpoint=${config.issuer}/.well-known/openid_configuration
-oauth2.client_id=${obpClient.client_id}
-oauth2.client_secret=${obpClient.client_secret.getOrElse("NOT_SET")}
-oauth2.callback_url=${obpClient.redirect_uris.head}
-
-# ============================================================================
-# 2. OBP-Portal Configuration (.env file)
-# ============================================================================
-# Add to your OBP-Portal .env file
-OBP_OAUTH_CLIENT_ID=${portalClient.client_id}
-OBP_OAUTH_CLIENT_SECRET=${portalClient.client_secret.getOrElse("NOT_SET")}
-OBP_OAUTH_WELL_KNOWN_URL=${config.issuer}/.well-known/openid-configuration
-APP_CALLBACK_URL=http://localhost:5174/login/obp/callback
-VITE_API_URL=${sys.env.getOrElse("OBP_API_URL", "http://localhost:8080")}
-VITE_OIDC_ISSUER=${config.issuer}
-VITE_CLIENT_ID=${portalClient.client_id}
-
-# ============================================================================
-# 3. API-Explorer-II Configuration (environment variables)
-# ============================================================================
-# Add to your API-Explorer-II environment
-export REACT_APP_OAUTH_CLIENT_ID=${explorerClient.client_id}
-export REACT_APP_OAUTH_CLIENT_SECRET=${explorerClient.client_secret.getOrElse(
-        "NOT_SET"
-      )}
-export REACT_APP_OAUTH_AUTHORIZATION_URL=${config.issuer}/auth
-export REACT_APP_OAUTH_TOKEN_URL=${config.issuer}/token
-export REACT_APP_OAUTH_REDIRECT_URI=${explorerClient.redirect_uris.head}
-
-# ============================================================================
-# 4. Opey-II Configuration (environment variables)
-# ============================================================================
-# Add to your Opey-II environment
-export VUE_APP_OAUTH_CLIENT_ID=${opeyClient.client_id}
-export VUE_APP_OAUTH_CLIENT_SECRET=${opeyClient.client_secret.getOrElse(
-        "NOT_SET"
-      )}
-export VUE_APP_OAUTH_AUTHORIZATION_URL=${config.issuer}/auth
-export VUE_APP_OAUTH_TOKEN_URL=${config.issuer}/token
-export VUE_APP_OAUTH_REDIRECT_URI=${opeyClient.redirect_uris.head}
-
-# ============================================================================
-# Database Client Information
-# ============================================================================
-# Client IDs and secrets are also stored in your v_oidc_admin_clients table
-# Use these for reference or manual configuration
-"""
-  }
 }
 
 object ClientBootstrap {

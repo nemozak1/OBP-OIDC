@@ -22,27 +22,27 @@ package com.tesobe.oidc.config
 import cats.effect.IO
 
 case class ServerConfig(
-  host: String,
-  port: Int
+    host: String,
+    port: Int
 )
 
 case class DatabaseConfig(
-  host: String,
-  port: Int,
-  database: String,
-  username: String,
-  password: String,
-  maxConnections: Int = 10
+    host: String,
+    port: Int,
+    database: String,
+    username: String,
+    password: String,
+    maxConnections: Int = 10
 )
 
 case class OidcConfig(
-  issuer: String,
-  server: ServerConfig,
-  database: DatabaseConfig,
-  adminDatabase: DatabaseConfig,
-  keyId: String = "oidc-key-1",
-  tokenExpirationSeconds: Long = 3600, // 1 hour
-  codeExpirationSeconds: Long = 600     // 10 minutes
+    issuer: String,
+    server: ServerConfig,
+    database: DatabaseConfig,
+    adminDatabase: DatabaseConfig,
+    keyId: String = "oidc-key-1",
+    tokenExpirationSeconds: Long = 3600, // 1 hour
+    codeExpirationSeconds: Long = 600 // 10 minutes
 )
 
 object Config {
@@ -50,7 +50,17 @@ object Config {
   def load: IO[OidcConfig] = IO {
     val host = sys.env.getOrElse("OIDC_HOST", "localhost")
     val port = sys.env.getOrElse("OIDC_PORT", "9000").toInt
-    val baseUrl = s"http://$host:$port"
+
+    // Support external URLs for TLS terminating proxy
+    val baseUrl = sys.env.get("OIDC_EXTERNAL_URL") match {
+      case Some(externalUrl) =>
+        // Remove trailing slash if present
+        if (externalUrl.endsWith("/")) externalUrl.dropRight(1) else externalUrl
+      case None =>
+        // Fallback to internal URL construction
+        val protocol = sys.env.getOrElse("OIDC_PROTOCOL", "http")
+        s"$protocol://$host:$port"
+    }
     val issuer = s"$baseUrl/obp-oidc"
 
     val dbConfig = DatabaseConfig(
@@ -58,16 +68,24 @@ object Config {
       port = sys.env.getOrElse("DB_PORT", "5432").toInt,
       database = sys.env.getOrElse("DB_NAME", "sandbox"),
       username = sys.env.getOrElse("OIDC_USER_USERNAME", "oidc_user"),
-      password = sys.env.getOrElse("OIDC_USER_PASSWORD", "CHANGE_THIS_TO_A_VERY_STRONG_PASSWORD_2024!"),
+      password = sys.env.getOrElse(
+        "OIDC_USER_PASSWORD",
+        "CHANGE_THIS_TO_A_VERY_STRONG_PASSWORD_2024!"
+      ),
       maxConnections = sys.env.getOrElse("DB_MAX_CONNECTIONS", "10").toInt
     )
 
     val adminDbConfig = DatabaseConfig(
-      host = sys.env.getOrElse("DB_HOST", "localhost"), // Same host as read-only database
+      host = sys.env
+        .getOrElse("DB_HOST", "localhost"), // Same host as read-only database
       port = sys.env.getOrElse("DB_PORT", "5432").toInt,
-      database = sys.env.getOrElse("DB_NAME", "sandbox"), // Same database as read-only
+      database =
+        sys.env.getOrElse("DB_NAME", "sandbox"), // Same database as read-only
       username = sys.env.getOrElse("OIDC_ADMIN_USERNAME", "oidc_admin"),
-      password = sys.env.getOrElse("OIDC_ADMIN_PASSWORD", "CHANGE_THIS_TO_A_VERY_STRONG_ADMIN_PASSWORD_2024!"),
+      password = sys.env.getOrElse(
+        "OIDC_ADMIN_PASSWORD",
+        "CHANGE_THIS_TO_A_VERY_STRONG_ADMIN_PASSWORD_2024!"
+      ),
       maxConnections = sys.env.getOrElse("DB_ADMIN_MAX_CONNECTIONS", "5").toInt
     )
 
@@ -77,8 +95,10 @@ object Config {
       database = dbConfig,
       adminDatabase = adminDbConfig,
       keyId = sys.env.getOrElse("OIDC_KEY_ID", "oidc-key-1"),
-      tokenExpirationSeconds = sys.env.getOrElse("OIDC_TOKEN_EXPIRATION", "3600").toLong,
-      codeExpirationSeconds = sys.env.getOrElse("OIDC_CODE_EXPIRATION", "600").toLong
+      tokenExpirationSeconds =
+        sys.env.getOrElse("OIDC_TOKEN_EXPIRATION", "3600").toLong,
+      codeExpirationSeconds =
+        sys.env.getOrElse("OIDC_CODE_EXPIRATION", "600").toLong
     )
   }
 }

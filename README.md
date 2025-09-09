@@ -8,6 +8,13 @@ This implementation follows the same technology stack as OBP-API-II and integrat
 
 It's meant to be used with OBP-API and apps such as the OBP Portal by developers.
 
+**For External Access**: To run behind a TLS terminating proxy with HTTPS URLs, set `OIDC_EXTERNAL_URL` environment variable:
+
+```bash
+export OIDC_EXTERNAL_URL="https://oidc.yourdomain.com"
+./run-server.sh
+```
+
 Its not a production grade OIDC server. For that use Keyclock or Hydra etc.
 
 If you're having trouble understanding OIDC with OBP this tool might help.
