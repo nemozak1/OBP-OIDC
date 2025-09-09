@@ -811,11 +811,11 @@ case class DatabaseClient(
     client_secret: Option[String],
     client_name: String,
     consumer_id: String,
-    redirect_uris: String, // Simple string from database
-    grant_types: String, // Simple string from database
-    response_types: String, // Simple string from database
-    scopes: String, // Simple string from database
-    token_endpoint_auth_method: String,
+    redirect_uris: Option[String], // Simple string from database
+    grant_types: Option[String], // Simple string from database
+    response_types: Option[String], // Simple string from database
+    scopes: Option[String], // Simple string from database
+    token_endpoint_auth_method: Option[String],
     created_at: Option[String]
 ) {
   def toOidcClient: OidcClient = OidcClient(
@@ -823,11 +823,11 @@ case class DatabaseClient(
     client_secret = client_secret,
     consumer_id = consumer_id,
     client_name = client_name,
-    redirect_uris = parseSimpleString(redirect_uris),
-    grant_types = parseSimpleString(grant_types),
-    response_types = parseSimpleString(response_types),
-    scopes = parseSimpleString(scopes),
-    token_endpoint_auth_method = token_endpoint_auth_method,
+    redirect_uris = parseSimpleString(redirect_uris.orNull),
+    grant_types = parseSimpleString(grant_types.orNull),
+    response_types = parseSimpleString(response_types.orNull),
+    scopes = parseSimpleString(scopes.orNull),
+    token_endpoint_auth_method = token_endpoint_auth_method.getOrElse(""),
     created_at = created_at
   )
 
@@ -1173,6 +1173,49 @@ object DatabaseUserInstances {
             key_c = key_c,
             consumerid = consumerid,
             isactive = isactive
+          )
+      }
+
+  // Explicit Read instance for DatabaseClient to handle nullable columns
+  implicit val databaseClientRead: Read[DatabaseClient] =
+    Read[
+      (
+          String, // client_id
+          Option[String], // client_secret
+          String, // client_name
+          String, // consumer_id
+          Option[String], // redirect_uris
+          Option[String], // grant_types
+          Option[String], // response_types
+          Option[String], // scopes
+          Option[String], // token_endpoint_auth_method
+          Option[String] // created_at
+      )
+    ]
+      .map {
+        case (
+              client_id,
+              client_secret,
+              client_name,
+              consumer_id,
+              redirect_uris,
+              grant_types,
+              response_types,
+              scopes,
+              token_endpoint_auth_method,
+              created_at
+            ) =>
+          DatabaseClient(
+            client_id = client_id,
+            client_secret = client_secret,
+            client_name = client_name,
+            consumer_id = consumer_id,
+            redirect_uris = redirect_uris,
+            grant_types = grant_types,
+            response_types = response_types,
+            scopes = scopes,
+            token_endpoint_auth_method = token_endpoint_auth_method,
+            created_at = created_at
           )
       }
 }
