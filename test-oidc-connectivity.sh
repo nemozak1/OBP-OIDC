@@ -166,8 +166,10 @@ if [ "$WELL_KNOWN_STATUS" = "200" ]; then
 
     else
         echo "❌ Response is not valid JSON"
-        echo "   Raw response (first 200 chars):"
-        echo "   $(echo "$WELL_KNOWN_RESPONSE" | head -c 200)..."
+        echo "   Full raw response:"
+        echo "----------------------------------------"
+        echo "$WELL_KNOWN_RESPONSE"
+        echo "----------------------------------------"
     fi
 
 elif [ "$WELL_KNOWN_STATUS" = "404" ]; then
@@ -182,8 +184,10 @@ elif [ "$WELL_KNOWN_STATUS" = "000" ]; then
 else
     echo "❌ Unexpected response from well-known endpoint (HTTP $WELL_KNOWN_STATUS)"
     if [ -n "$WELL_KNOWN_RESPONSE" ]; then
-        echo "   Response (first 200 chars):"
-        echo "   $(echo "$WELL_KNOWN_RESPONSE" | head -c 200)..."
+        echo "   Full raw response:"
+        echo "----------------------------------------"
+        echo "$WELL_KNOWN_RESPONSE"
+        echo "----------------------------------------"
     fi
 fi
 
