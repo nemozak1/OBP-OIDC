@@ -962,8 +962,8 @@ case class DatabaseUser(
     provider: String,
     passwordHash: String, // password_pw column
     passwordSalt: String, // password_slt column
-    createdAt: Instant,
-    updatedAt: Instant
+    createdAt: Option[Instant],
+    updatedAt: Option[Instant]
 ) {
 
   def toUser: User = User(
@@ -1258,8 +1258,8 @@ object DatabaseUserInstances {
           String,
           String,
           String,
-          Instant,
-          Instant
+          Option[Instant],
+          Option[Instant]
       )
     ]
       .map {
