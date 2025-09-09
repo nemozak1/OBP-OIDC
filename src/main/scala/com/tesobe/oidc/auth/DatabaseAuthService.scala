@@ -107,6 +107,15 @@ class DatabaseAuthService(
 
         // Additional debugging: try to find user without provider constraint
         val debugResult = for {
+          userCount <- getUsernameCount(username)
+          _ <- IO {
+            logger.warn(
+              s"🔍 DEBUG: Found $userCount user(s) with username '$username'"
+            )
+            println(
+              s"🔍 DEBUG: Found $userCount user(s) with username '$username'"
+            )
+          }
           userWithoutProvider <- findUserDetailsByUsernameOnly(username)
           _ <- userWithoutProvider match {
             case Some(foundUser) =>
@@ -142,6 +151,29 @@ class DatabaseAuthService(
                 )
               }
           }
+          _ <-
+            if (userCount > 1) {
+              getAllUserDetailsByUsername(username).flatMap { allUsers =>
+                IO {
+                  logger.warn(
+                    s"🔍 DEBUG: All $userCount users with username '$username':"
+                  )
+                  println(
+                    s"🔍 DEBUG: All $userCount users with username '$username':"
+                  )
+                  allUsers.zipWithIndex.foreach { case (user, index) =>
+                    logger.warn(
+                      s"  [${index + 1}] provider: '${user.provider}', validated: ${user.validated}, user_id: '${user.userId}', email: '${user.email}'"
+                    )
+                    println(
+                      s"  [${index + 1}] provider: '${user.provider}', validated: ${user.validated}, user_id: '${user.userId}', email: '${user.email}'"
+                    )
+                  }
+                }
+              }
+            } else {
+              IO.unit
+            }
         } yield Left(
           OidcError("invalid_grant", Some("Invalid username or password"))
         )
@@ -336,6 +368,53 @@ class DatabaseAuthService(
         s"🚨 Database error while finding user details for $username: ${error.getMessage}"
       )
       IO.pure(None)
+    }
+  }
+
+  /** Get count of users with a specific username
+    */
+  private def getUsernameCount(username: String): IO[Int] = {
+    logger.debug(s"🔍 Counting users with username: '$username'")
+
+    val query = sql"""
+      SELECT COUNT(*) FROM v_oidc_users WHERE username = $username
+    """.query[Int]
+
+    query.unique.transact(transactor).handleErrorWith { error =>
+      logger
+        .error(s"🚨 Database error while counting username $username", error)
+      println(
+        s"🚨 Database error while counting username $username: ${error.getMessage}"
+      )
+      IO.pure(0)
+    }
+  }
+
+  /** Get all user details for a specific username (all providers)
+    */
+  private def getAllUserDetailsByUsername(
+      username: String
+  ): IO[List[DatabaseUser]] = {
+    logger.debug(s"🔍 Getting all users with username: '$username'")
+
+    val query = sql"""
+      SELECT user_id, username, firstname, lastname, email,
+             validated, provider, password_pw, password_slt,
+             createdat, updatedat
+      FROM v_oidc_users
+      WHERE username = $username
+      ORDER BY provider, validated DESC
+    """.query[DatabaseUser]
+
+    query.to[List].transact(transactor).handleErrorWith { error =>
+      logger.error(
+        s"🚨 Database error while getting all users for username $username",
+        error
+      )
+      println(
+        s"🚨 Database error while getting all users for username $username: ${error.getMessage}"
+      )
+      IO.pure(List.empty)
     }
   }
 
