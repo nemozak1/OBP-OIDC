@@ -77,7 +77,7 @@ class TokenEndpoint(
 
   private def handleTokenRequest(form: UrlForm): IO[Response[IO]] = {
     println(s"🎫 DEBUG: handleTokenRequest called")
-    val formData = form.values.mapValues(_.headOption.getOrElse(""))
+    val formData = form.values.view.mapValues(_.headOption.getOrElse("")).toMap
     println(s"🎫 DEBUG: formData created: ${formData}")
 
     logger.info(s"🎫 Token request received")

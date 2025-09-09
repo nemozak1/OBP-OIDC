@@ -116,7 +116,7 @@ class AuthEndpoint(authService: AuthService[IO], codeService: CodeService[IO]) {
   }
 
   private def handleLoginSubmission(form: UrlForm): IO[Response[IO]] = {
-    val formData = form.values.mapValues(_.headOption.getOrElse(""))
+    val formData = form.values.view.mapValues(_.headOption.getOrElse("")).toMap
 
     for {
       _ <- IO(logger.info("🔥 LOGIN FORM SUBMISSION STARTED"))

@@ -105,83 +105,48 @@ class DatabaseAuthService(
           s"❌ User NOT FOUND in database: '$username' with provider: '$provider'"
         )
 
-        // Additional debugging: try to find user without provider constraint and log detailed info
-        findUserDetailsByUsernameOnly(username).flatMap { userWithoutProvider =>
-          userWithoutProvider match {
+        // Additional debugging: try to find user without provider constraint
+        val debugResult = for {
+          userWithoutProvider <- findUserDetailsByUsernameOnly(username)
+          _ <- userWithoutProvider match {
             case Some(foundUser) =>
-              logger.warn(
-                s"🔍 DEBUG: User '$username' found in database with details:"
-              )
-              println(
-                s"🔍 DEBUG: User '$username' found in database with details:"
-              )
-              logger.warn(
-                s"  - username: '${foundUser.username}'"
-              )
-              logger.warn(
-                s"  - provider: '${foundUser.provider}' (requested: '$provider')"
-              )
-              logger.warn(
-                s"  - validated: ${foundUser.validated}"
-              )
-              logger.warn(
-                s"  - user_id: '${foundUser.userId}'"
-              )
-              logger.warn(
-                s"  - email: '${foundUser.email}'"
-              )
-              println(
-                s"  - username: '${foundUser.username}'"
-              )
-              println(
-                s"  - provider: '${foundUser.provider}' (requested: '$provider')"
-              )
-              println(
-                s"  - validated: ${foundUser.validated}"
-              )
-              println(
-                s"  - user_id: '${foundUser.userId}'"
-              )
-              println(
-                s"  - email: '${foundUser.email}'"
-              )
+              IO {
+                logger.warn(
+                  s"🔍 DEBUG: User '$username' found in database with details:"
+                )
+                logger.warn(s"  - username: '${foundUser.username}'")
+                logger.warn(
+                  s"  - provider: '${foundUser.provider}' (requested: '$provider')"
+                )
+                logger.warn(s"  - validated: ${foundUser.validated}")
+                logger.warn(s"  - user_id: '${foundUser.userId}'")
+                logger.warn(s"  - email: '${foundUser.email}'")
+                println(
+                  s"🔍 DEBUG: User '$username' found in database with details:"
+                )
+                println(s"  - username: '${foundUser.username}'")
+                println(
+                  s"  - provider: '${foundUser.provider}' (requested: '$provider')"
+                )
+                println(s"  - validated: ${foundUser.validated}")
+                println(s"  - user_id: '${foundUser.userId}'")
+                println(s"  - email: '${foundUser.email}'")
+              }
             case None =>
-              logger.warn(
-                s"🔍 DEBUG: User '$username' does not exist in database at all"
-              )
-              println(
-                s"🔍 DEBUG: User '$username' does not exist in database at all"
-              )
-
-              // Show available providers and sample users for debugging
-              getAvailableProviders()
-                .flatMap { providers =>
-                  logger.warn(
-                    s"🔍 DEBUG: Available providers in database: ${providers.mkString(", ")}"
-                  )
-                  println(
-                    s"🔍 DEBUG: Available providers in database: ${providers.mkString(", ")}"
-                  )
-
-                  // Also show sample users to help with debugging
-                  showSampleUsersForDebugging()
-                }
-                .handleError { _ =>
-                  logger.warn(
-                    "🔍 DEBUG: Could not retrieve available providers or sample users"
-                  )
-                  println(
-                    "🔍 DEBUG: Could not retrieve available providers or sample users"
-                  )
-                }
+              IO {
+                logger.warn(
+                  s"🔍 DEBUG: User '$username' does not exist in database at all"
+                )
+                println(
+                  s"🔍 DEBUG: User '$username' does not exist in database at all"
+                )
+              }
           }
+        } yield Left(
+          OidcError("invalid_grant", Some("Invalid username or password"))
+        )
 
-          IO.pure(
-            Left(
-              OidcError("invalid_grant", Some("Invalid username or password"))
-            )
-          )
-        }
+        debugResult
       case Some(dbUser) =>
         logger.info(
           s"✅ User FOUND in database: '$username' (userId: ${dbUser.userId})"
