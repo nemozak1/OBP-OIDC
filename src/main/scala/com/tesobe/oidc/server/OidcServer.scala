@@ -176,7 +176,24 @@ object OidcServer extends IOApp {
                         val clientsHtml = clientsWithRedirects
                           .map { client =>
                             val redirectUrlsList =
-                              client.redirect_uris.mkString(", ")
+                              client.redirect_uris
+                                .map { url =>
+                                  val baseUrl =
+                                    try {
+                                      val uri = new java.net.URI(url)
+                                      s"${uri.getScheme}://${uri.getHost}${if (uri.getPort > 0)
+                                          s":${uri.getPort}"
+                                        else ""}"
+                                    } catch {
+                                      case _: Exception => url
+                                    }
+                                  baseUrl
+                                }
+                                .distinct
+                                .map(url =>
+                                  s"""<a href="$url" target="_blank">$url</a>"""
+                                )
+                                .mkString(", ")
                             s"""<div class="app">${client.client_name}: $redirectUrlsList</div>"""
                           }
                           .mkString("")
