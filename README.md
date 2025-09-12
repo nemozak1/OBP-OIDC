@@ -8,6 +8,13 @@ This implementation follows the same technology stack as OBP-API-II and integrat
 
 It's meant to be used with OBP-API and apps such as the OBP Portal by developers.
 
+**For External Access**: To run behind a TLS terminating proxy with HTTPS URLs, set `OIDC_EXTERNAL_URL` environment variable:
+
+```bash
+export OIDC_EXTERNAL_URL="https://oidc.yourdomain.com"
+./run-server.sh
+```
+
 Its not a production grade OIDC server. For that use Keyclock or Hydra etc.
 
 If you're having trouble understanding OIDC with OBP this tool might help.
@@ -457,6 +464,36 @@ src/main/scala/com/tesobe/oidc/
 - **Update Detection**: Intelligently updates clients when configuration changes
 - **BCrypt**: Password verification compatible with OBP-API
 - **Read-only Access**: Uses dedicated `oidc_user` with minimal permissions
+
+#### Adding New Startup Clients
+
+To add a new client that gets automatically created during server startup:
+
+1. **Edit the ClientBootstrap.scala file:**
+
+   ```
+   OBP-OIDC/src/main/scala/com/tesobe/oidc/bootstrap/ClientBootstrap.scala
+   ```
+
+2. **Add your client definition to the `CLIENT_DEFINITIONS` list:**
+
+   ```scala
+   ClientDefinition(
+     name = "your-new-client-id",
+     redirect_uris = "http://localhost:PORT/callback,http://localhost:PORT/oauth/callback"
+   )
+   ```
+
+3. **Restart the server** - Your new client will be automatically created and its configuration printed to the console for integration with your application.
+
+**Example:** The existing `obp-opey-ii-client` is defined as:
+
+```scala
+ClientDefinition(
+  name = "obp-opey-ii-client",
+  redirect_uris = "http://localhost:5000/callback,http://localhost:5000/oauth/callback"
+)
+```
 
 ### Functional Programming Principles
 

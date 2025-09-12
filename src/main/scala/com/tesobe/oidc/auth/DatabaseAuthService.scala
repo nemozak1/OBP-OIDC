@@ -57,6 +57,8 @@ class DatabaseAuthService(
   /** Get available providers for dropdown
     */
   def getAvailableProviders(): IO[List[String]] = {
+    logger.debug("🔍 Fetching available providers from database")
+
     val query = sql"""
       SELECT DISTINCT provider
       FROM v_oidc_users
@@ -65,7 +67,10 @@ class DatabaseAuthService(
     """.query[String]
 
     query.to[List].transact(transactor).handleErrorWith { error =>
-      logger.error("Database error while fetching providers", error)
+      logger.error("🚨 Database error while fetching providers", error)
+      println(
+        s"🚨 Database error while fetching providers: ${error.getMessage}"
+      )
       IO.pure(List.empty[String])
     }
   }
@@ -84,14 +89,96 @@ class DatabaseAuthService(
     println(
       s"🔐 Starting authentication for username: '$username' with provider: '$provider'"
     )
+    logger.debug(
+      s"🔐 Authentication request details - username length: ${username.length}, password length: ${password.length}, provider: '$provider'"
+    )
+    println(
+      s"🔐 Authentication request details - username length: ${username.length}, password length: ${password.length}, provider: '$provider'"
+    )
 
     findUserByUsernameAndProvider(username, provider).flatMap {
       case None =>
-        logger.warn(s"❌ User NOT FOUND in database: '$username'")
-        println(s"❌ User NOT FOUND in database: '$username'")
-        IO.pure(
-          Left(OidcError("invalid_grant", Some("Invalid username or password")))
+        logger.warn(
+          s"❌ User NOT FOUND in database: '$username' with provider: '$provider'"
         )
+        println(
+          s"❌ User NOT FOUND in database: '$username' with provider: '$provider'"
+        )
+
+        // Additional debugging: try to find user without provider constraint
+        val debugResult = for {
+          userCount <- getUsernameCount(username)
+          _ <- IO {
+            logger.warn(
+              s"🔍 DEBUG: Found $userCount user(s) with username '$username'"
+            )
+            println(
+              s"🔍 DEBUG: Found $userCount user(s) with username '$username'"
+            )
+          }
+          userWithoutProvider <- findUserDetailsByUsernameOnly(username)
+          _ <- userWithoutProvider match {
+            case Some(foundUser) =>
+              IO {
+                logger.warn(
+                  s"🔍 DEBUG: User '$username' found in database with details:"
+                )
+                logger.warn(s"  - username: '${foundUser.username}'")
+                logger.warn(
+                  s"  - provider: '${foundUser.provider}' (requested: '$provider')"
+                )
+                logger.warn(s"  - validated: ${foundUser.validated}")
+                logger.warn(s"  - user_id: '${foundUser.userId}'")
+                logger.warn(s"  - email: '${foundUser.email}'")
+                println(
+                  s"🔍 DEBUG: User '$username' found in database with details:"
+                )
+                println(s"  - username: '${foundUser.username}'")
+                println(
+                  s"  - provider: '${foundUser.provider}' (requested: '$provider')"
+                )
+                println(s"  - validated: ${foundUser.validated}")
+                println(s"  - user_id: '${foundUser.userId}'")
+                println(s"  - email: '${foundUser.email}'")
+              }
+            case None =>
+              IO {
+                logger.warn(
+                  s"🔍 DEBUG: User '$username' does not exist in database at all"
+                )
+                println(
+                  s"🔍 DEBUG: User '$username' does not exist in database at all"
+                )
+              }
+          }
+          _ <-
+            if (userCount > 1) {
+              getAllUserDetailsByUsername(username).flatMap { allUsers =>
+                IO {
+                  logger.warn(
+                    s"🔍 DEBUG: All $userCount users with username '$username':"
+                  )
+                  println(
+                    s"🔍 DEBUG: All $userCount users with username '$username':"
+                  )
+                  allUsers.zipWithIndex.foreach { case (user, index) =>
+                    logger.warn(
+                      s"  [${index + 1}] provider: '${user.provider}', validated: ${user.validated}, user_id: '${user.userId}', email: '${user.email}'"
+                    )
+                    println(
+                      s"  [${index + 1}] provider: '${user.provider}', validated: ${user.validated}, user_id: '${user.userId}', email: '${user.email}'"
+                    )
+                  }
+                }
+              }
+            } else {
+              IO.unit
+            }
+        } yield Left(
+          OidcError("invalid_grant", Some("Invalid username or password"))
+        )
+
+        debugResult
       case Some(dbUser) =>
         logger.info(
           s"✅ User FOUND in database: '$username' (userId: ${dbUser.userId})"
@@ -167,6 +254,10 @@ class DatabaseAuthService(
   /** Find user by username from the database view
     */
   private def findUserByUsername(username: String): IO[Option[DatabaseUser]] = {
+    logger.debug(
+      s"🔍 Searching for user by username only: '$username', validated=true"
+    )
+
     val query = sql"""
       SELECT user_id, username, firstname, lastname, email,
              validated, provider, password_pw, password_slt,
@@ -176,7 +267,10 @@ class DatabaseAuthService(
     """.query[DatabaseUser]
 
     query.option.transact(transactor).handleErrorWith { error =>
-      logger.error(s"Database error while finding user $username", error)
+      logger.error(s"🚨 Database error while finding user $username", error)
+      println(
+        s"🚨 Database error while finding user $username: ${error.getMessage}"
+      )
       IO.pure(None)
     }
   }
@@ -187,6 +281,13 @@ class DatabaseAuthService(
       username: String,
       provider: String
   ): IO[Option[DatabaseUser]] = {
+    logger.debug(
+      s"🔍 Searching for user: username='$username', provider='$provider', validated=true"
+    )
+    println(
+      s"🔍 Searching for user: username='$username', provider='$provider', validated=true"
+    )
+
     val query = sql"""
       SELECT user_id, username, firstname, lastname, email,
              validated, provider, password_pw, password_slt,
@@ -195,13 +296,175 @@ class DatabaseAuthService(
       WHERE username = $username AND provider = $provider AND validated = true
     """.query[DatabaseUser]
 
+    logger.debug(
+      s"🔍 SQL Query: SELECT user_id, username, firstname, lastname, email, validated, provider, password_pw, password_slt, createdat, updatedat FROM v_oidc_users WHERE username = '$username' AND provider = '$provider' AND validated = true"
+    )
+    println(
+      s"🔍 SQL Query: SELECT ... FROM v_oidc_users WHERE username = '$username' AND provider = '$provider' AND validated = true"
+    )
+
+    query.option
+      .transact(transactor)
+      .flatTap { result =>
+        IO {
+          result match {
+            case Some(user) =>
+              logger.debug(
+                s"🎯 Query returned user: ${user.username} with provider: ${user.provider}"
+              )
+              println(
+                s"🎯 Query returned user: ${user.username} with provider: ${user.provider}"
+              )
+            case None =>
+              logger.debug(
+                s"🎯 Query returned no results for username='$username', provider='$provider'"
+              )
+              println(
+                s"🎯 Query returned no results for username='$username', provider='$provider'"
+              )
+          }
+        }
+      }
+      .handleErrorWith { error =>
+        logger.error(
+          s"🚨 Database error while finding user by username $username and provider $provider",
+          error
+        )
+        println(
+          s"🚨 Database error while finding user by username $username and provider $provider: ${error.getMessage}"
+        )
+        IO.pure(None)
+      }
+  }
+
+  /** Find user by username only for debugging purposes - returns detailed user
+    * info
+    */
+  private def findUserDetailsByUsernameOnly(
+      username: String
+  ): IO[Option[DatabaseUser]] = {
+    logger.debug(
+      s"🔍 EXTRA DEBUG: Searching for user by username only: '$username' (ignoring provider and validation)"
+    )
+    println(
+      s"🔍 EXTRA DEBUG: Searching for user by username only: '$username' (ignoring provider and validation)"
+    )
+
+    val query = sql"""
+      SELECT user_id, username, firstname, lastname, email,
+             validated, provider, password_pw, password_slt,
+             createdat, updatedat
+      FROM v_oidc_users
+      WHERE username = $username
+      LIMIT 1
+    """.query[DatabaseUser]
+
     query.option.transact(transactor).handleErrorWith { error =>
       logger.error(
-        s"Database error while finding user by username $username and provider $provider",
+        s"🚨 Database error while finding user details for $username",
         error
+      )
+      println(
+        s"🚨 Database error while finding user details for $username: ${error.getMessage}"
       )
       IO.pure(None)
     }
+  }
+
+  /** Get count of users with a specific username
+    */
+  private def getUsernameCount(username: String): IO[Int] = {
+    logger.debug(s"🔍 Counting users with username: '$username'")
+
+    val query = sql"""
+      SELECT COUNT(*) FROM v_oidc_users WHERE username = $username
+    """.query[Int]
+
+    query.unique.transact(transactor).handleErrorWith { error =>
+      logger
+        .error(s"🚨 Database error while counting username $username", error)
+      println(
+        s"🚨 Database error while counting username $username: ${error.getMessage}"
+      )
+      IO.pure(0)
+    }
+  }
+
+  /** Get all user details for a specific username (all providers)
+    */
+  private def getAllUserDetailsByUsername(
+      username: String
+  ): IO[List[DatabaseUser]] = {
+    logger.debug(s"🔍 Getting all users with username: '$username'")
+
+    val query = sql"""
+      SELECT user_id, username, firstname, lastname, email,
+             validated, provider, password_pw, password_slt,
+             createdat, updatedat
+      FROM v_oidc_users
+      WHERE username = $username
+      ORDER BY provider, validated DESC
+    """.query[DatabaseUser]
+
+    query.to[List].transact(transactor).handleErrorWith { error =>
+      logger.error(
+        s"🚨 Database error while getting all users for username $username",
+        error
+      )
+      println(
+        s"🚨 Database error while getting all users for username $username: ${error.getMessage}"
+      )
+      IO.pure(List.empty)
+    }
+  }
+
+  /** Debug method to show sample users in database for troubleshooting
+    */
+  private def showSampleUsersForDebugging(): IO[Unit] = {
+    logger.debug("🔍 DEBUG: Fetching sample users for troubleshooting...")
+    println("🔍 DEBUG: Fetching sample users for troubleshooting...")
+
+    val query = sql"""
+      SELECT username, provider, validated, user_id
+      FROM v_oidc_users
+      ORDER BY username
+      LIMIT 10
+    """.query[(String, String, Boolean, String)]
+
+    query
+      .to[List]
+      .transact(transactor)
+      .flatMap { users =>
+        if (users.nonEmpty) {
+          logger.warn("🔍 DEBUG: Sample users in database:")
+          println("🔍 DEBUG: Sample users in database:")
+          users.foreach { case (username, provider, validated, userId) =>
+            logger.warn(
+              s"  - username: '$username', provider: '$provider', validated: $validated, userId: '$userId'"
+            )
+            println(
+              s"  - username: '$username', provider: '$provider', validated: $validated, userId: '$userId'"
+            )
+          }
+
+          // Also show total count
+          val countQuery =
+            sql"SELECT COUNT(*) FROM v_oidc_users WHERE validated = true"
+              .query[Int]
+          countQuery.unique.transact(transactor).map { count =>
+            logger.warn(s"🔍 DEBUG: Total validated users in database: $count")
+            println(s"🔍 DEBUG: Total validated users in database: $count")
+          }
+        } else {
+          logger.warn("🔍 DEBUG: No users found in v_oidc_users table")
+          println("🔍 DEBUG: No users found in v_oidc_users table")
+          IO.unit
+        }
+      }
+      .handleError { error =>
+        logger.error("🚨 DEBUG: Could not fetch sample users", error)
+        println(s"🚨 DEBUG: Could not fetch sample users: ${error.getMessage}")
+      }
   }
 
   /** Find OIDC client by client_id
@@ -778,8 +1041,8 @@ case class DatabaseUser(
     provider: String,
     passwordHash: String, // password_pw column
     passwordSalt: String, // password_slt column
-    createdAt: Instant,
-    updatedAt: Instant
+    createdAt: Option[Instant],
+    updatedAt: Option[Instant]
 ) {
 
   def toUser: User = User(
@@ -811,11 +1074,11 @@ case class DatabaseClient(
     client_secret: Option[String],
     client_name: String,
     consumer_id: String,
-    redirect_uris: String, // Simple string from database
-    grant_types: String, // Simple string from database
-    response_types: String, // Simple string from database
-    scopes: String, // Simple string from database
-    token_endpoint_auth_method: String,
+    redirect_uris: Option[String], // Simple string from database
+    grant_types: Option[String], // Simple string from database
+    response_types: Option[String], // Simple string from database
+    scopes: Option[String], // Simple string from database
+    token_endpoint_auth_method: Option[String],
     created_at: Option[String]
 ) {
   def toOidcClient: OidcClient = OidcClient(
@@ -823,11 +1086,11 @@ case class DatabaseClient(
     client_secret = client_secret,
     consumer_id = consumer_id,
     client_name = client_name,
-    redirect_uris = parseSimpleString(redirect_uris),
-    grant_types = parseSimpleString(grant_types),
-    response_types = parseSimpleString(response_types),
-    scopes = parseSimpleString(scopes),
-    token_endpoint_auth_method = token_endpoint_auth_method,
+    redirect_uris = parseSimpleString(redirect_uris.orNull),
+    grant_types = parseSimpleString(grant_types.orNull),
+    response_types = parseSimpleString(response_types.orNull),
+    scopes = parseSimpleString(scopes.orNull),
+    token_endpoint_auth_method = token_endpoint_auth_method.getOrElse(""),
     created_at = created_at
   )
 
@@ -1074,8 +1337,8 @@ object DatabaseUserInstances {
           String,
           String,
           String,
-          Instant,
-          Instant
+          Option[Instant],
+          Option[Instant]
       )
     ]
       .map {
@@ -1173,6 +1436,49 @@ object DatabaseUserInstances {
             key_c = key_c,
             consumerid = consumerid,
             isactive = isactive
+          )
+      }
+
+  // Explicit Read instance for DatabaseClient to handle nullable columns
+  implicit val databaseClientRead: Read[DatabaseClient] =
+    Read[
+      (
+          String, // client_id
+          Option[String], // client_secret
+          String, // client_name
+          String, // consumer_id
+          Option[String], // redirect_uris
+          Option[String], // grant_types
+          Option[String], // response_types
+          Option[String], // scopes
+          Option[String], // token_endpoint_auth_method
+          Option[String] // created_at
+      )
+    ]
+      .map {
+        case (
+              client_id,
+              client_secret,
+              client_name,
+              consumer_id,
+              redirect_uris,
+              grant_types,
+              response_types,
+              scopes,
+              token_endpoint_auth_method,
+              created_at
+            ) =>
+          DatabaseClient(
+            client_id = client_id,
+            client_secret = client_secret,
+            client_name = client_name,
+            consumer_id = consumer_id,
+            redirect_uris = redirect_uris,
+            grant_types = grant_types,
+            response_types = response_types,
+            scopes = scopes,
+            token_endpoint_auth_method = token_endpoint_auth_method,
+            created_at = created_at
           )
       }
 }
