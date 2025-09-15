@@ -167,29 +167,95 @@ object OidcServer extends IOApp {
 
                 // Root page
                 case GET -> Root =>
-                  Ok(s"""<!DOCTYPE html>
-                     |<html>
-                     |<head><title>OBP OIDC Provider</title></head>
-                     |<body>
-                     |<h1>OBP OIDC Provider</h1>
-                     |<p>OpenID Connect provider is running</p>
-                     |<p><strong>Version:</strong> v2.0.0-DEBUG-${java.time.Instant
-                         .now()}</p>
-                     |<p><em>Debug mode enabled - Enhanced logging for azp claim troubleshooting</em></p>
-                     |<h2>Endpoints:</h2>
-                     |<ul>
-                     |<li><a href="/obp-oidc/.well-known/openid-configuration">Discovery</a></li>
-                     |<li><a href="/obp-oidc/jwks">JWKS</a></li>
-                     |<li><a href="/clients">OIDC Clients</a></li>
-                     |<li><a href="/health">Health Check</a></li>
-                     |</ul>
-                     |</body>
-                     |</html>""".stripMargin)
-                    .map(
-                      _.withContentType(
-                        org.http4s.headers.`Content-Type`(MediaType.text.html)
+                  for {
+                    clientsResult <- authService.listClients()
+                    appsSection = clientsResult match {
+                      case Right(clients) if clients.nonEmpty =>
+                        val clientsWithRedirects =
+                          clients.filter(_.redirect_uris.nonEmpty)
+                        val clientsHtml = clientsWithRedirects
+                          .map { client =>
+                            val redirectUrlsList =
+                              client.redirect_uris
+                                .map { url =>
+                                  val baseUrl =
+                                    try {
+                                      val uri = new java.net.URI(url)
+                                      s"${uri.getScheme}://${uri.getHost}${if (uri.getPort > 0)
+                                          s":${uri.getPort}"
+                                        else ""}"
+                                    } catch {
+                                      case _: Exception => url
+                                    }
+                                  baseUrl
+                                }
+                                .distinct
+                                .map(url =>
+                                  s"""<a href="$url" target="_blank">$url</a>"""
+                                )
+                                .mkString(", ")
+                            s"""<div class="app">${client.client_name}: $redirectUrlsList</div>"""
+                          }
+                          .mkString("")
+                        s"""
+                           |<h2>Apps</h2>
+                           |<div class="apps-section">
+                           |  $clientsHtml
+                           |</div>""".stripMargin
+                      case Right(_) =>
+                        """
+                           |<h2>Apps</h2>
+                           |<div class="apps-section">
+                           |  <p><em>No applications registered</em></p>
+                           |</div>""".stripMargin
+                      case Left(_) =>
+                        """
+                           |<h2>Apps</h2>
+                           |<div class="apps-section">
+                           |  <p><em>Unable to load applications</em></p>
+                           |</div>""".stripMargin
+                    }
+                    response <- Ok(s"""<!DOCTYPE html>
+                       |<html>
+                       |<head>
+                       |  <title>OBP OIDC Provider</title>
+                       |  <style>
+                       |    body { font-family: Arial, sans-serif; margin: 40px; }
+                       |    h1 { color: #333; }
+                       |    h2 { color: #555; margin-top: 30px; }
+                       |    h4 { color: #666; margin-bottom: 5px; }
+                       |    .apps-section { margin: 20px 0; }
+                       |    .app {
+                       |      margin: 5px 0;
+                       |      word-break: break-all;
+                       |    }
+                       |    ul { margin: 10px 0; }
+                       |    a { color: #0066cc; text-decoration: none; }
+                       |    a:hover { text-decoration: underline; }
+                       |  </style>
+                       |</head>
+                       |<body>
+                       |<h1>OBP OIDC Provider</h1>
+                       |<p>OpenID Connect provider is running</p>
+                       |<p><strong>Version:</strong> v2.0.0-DEBUG-${java.time.Instant
+                                       .now()}</p>
+                       |<p><em>Debug mode enabled - Enhanced logging for azp claim troubleshooting</em></p>
+                       |$appsSection
+                       |<h2>Endpoints:</h2>
+                       |<ul>
+                       |<li><a href="/obp-oidc/.well-known/openid-configuration">Discovery</a></li>
+                       |<li><a href="/obp-oidc/jwks">JWKS</a></li>
+                       |<li><a href="/clients">OIDC Clients</a></li>
+                       |<li><a href="/health">Health Check</a></li>
+                       |</ul>
+                       |</body>
+                       |</html>""".stripMargin)
+                      .map(
+                        _.withContentType(
+                          org.http4s.headers.`Content-Type`(MediaType.text.html)
+                        )
                       )
-                    )
+                  } yield response
 
                 // OIDC Discovery
                 case GET -> Root / "obp-oidc" / ".well-known" / "openid-configuration" =>
