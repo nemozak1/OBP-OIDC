@@ -263,10 +263,10 @@ class StatsEndpoint(statsService: StatsService[IO], config: OidcConfig) {
        |<body>
        |    <div class="container">
        |        <div class="header">
-       |            <h1>🔄 OIDC Statistics</h1>
+       |            <h1>OIDC Statistics</h1>
        |            <p>Real-time monitoring of OpenID Connect operations</p>
        |            <div class="auto-refresh">
-       |                🔄 Auto-refreshing every 10 seconds
+       |                Auto-refreshing every 10 seconds
        |            </div>
        |        </div>
        |
@@ -321,7 +321,7 @@ class StatsEndpoint(statsService: StatsService[IO], config: OidcConfig) {
        |        </div>
        |
        |        <div class="events-section">
-       |            <h2 class="section-title">📋 Recent Events</h2>
+       |            <h2 class="section-title">Recent Events</h2>
        |            <table class="events-table">
        |                <thead>
        |                    <tr>
@@ -337,12 +337,12 @@ class StatsEndpoint(statsService: StatsService[IO], config: OidcConfig) {
        |        </div>
        |
        |        <div class="nav">
-       |            <a href="/">← Back to Home</a>
+       |            <a href="/">Back to Home</a>
        |            <a href="/clients">View Clients</a>
        |            <a href="/health">Health Check</a>
        |            <form style="display: inline;" method="post" action="/stats/reset">
        |                <button type="submit" class="reset-btn" onclick="return confirm('Are you sure you want to reset all statistics?')">
-       |                    🔄 Reset Stats
+       |                    Reset Stats
        |                </button>
        |            </form>
        |        </div>
