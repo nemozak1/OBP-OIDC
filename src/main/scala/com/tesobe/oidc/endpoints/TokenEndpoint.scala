@@ -345,6 +345,12 @@ class TokenEndpoint(
                   refresh_token = Some(newRefreshTokenJwt)
                 )
 
+                _ <- IO.pure(
+                  logger.info(
+                    s"🎉 Refresh token successfully used for user: ${user.username}, client: $clientId - New tokens issued"
+                  )
+                )
+
                 response <- Ok(tokenResponse.asJson)
                   .map(
                     _.withHeaders(
