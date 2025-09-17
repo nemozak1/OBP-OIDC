@@ -29,8 +29,13 @@ import org.http4s.circe._
 import org.http4s.dsl.io._
 import org.http4s.headers.Location
 import org.slf4j.LoggerFactory
+import com.tesobe.oidc.stats.StatsService
 
-class AuthEndpoint(authService: AuthService[IO], codeService: CodeService[IO]) {
+class AuthEndpoint(
+    authService: AuthService[IO],
+    codeService: CodeService[IO],
+    statsService: StatsService[IO]
+) {
 
   private val logger = LoggerFactory.getLogger(getClass)
 
@@ -186,13 +191,17 @@ class AuthEndpoint(authService: AuthService[IO], codeService: CodeService[IO]) {
     authService.authenticate(username, password, provider).flatMap {
       case Right(user) =>
         for {
+          _ <- statsService.incrementLoginSuccess(username)
           code <- codeService
             .generateCode(clientId, redirectUri, user.sub, scope, state, nonce)
           response <- redirectWithCode(redirectUri, code, state)
         } yield response
 
       case Left(error) =>
-        redirectWithError(redirectUri, error.copy(state = state))
+        for {
+          _ <- statsService.incrementLoginFailure(username, error.error)
+          response <- redirectWithError(redirectUri, error.copy(state = state))
+        } yield response
     }
   }
 
@@ -319,7 +328,8 @@ class AuthEndpoint(authService: AuthService[IO], codeService: CodeService[IO]) {
 object AuthEndpoint {
   def apply(
       authService: AuthService[IO],
-      codeService: CodeService[IO]
+      codeService: CodeService[IO],
+      statsService: StatsService[IO]
   ): AuthEndpoint =
-    new AuthEndpoint(authService, codeService)
+    new AuthEndpoint(authService, codeService, statsService)
 }
