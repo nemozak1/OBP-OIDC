@@ -240,6 +240,12 @@ object OidcServer extends IOApp {
                        |<p><strong>Version:</strong> v2.0.0-DEBUG-${java.time.Instant
                                        .now()}</p>
                        |<p><em>Debug mode enabled - Enhanced logging for azp claim troubleshooting</em></p>
+                       |<h2>Configuration:</h2>
+                       |<ul>
+                       |<li><strong>Access Token Lifetime:</strong> ${config.tokenExpirationSeconds} seconds (${config.tokenExpirationSeconds / 60} minutes)</li>
+                       |<li><strong>Authorization Code Lifetime:</strong> ${config.codeExpirationSeconds} seconds (${config.codeExpirationSeconds / 60} minutes)</li>
+                       |<li><strong>Refresh Token Lifetime:</strong> ${config.tokenExpirationSeconds * 720} seconds (~${config.tokenExpirationSeconds * 720 / 86400} days)</li>
+                       |</ul>
                        |$appsSection
                        |<h2>OIDC Endpoints:</h2>
                        |<ul>
