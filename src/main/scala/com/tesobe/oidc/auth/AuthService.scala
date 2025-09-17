@@ -21,44 +21,42 @@ package com.tesobe.oidc.auth
 
 import com.tesobe.oidc.models.{User, OidcError, OidcClient}
 
-/**
- * Authentication service trait defining the contract for user authentication
- * and client validation in the OIDC provider.
- */
+/** Authentication service trait defining the contract for user authentication
+  * and client validation in the OIDC provider.
+  */
 trait AuthService[F[_]] {
-  /**
-   * Authenticate a user by username and password
-   * Returns the user information if authentication succeeds
-   */
-  def authenticate(username: String, password: String, provider: String): F[Either[OidcError, User]]
 
-  /**
-   * Get user information by subject ID
-   */
+  /** Authenticate a user by username and password Returns the user information
+    * if authentication succeeds
+    */
+  def authenticate(
+      username: String,
+      password: String,
+      provider: String
+  ): F[Either[OidcError, User]]
+
+  /** Get user information by subject ID
+    */
   def getUserById(sub: String): F[Option[User]]
 
-  /**
-   * Get available authentication providers
-   */
+  /** Get available authentication providers
+    */
   def getAvailableProviders(): F[List[String]]
 
-  /**
-   * Validate that a client_id and redirect_uri combination is valid
-   */
+  /** Validate that a client_id and redirect_uri combination is valid
+    */
   def validateClient(clientId: String, redirectUri: String): F[Boolean]
 
-  /**
-   * Find a client by client ID
-   */
+  /** Find a client by client ID
+    */
   def findClientById(clientId: String): F[Option[OidcClient]]
 
-  /**
-   * Find an admin client by client ID (with write access)
-   */
+  /** Find an admin client by client ID (with write access)
+    */
   def findAdminClientById(clientId: String): F[Option[OidcClient]]
 
-  /**
-   * List all registered clients
-   */
+  /** List all registered clients
+    */
   def listClients(): F[Either[OidcError, List[OidcClient]]]
+
 }

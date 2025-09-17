@@ -87,6 +87,7 @@ class TokenEndpoint(
     val code = formData.get("code")
     val redirectUri = formData.get("redirect_uri")
     val clientId = formData.get("client_id")
+    val refreshToken = formData.get("refresh_token")
 
     println(s"🎫 DEBUG: Grant type extracted: ${grantType}")
     logger.info(s"🔑 Grant type: ${grantType.getOrElse("MISSING")}")
@@ -95,30 +96,61 @@ class TokenEndpoint(
     logger.info(s"🆔 Client ID: ${clientId.getOrElse("MISSING")}")
 
     println(s"🎫 DEBUG: About to match on parameters")
-    (grantType, code, redirectUri, clientId) match {
-      case (
-            Some("authorization_code"),
-            Some(authCode),
-            Some(redirectUriValue),
-            Some(clientIdValue)
-          ) =>
-        println(s"🎫 DEBUG: Matched authorization_code case")
-        logger.info(
-          s"✅ Processing authorization_code grant for client: $clientIdValue"
-        )
-        logger.trace(
-          s"About to call processAuthorizationCodeGrant"
-        )
-        val result = processAuthorizationCodeGrant(
-          authCode,
-          redirectUriValue,
-          clientIdValue
-        )
-        logger.trace(
-          s"processAuthorizationCodeGrant call completed"
-        )
-        result
-      case (Some(unsupportedGrant), _, _, _) =>
+    grantType match {
+      case Some("authorization_code") =>
+        (code, redirectUri, clientId) match {
+          case (Some(authCode), Some(redirectUriValue), Some(clientIdValue)) =>
+            println(s"🎫 DEBUG: Matched authorization_code case")
+            logger.info(
+              s"✅ Processing authorization_code grant for client: $clientIdValue"
+            )
+            logger.trace(
+              s"About to call processAuthorizationCodeGrant"
+            )
+            val result = processAuthorizationCodeGrant(
+              authCode,
+              redirectUriValue,
+              clientIdValue
+            )
+            logger.trace(
+              s"processAuthorizationCodeGrant call completed"
+            )
+            result
+          case _ =>
+            println(
+              s"🎫 DEBUG: Missing required parameters for authorization_code"
+            )
+            logger.warn(
+              s"❌ Missing required parameters for authorization_code - code: ${code.isDefined}, redirect_uri: ${redirectUri.isDefined}, client_id: ${clientId.isDefined}"
+            )
+            BadRequest(
+              OidcError(
+                "invalid_request",
+                Some("Missing required parameters for authorization_code grant")
+              ).asJson
+            )
+        }
+      case Some("refresh_token") =>
+        (refreshToken, clientId) match {
+          case (Some(refreshTokenValue), Some(clientIdValue)) =>
+            println(s"🎫 DEBUG: Matched refresh_token case")
+            logger.info(
+              s"✅ Processing refresh_token grant for client: $clientIdValue"
+            )
+            processRefreshTokenGrant(refreshTokenValue, clientIdValue)
+          case _ =>
+            println(s"🎫 DEBUG: Missing required parameters for refresh_token")
+            logger.warn(
+              s"❌ Missing required parameters for refresh_token - refresh_token: ${refreshToken.isDefined}, client_id: ${clientId.isDefined}"
+            )
+            BadRequest(
+              OidcError(
+                "invalid_request",
+                Some("Missing required parameters for refresh_token grant")
+              ).asJson
+            )
+        }
+      case Some(unsupportedGrant) =>
         println(
           s"🎫 DEBUG: Matched unsupported grant type case: '$unsupportedGrant'"
         )
@@ -129,15 +161,13 @@ class TokenEndpoint(
             Some(s"Grant type '$unsupportedGrant' is not supported")
           ).asJson
         )
-      case _ =>
-        println(s"🎫 DEBUG: Matched missing parameters case")
-        logger.warn(
-          s"❌ Missing required parameters - grant_type: ${grantType.isDefined}, code: ${code.isDefined}, redirect_uri: ${redirectUri.isDefined}, client_id: ${clientId.isDefined}"
-        )
+      case None =>
+        println(s"🎫 DEBUG: Missing grant_type parameter")
+        logger.warn(s"❌ Missing grant_type parameter")
         BadRequest(
           OidcError(
             "invalid_request",
-            Some("Missing required parameters")
+            Some("Missing grant_type parameter")
           ).asJson
         )
     }
@@ -210,13 +240,18 @@ class TokenEndpoint(
                 logger.info(s"✅ DEBUG: Both tokens generated successfully")
               )
 
+              // Generate refresh token (stateless JWT)
+              refreshTokenJwt <- jwtService
+                .generateRefreshToken(user, clientId, authCode.scope)
+
               // Create token response
               tokenResponse = TokenResponse(
                 access_token = accessToken,
                 token_type = "Bearer",
                 expires_in = config.tokenExpirationSeconds,
                 id_token = idToken,
-                scope = authCode.scope
+                scope = authCode.scope,
+                refresh_token = Some(refreshTokenJwt)
               )
 
               _ <- IO.pure(
@@ -263,6 +298,75 @@ class TokenEndpoint(
         logger.info(
           s"🔍 DEBUG: This is why you don't see azp logging - code validation failed!"
         )
+        BadRequest(error.asJson)
+    }
+  }
+
+  private def processRefreshTokenGrant(
+      refreshToken: String,
+      clientId: String
+  ): IO[Response[IO]] = {
+    logger.info(s"🔄 Processing refresh token grant for client: $clientId")
+
+    // Validate the refresh token JWT (stateless validation)
+    jwtService.validateRefreshToken(refreshToken).flatMap {
+      case Right(tokenClaims) =>
+        logger
+          .info(s"✅ Refresh token JWT validated for user: ${tokenClaims.sub}")
+
+        // Check if client_id matches
+        if (tokenClaims.client_id != clientId) {
+          logger.warn(s"❌ Client ID mismatch in refresh token")
+          BadRequest(
+            OidcError("invalid_grant", Some("Client ID mismatch")).asJson
+          )
+        } else {
+          // Get user information
+          authService.getUserById(tokenClaims.sub).flatMap {
+            case Some(user) =>
+              logger.info(s"✅ User found for refresh: ${user.username}")
+
+              for {
+                // Generate new access token
+                newAccessToken <- jwtService
+                  .generateAccessToken(user, clientId, tokenClaims.scope)
+
+                // Generate new refresh token (token rotation)
+                newRefreshTokenJwt <- jwtService
+                  .generateRefreshToken(user, clientId, tokenClaims.scope)
+
+                // Create token response (no ID token for refresh grant)
+                tokenResponse = TokenResponse(
+                  access_token = newAccessToken,
+                  token_type = "Bearer",
+                  expires_in = config.tokenExpirationSeconds,
+                  id_token = "", // Not included in refresh token response
+                  scope = tokenClaims.scope,
+                  refresh_token = Some(newRefreshTokenJwt)
+                )
+
+                response <- Ok(tokenResponse.asJson)
+                  .map(
+                    _.withHeaders(
+                      Header.Raw(CIString("Cache-Control"), "no-store"),
+                      Header.Raw(CIString("Pragma"), "no-cache")
+                    )
+                  )
+
+              } yield response
+
+            case None =>
+              logger.warn(
+                s"❌ User not found for refresh token: ${tokenClaims.sub}"
+              )
+              BadRequest(
+                OidcError("invalid_grant", Some("User not found")).asJson
+              )
+          }
+        }
+
+      case Left(error) =>
+        logger.warn(s"❌ Refresh token validation failed: ${error.error}")
         BadRequest(error.asJson)
     }
   }

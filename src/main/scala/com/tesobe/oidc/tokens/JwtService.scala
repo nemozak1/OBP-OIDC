@@ -31,12 +31,13 @@ import com.tesobe.oidc.models.{
   IdTokenClaims,
   JsonWebKey,
   OidcError,
+  RefreshTokenClaims,
   User
 }
 import com.tesobe.oidc.config.OidcConfig
 
 import java.security.interfaces.{RSAPrivateKey, RSAPublicKey}
-import java.security.{KeyPair, KeyPairGenerator}
+import java.security.{KeyPair, KeyPairGenerator, SecureRandom}
 import java.time.Instant
 import java.util.{Base64, Date}
 import scala.util.{Failure, Success, Try}
@@ -53,9 +54,17 @@ trait JwtService[F[_]] {
       clientId: String,
       scope: String
   ): F[String]
+  def generateRefreshToken(
+      user: User,
+      clientId: String,
+      scope: String
+  ): F[String]
   def validateAccessToken(
       token: String
   ): F[Either[OidcError, AccessTokenClaims]]
+  def validateRefreshToken(
+      token: String
+  ): F[Either[OidcError, RefreshTokenClaims]]
   def getJsonWebKey: F[JsonWebKey]
 }
 
@@ -63,6 +72,7 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
     extends JwtService[IO] {
 
   private val logger = LoggerFactory.getLogger(getClass)
+  private val secureRandom = new SecureRandom()
 
   private def getAlgorithm: IO[Algorithm] =
     keyPairRef.get.map { keyPair =>
@@ -183,6 +193,55 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
     } yield signedToken
   }
 
+  def generateRefreshToken(
+      user: User,
+      clientId: String,
+      scope: String
+  ): IO[String] = {
+    for {
+      algorithm <- getAlgorithm
+      now = Instant.now()
+      // Refresh tokens typically have longer expiration (30 days)
+      exp = now.plusSeconds(
+        config.tokenExpirationSeconds * 720
+      ) // 30 days if access token is 1 hour
+
+      // Generate unique JWT ID for refresh token
+      jti = generateJwtId()
+
+      issuer = config.issuer
+
+      _ = logger.info(
+        s"🔄 Generating refresh token for user: ${user.sub}, client: $clientId"
+      )
+
+      // Create Refresh token
+      token = JWT
+        .create()
+        .withIssuer(issuer)
+        .withSubject(user.sub)
+        .withAudience(clientId)
+        .withIssuedAt(Date.from(now))
+        .withExpiresAt(Date.from(exp))
+        .withKeyId(config.keyId)
+        .withJWTId(jti)
+        .withClaim("scope", scope)
+        .withClaim("client_id", clientId)
+
+      signedToken = token.sign(algorithm)
+
+      _ = logger.info(
+        s"✅ Refresh token generated successfully for user: ${user.sub}, client: $clientId"
+      )
+    } yield signedToken
+  }
+
+  private def generateJwtId(): String = {
+    val bytes = new Array[Byte](32)
+    secureRandom.nextBytes(bytes)
+    Base64.getUrlEncoder.withoutPadding().encodeToString(bytes)
+  }
+
   def validateAccessToken(
       token: String
   ): IO[Either[OidcError, AccessTokenClaims]] = {
@@ -232,6 +291,62 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
               "server_error",
               Some(s"Token validation error: ${ex.getMessage}")
             ).asLeft[AccessTokenClaims]
+        }
+      }
+    }
+  }
+
+  def validateRefreshToken(
+      token: String
+  ): IO[Either[OidcError, RefreshTokenClaims]] = {
+    getAlgorithm.flatMap { algorithm =>
+      IO {
+        Try {
+          val verifier = JWT
+            .require(algorithm)
+            .acceptIssuedAt(
+              config.tokenExpirationSeconds * 720
+            ) // Allow longer expiration for refresh tokens
+            .build()
+
+          val decodedJWT: DecodedJWT = verifier.verify(token)
+
+          // Validate that issuer matches our config
+          val issuer = decodedJWT.getIssuer
+          if (
+            issuer == null || issuer.trim.isEmpty || issuer != config.issuer
+          ) {
+            throw new JWTVerificationException(
+              "Invalid issuer for refresh token"
+            )
+          }
+
+          logger.info(
+            s"🔍 Validating refresh token for user: ${decodedJWT.getSubject}, client: ${decodedJWT.getClaim("client_id").asString()}"
+          )
+
+          RefreshTokenClaims(
+            iss = decodedJWT.getIssuer,
+            sub = decodedJWT.getSubject,
+            aud = decodedJWT.getAudience.get(
+              0
+            ), // Take first audience (should be client_id)
+            exp = decodedJWT.getExpiresAt.toInstant.getEpochSecond,
+            iat = decodedJWT.getIssuedAt.toInstant.getEpochSecond,
+            jti = decodedJWT.getId,
+            scope = decodedJWT.getClaim("scope").asString(),
+            client_id = decodedJWT.getClaim("client_id").asString()
+          )
+        } match {
+          case Success(claims) => claims.asRight[OidcError]
+          case Failure(_: JWTVerificationException) =>
+            OidcError("invalid_grant", Some("Invalid refresh token"))
+              .asLeft[RefreshTokenClaims]
+          case Failure(ex) =>
+            OidcError(
+              "server_error",
+              Some(s"Refresh token validation error: ${ex.getMessage}")
+            ).asLeft[RefreshTokenClaims]
         }
       }
     }
