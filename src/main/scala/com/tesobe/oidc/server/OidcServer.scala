@@ -240,13 +240,30 @@ object OidcServer extends IOApp {
                        |<p><strong>Version:</strong> v2.0.0-DEBUG-${java.time.Instant
                                        .now()}</p>
                        |<p><em>Debug mode enabled - Enhanced logging for azp claim troubleshooting</em></p>
-                       |$appsSection
-                       |<h2>Endpoints:</h2>
+                       |<h2>Configuration:</h2>
                        |<ul>
-                       |<li><a href="/obp-oidc/.well-known/openid-configuration">Discovery</a></li>
-                       |<li><a href="/obp-oidc/jwks">JWKS</a></li>
-                       |<li><a href="/clients">OIDC Clients</a></li>
-                       |<li><a href="/health">Health Check</a></li>
+                       |<li><strong>Access Token Lifetime:</strong> ${config.tokenExpirationSeconds} seconds (${config.tokenExpirationSeconds / 60} minutes)</li>
+                       |<li><strong>Authorization Code Lifetime:</strong> ${config.codeExpirationSeconds} seconds (${config.codeExpirationSeconds / 60} minutes)</li>
+                       |<li><strong>Refresh Token Lifetime:</strong> ${config.tokenExpirationSeconds * 720} seconds (~${config.tokenExpirationSeconds * 720 / 86400} days)</li>
+                       |</ul>
+                       |$appsSection
+                       |<h2>OIDC Endpoints:</h2>
+                       |<ul>
+                       |<li><a href="/obp-oidc/.well-known/openid-configuration">Discovery Configuration</a> - OpenID Connect metadata</li>
+                       |<li><strong>/obp-oidc/auth</strong> - Authorization endpoint (OAuth 2.0 authorization code flow)</li>
+                       |<li><strong>/obp-oidc/token</strong> - Token endpoint (supports <code>authorization_code</code> and <code>refresh_token</code> grants)</li>
+                       |<li><strong>/obp-oidc/userinfo</strong> - UserInfo endpoint (get user profile with access token)</li>
+                       |<li><a href="/obp-oidc/jwks">JWKS</a> - JSON Web Key Set (for token verification)</li>
+                       |</ul>
+                       |<h2>Admin Endpoints:</h2>
+                       |<ul>
+                       |<li><a href="/clients">OIDC Clients</a> - View registered clients</li>
+                       |<li><a href="/health">Health Check</a> - Service status</li>
+                       |</ul>
+                       |<h2>Supported Grant Types:</h2>
+                       |<ul>
+                       |<li><code>authorization_code</code> - Standard OIDC flow for web applications</li>
+                       |<li><code>refresh_token</code> - Refresh access tokens without re-authentication</li>
                        |</ul>
                        |</body>
                        |</html>""".stripMargin)

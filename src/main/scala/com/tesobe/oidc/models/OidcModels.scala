@@ -112,17 +112,16 @@ object UserInfo {
 
 // OIDC Client Registration
 case class OidcClient(
-  client_id: String,
-  client_secret: Option[String] = None,
-  client_name: String,
-  consumer_id: String,
-  redirect_uris: List[String],
-  grant_types: List[String] = List("authorization_code"),
-  response_types: List[String] = List("code"),
-  scopes: List[String] = List("openid", "profile", "email"),
-  token_endpoint_auth_method: String = "client_secret_post",
-  created_at: Option[String] = None
-
+    client_id: String,
+    client_secret: Option[String] = None,
+    client_name: String,
+    consumer_id: String,
+    redirect_uris: List[String],
+    grant_types: List[String] = List("authorization_code"),
+    response_types: List[String] = List("code"),
+    scopes: List[String] = List("openid", "profile", "email"),
+    token_endpoint_auth_method: String = "client_secret_post",
+    created_at: Option[String] = None
 )
 
 object OidcClient {
@@ -181,12 +180,30 @@ case class TokenResponse(
     token_type: String = "Bearer",
     expires_in: Long,
     id_token: String,
-    scope: String
+    scope: String,
+    refresh_token: Option[String] = None
 )
 
 object TokenResponse {
   implicit val encoder: Encoder[TokenResponse] = deriveEncoder
   implicit val decoder: Decoder[TokenResponse] = deriveDecoder
+}
+
+// Refresh Token Claims for JWT
+case class RefreshTokenClaims(
+    iss: String, // Issuer
+    sub: String, // Subject (user ID)
+    aud: String, // Audience (client ID)
+    exp: Long, // Expiration time
+    iat: Long, // Issued at time
+    jti: String, // JWT ID (unique token identifier)
+    scope: String,
+    client_id: String
+)
+
+object RefreshTokenClaims {
+  implicit val encoder: Encoder[RefreshTokenClaims] = deriveEncoder
+  implicit val decoder: Decoder[RefreshTokenClaims] = deriveDecoder
 }
 
 // Error responses
