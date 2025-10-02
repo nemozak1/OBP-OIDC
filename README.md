@@ -172,6 +172,16 @@ mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
 OIDC_PORT=8080 mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
 ```
 
+#### Version Configuration
+
+The version displayed on the index page is read from the `VERSION` file in the project root. To change the version:
+
+```bash
+echo "2.1.0" > VERSION
+```
+
+The version will be displayed as `v2.1.0` on the server's index page at `http://localhost:9000/`.
+
 ### Discovery Document
 
 ```

@@ -20,6 +20,7 @@
 package com.tesobe.oidc.server
 
 import scala.language.higherKinds
+import scala.io.Source
 import cats.effect.{ExitCode, IO, IOApp}
 import cats.syntax.all._
 import com.comcast.ip4s.{Host, Port}
@@ -241,8 +242,7 @@ object OidcServer extends IOApp {
                        |<body>
                        |<h1>OBP OIDC Provider</h1>
                        |<p>OpenID Connect provider is running</p>
-                       |<p><strong>Version:</strong> v2.0.0-DEBUG-${java.time.Instant
-                                       .now()}</p>
+                       |<p><strong>Version:</strong> v${readVersion()}</p>
                        |<p><em>Debug mode enabled - Enhanced logging for azp claim troubleshooting</em></p>
                        |<h2>Configuration:</h2>
                        |<ul>
@@ -547,6 +547,25 @@ object OidcServer extends IOApp {
         } yield ()
       case None =>
         IO(println("Client not found"))
+    }
+  }
+
+  private def readVersion(): String = {
+    try {
+      val source = Source.fromFile("VERSION")
+      try {
+        val lines = source.getLines()
+        if (lines.hasNext) {
+          val version = lines.next().trim
+          if (version.nonEmpty) version else "unknown"
+        } else {
+          "unknown"
+        }
+      } finally {
+        source.close()
+      }
+    } catch {
+      case _: Exception => "unknown"
     }
   }
 
