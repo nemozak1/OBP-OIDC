@@ -174,13 +174,35 @@ OIDC_PORT=8080 mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer
 
 #### Version Configuration
 
-The version displayed on the index page is read from the `VERSION` file in the project root. To change the version:
+The version displayed on the index page is read from the `VERSION` file in the project root, along with the current full git commit hash. To change the version:
 
 ```bash
 echo "2.1.0" > VERSION
 ```
 
-The version will be displayed as `v2.1.0` on the server's index page at `http://localhost:9000/`.
+**Examples of version display formats:**
+
+- With git: `v2.1.0 (985212327034751417dfce9845877b627dfff1de)` - Shows version from VERSION file + full git commit hash
+- Without git: `v2.1.0 (no-git)` - Shows version from VERSION file when git is unavailable
+- Missing VERSION file: `vunknown (985212327034751417dfce9845877b627dfff1de)` - Fallback when VERSION file doesn't exist
+- No git, no VERSION: `vunknown (no-git)` - Complete fallback scenario
+
+**Common version formats you can use:**
+
+```bash
+# Release versions
+echo "2.1.0" > VERSION
+
+# Pre-release versions
+echo "2.1.0-BETA" > VERSION
+echo "2.1.0-RC1" > VERSION
+
+# Development versions
+echo "2.1.0-SNAPSHOT" > VERSION
+echo "3.0.0-dev" > VERSION
+```
+
+The version will be displayed on the server's index page at `http://localhost:9000/`.
 
 ### Discovery Document
 

@@ -242,7 +242,7 @@ object OidcServer extends IOApp {
                        |<body>
                        |<h1>OBP OIDC Provider</h1>
                        |<p>OpenID Connect provider is running</p>
-                       |<p><strong>Version:</strong> v${readVersion()}</p>
+                       |<p><strong>Version:</strong> v${readVersion()} (${readGitCommit()})</p>
                        |<p><em>Debug mode enabled - Enhanced logging for azp claim troubleshooting</em></p>
                        |<h2>Configuration:</h2>
                        |<ul>
@@ -566,6 +566,36 @@ object OidcServer extends IOApp {
       }
     } catch {
       case _: Exception => "unknown"
+    }
+  }
+
+  private def readGitCommit(): String = {
+    try {
+      val processBuilder =
+        new ProcessBuilder("git", "rev-parse", "HEAD")
+      processBuilder.directory(new java.io.File("."))
+      val process = processBuilder.start()
+
+      val reader = new java.io.BufferedReader(
+        new java.io.InputStreamReader(process.getInputStream)
+      )
+      val errorReader = new java.io.BufferedReader(
+        new java.io.InputStreamReader(process.getErrorStream)
+      )
+
+      val commit = reader.readLine()
+      val exitCode = process.waitFor()
+
+      reader.close()
+      errorReader.close()
+
+      if (exitCode == 0 && commit != null && commit.trim.nonEmpty) {
+        commit.trim
+      } else {
+        "no-git"
+      }
+    } catch {
+      case _: Exception => "no-git"
     }
   }
 
