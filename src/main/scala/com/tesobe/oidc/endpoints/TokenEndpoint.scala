@@ -25,6 +25,7 @@ import com.tesobe.oidc.auth.{AuthService, CodeService}
 import com.tesobe.oidc.models.{OidcError, TokenRequest, TokenResponse}
 import com.tesobe.oidc.tokens.JwtService
 import com.tesobe.oidc.config.OidcConfig
+import com.tesobe.oidc.stats.StatsService
 import io.circe.syntax._
 import org.http4s._
 import org.http4s.circe._
@@ -36,7 +37,8 @@ class TokenEndpoint(
     authService: AuthService[IO],
     codeService: CodeService[IO],
     jwtService: JwtService[IO],
-    config: OidcConfig
+    config: OidcConfig,
+    statsService: StatsService[IO]
 ) {
 
   private val logger = LoggerFactory.getLogger(getClass)
@@ -240,6 +242,10 @@ class TokenEndpoint(
                 logger.info(s"✅ DEBUG: Both tokens generated successfully")
               )
 
+              // Track successful authorization code grant
+              _ <- statsService
+                .incrementAuthorizationCodeSuccess(clientId, user.username)
+
               // Generate refresh token (stateless JWT)
               refreshTokenJwt <- jwtService
                 .generateRefreshToken(user, clientId, authCode.scope)
@@ -298,7 +304,10 @@ class TokenEndpoint(
         logger.info(
           s"🔍 DEBUG: This is why you don't see azp logging - code validation failed!"
         )
-        BadRequest(error.asJson)
+        // Track failed authorization code grant
+        statsService
+          .incrementAuthorizationCodeFailure(error.error)
+          .flatMap(_ => BadRequest(error.asJson))
     }
   }
 
@@ -351,6 +360,10 @@ class TokenEndpoint(
                   )
                 )
 
+                // Track successful refresh token usage
+                _ <- statsService
+                  .incrementRefreshTokenSuccess(clientId, user.username)
+
                 response <- Ok(tokenResponse.asJson)
                   .map(
                     _.withHeaders(
@@ -365,15 +378,21 @@ class TokenEndpoint(
               logger.warn(
                 s"❌ User not found for refresh token: ${tokenClaims.sub}"
               )
-              BadRequest(
-                OidcError("invalid_grant", Some("User not found")).asJson
-              )
+              statsService
+                .incrementRefreshTokenFailure("User not found")
+                .flatMap(_ =>
+                  BadRequest(
+                    OidcError("invalid_grant", Some("User not found")).asJson
+                  )
+                )
           }
         }
 
       case Left(error) =>
         logger.warn(s"❌ Refresh token validation failed: ${error.error}")
-        BadRequest(error.asJson)
+        statsService
+          .incrementRefreshTokenFailure(error.error)
+          .flatMap(_ => BadRequest(error.asJson))
     }
   }
 }
@@ -383,7 +402,14 @@ object TokenEndpoint {
       authService: AuthService[IO],
       codeService: CodeService[IO],
       jwtService: JwtService[IO],
-      config: OidcConfig
+      config: OidcConfig,
+      statsService: StatsService[IO]
   ): TokenEndpoint =
-    new TokenEndpoint(authService, codeService, jwtService, config)
+    new TokenEndpoint(
+      authService,
+      codeService,
+      jwtService,
+      config,
+      statsService
+    )
 }

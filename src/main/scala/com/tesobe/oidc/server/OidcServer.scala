@@ -20,6 +20,7 @@
 package com.tesobe.oidc.server
 
 import scala.language.higherKinds
+import scala.io.Source
 import cats.effect.{ExitCode, IO, IOApp}
 import cats.syntax.all._
 import com.comcast.ip4s.{Host, Port}
@@ -29,6 +30,7 @@ import com.tesobe.oidc.bootstrap.ClientBootstrap
 import com.tesobe.oidc.config.Config
 import com.tesobe.oidc.endpoints._
 import com.tesobe.oidc.tokens.JwtService
+import com.tesobe.oidc.stats.StatsService
 import org.http4s._
 import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.implicits._
@@ -140,19 +142,22 @@ object OidcServer extends IOApp {
           // Initialize services
           codeService <- CodeService(config)
           jwtService <- JwtService(config)
+          statsService <- StatsService()
 
           // Initialize endpoints
           discoveryEndpoint = DiscoveryEndpoint(config)
           jwksEndpoint = JwksEndpoint(jwtService)
-          authEndpoint = AuthEndpoint(authService, codeService)
+          authEndpoint = AuthEndpoint(authService, codeService, statsService)
           tokenEndpoint = TokenEndpoint(
             authService,
             codeService,
             jwtService,
-            config
+            config,
+            statsService
           )
           userInfoEndpoint = UserInfoEndpoint(authService, jwtService)
           clientsEndpoint = ClientsEndpoint(authService)
+          statsEndpoint = StatsEndpoint(statsService, config)
 
           // Create all routes in a single HttpRoutes definition
           routes = {
@@ -237,8 +242,7 @@ object OidcServer extends IOApp {
                        |<body>
                        |<h1>OBP OIDC Provider</h1>
                        |<p>OpenID Connect provider is running</p>
-                       |<p><strong>Version:</strong> v2.0.0-DEBUG-${java.time.Instant
-                                       .now()}</p>
+                       |<p><strong>Version:</strong> v${readVersion()} (${readGitCommit()})</p>
                        |<p><em>Debug mode enabled - Enhanced logging for azp claim troubleshooting</em></p>
                        |<h2>Configuration:</h2>
                        |<ul>
@@ -258,6 +262,7 @@ object OidcServer extends IOApp {
                        |<h2>Admin Endpoints:</h2>
                        |<ul>
                        |<li><a href="/clients">OIDC Clients</a> - View registered clients</li>
+                       |<li><a href="/stats">Statistics</a> - Real-time usage statistics</li>
                        |<li><a href="/health">Health Check</a> - Service status</li>
                        |</ul>
                        |<h2>Supported Grant Types:</h2>
@@ -308,11 +313,12 @@ object OidcServer extends IOApp {
 
                 // Delegate other requests to endpoints
                 case req =>
-                  IO(
-                    println(
-                      s"🌐 Incoming request: ${req.method} ${req.uri} - Content-Type: ${req.headers.get[headers.`Content-Type`].map(_.mediaType).getOrElse("MISSING")}"
-                    )
-                  ) *>
+                  statsService.incrementTotalRequests *>
+                    IO(
+                      println(
+                        s"🌐 Incoming request: ${req.method} ${req.uri} - Content-Type: ${req.headers.get[headers.`Content-Type`].map(_.mediaType).getOrElse("MISSING")}"
+                      )
+                    ) *>
                     authEndpoint.routes.run(req).value.flatMap {
                       case Some(resp) =>
                         IO(println(s"🔐 Request handled by AuthEndpoint")) *>
@@ -363,10 +369,30 @@ object OidcServer extends IOApp {
                                           case None =>
                                             IO(
                                               println(
-                                                s"❌ No endpoint handled the request: ${req.method} ${req.uri}"
+                                                s"📋 ClientsEndpoint did not handle request, trying StatsEndpoint"
                                               )
                                             ) *>
-                                              NotFound("Endpoint not found")
+                                              statsEndpoint.routes
+                                                .run(req)
+                                                .value
+                                                .flatMap {
+                                                  case Some(resp) =>
+                                                    IO(
+                                                      println(
+                                                        s"📊 Request handled by StatsEndpoint"
+                                                      )
+                                                    ) *>
+                                                      IO.pure(resp)
+                                                  case None =>
+                                                    IO(
+                                                      println(
+                                                        s"❌ No endpoint handled the request: ${req.method} ${req.uri}"
+                                                      )
+                                                    ) *>
+                                                      NotFound(
+                                                        "Endpoint not found"
+                                                      )
+                                                }
                                         }
                                 }
                           }
@@ -521,6 +547,55 @@ object OidcServer extends IOApp {
         } yield ()
       case None =>
         IO(println("Client not found"))
+    }
+  }
+
+  private def readVersion(): String = {
+    try {
+      val source = Source.fromFile("VERSION")
+      try {
+        val lines = source.getLines()
+        if (lines.hasNext) {
+          val version = lines.next().trim
+          if (version.nonEmpty) version else "unknown"
+        } else {
+          "unknown"
+        }
+      } finally {
+        source.close()
+      }
+    } catch {
+      case _: Exception => "unknown"
+    }
+  }
+
+  private def readGitCommit(): String = {
+    try {
+      val processBuilder =
+        new ProcessBuilder("git", "rev-parse", "HEAD")
+      processBuilder.directory(new java.io.File("."))
+      val process = processBuilder.start()
+
+      val reader = new java.io.BufferedReader(
+        new java.io.InputStreamReader(process.getInputStream)
+      )
+      val errorReader = new java.io.BufferedReader(
+        new java.io.InputStreamReader(process.getErrorStream)
+      )
+
+      val commit = reader.readLine()
+      val exitCode = process.waitFor()
+
+      reader.close()
+      errorReader.close()
+
+      if (exitCode == 0 && commit != null && commit.trim.nonEmpty) {
+        commit.trim
+      } else {
+        "no-git"
+      }
+    } catch {
+      case _: Exception => "no-git"
     }
   }
 

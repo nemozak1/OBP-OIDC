@@ -25,6 +25,7 @@ import com.tesobe.oidc.config.{DatabaseConfig, OidcConfig, ServerConfig}
 import com.tesobe.oidc.endpoints._
 import com.tesobe.oidc.models._
 import com.tesobe.oidc.tokens.JwtService
+import com.tesobe.oidc.stats.StatsService
 import io.circe.parser._
 import org.http4s._
 
@@ -53,15 +54,17 @@ class OidcProviderIntegrationTest extends AnyFlatSpec with Matchers {
       authService <- IO(MockAuthService())
       codeService <- CodeService(testConfig)
       jwtService <- JwtService(testConfig)
+      statsService <- StatsService()
 
       discoveryEndpoint = DiscoveryEndpoint(testConfig)
       jwksEndpoint = JwksEndpoint(jwtService)
-      authEndpoint = AuthEndpoint(authService, codeService)
+      authEndpoint = AuthEndpoint(authService, codeService, statsService)
       tokenEndpoint = TokenEndpoint(
         authService,
         codeService,
         jwtService,
-        testConfig
+        testConfig,
+        statsService
       )
       userInfoEndpoint = UserInfoEndpoint(authService, jwtService)
 
