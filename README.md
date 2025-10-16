@@ -27,21 +27,28 @@ Designed to read / write to the OBP Users and Consumers tables via SQL views def
 
 This application assumes you have an OBP database running locally.
 
-The following script in OBP-API will create the SQL roles and views (2 or 3 of them) that this application needs to work.
+Please see the following folder which has the SQL scripts to create the users and views:
 
-https://github.com/OpenBankProject/OBP-API/blob/develop/obp-api/src/main/scripts/sql/create_oidc_user_and_views.sql
+https://github.com/OpenBankProject/OBP-API/blob/develop/obp-api/src/main/scripts/OIDC
+
+Note: You should edit host and credentials in OBP-API-C/OBP-API/obp-api/src/main/scripts/sql/OIDC/set_and_connect.sql
 
 If you have OBP source code locally you can run the file thus:
 
 ```bash
-psql -h localhost -p 5432 -d sandbox -U obp -f workspace_2024/OBP-API-C/OBP-API/obp-api/src/main/scripts/sql/create_oidc_user_and_views.sql
+psql -h localhost -p 5432 -d sandbox -U obp -f workspace_2024/OBP-API-C/OBP-API/obp-api/src/main/scripts/sql/OIDC/give_read_access_to_users.sql
+psql -h localhost -p 5432 -d sandbox -U obp -f workspace_2024/OBP-API-C/OBP-API/obp-api/src/main/scripts/sql/OIDC/give_read_access_to_clients.sql
+psql -h localhost -p 5432 -d sandbox -U obp -f workspace_2024/OBP-API-C/OBP-API/obp-api/src/main/scripts/sql/OIDC/give_admin_access_to_consumers.sql
+
+
+
 ```
 
 or from with in psql thus
 
 ```psql
 
-\i PATH-TO-OBP-API-SOURCE-CODE/obp-api/src/main/scripts/sql/create_oidc_user_and_views.sql
+\i PATH-TO-OBP-API-SOURCE-CODE/obp-api/src/main/scripts/sql/OIDC/FILE_NAME.sql
 
 ```
 
