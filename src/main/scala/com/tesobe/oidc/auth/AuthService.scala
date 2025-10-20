@@ -47,6 +47,14 @@ trait AuthService[F[_]] {
     */
   def validateClient(clientId: String, redirectUri: String): F[Boolean]
 
+  /** Authenticate a client by client_id and client_secret Returns the client
+    * information if authentication succeeds
+    */
+  def authenticateClient(
+      clientId: String,
+      clientSecret: String
+  ): F[Either[OidcError, OidcClient]]
+
   /** Find a client by client ID
     */
   def findClientById(clientId: String): F[Option[OidcClient]]

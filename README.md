@@ -27,21 +27,28 @@ Designed to read / write to the OBP Users and Consumers tables via SQL views def
 
 This application assumes you have an OBP database running locally.
 
-The following script in OBP-API will create the SQL roles and views (2 or 3 of them) that this application needs to work.
+Please see the following folder which has the SQL scripts to create the users and views:
 
-https://github.com/OpenBankProject/OBP-API/blob/develop/obp-api/src/main/scripts/sql/create_oidc_user_and_views.sql
+https://github.com/OpenBankProject/OBP-API/blob/develop/obp-api/src/main/scripts/OIDC
+
+Note: You should edit host and credentials in OBP-API-C/OBP-API/obp-api/src/main/scripts/sql/OIDC/set_and_connect.sql
 
 If you have OBP source code locally you can run the file thus:
 
 ```bash
-psql -h localhost -p 5432 -d sandbox -U obp -f workspace_2024/OBP-API-C/OBP-API/obp-api/src/main/scripts/sql/create_oidc_user_and_views.sql
+psql -h localhost -p 5432 -d sandbox -U obp -f workspace_2024/OBP-API-C/OBP-API/obp-api/src/main/scripts/sql/OIDC/give_read_access_to_users.sql
+psql -h localhost -p 5432 -d sandbox -U obp -f workspace_2024/OBP-API-C/OBP-API/obp-api/src/main/scripts/sql/OIDC/give_read_access_to_clients.sql
+psql -h localhost -p 5432 -d sandbox -U obp -f workspace_2024/OBP-API-C/OBP-API/obp-api/src/main/scripts/sql/OIDC/give_admin_access_to_consumers.sql
+
+
+
 ```
 
 or from with in psql thus
 
 ```psql
 
-\i PATH-TO-OBP-API-SOURCE-CODE/obp-api/src/main/scripts/sql/create_oidc_user_and_views.sql
+\i PATH-TO-OBP-API-SOURCE-CODE/obp-api/src/main/scripts/sql/OIDC/FILE_NAME.sql
 
 ```
 
@@ -222,6 +229,8 @@ Shows HTML login form for user authentication. Supports authorization code flow.
 
 ### Token Endpoint
 
+#### Authorization Code Flow
+
 ```
 POST /token
 Content-Type: application/x-www-form-urlencoded
@@ -230,6 +239,44 @@ grant_type=authorization_code&code=AUTH_CODE&redirect_uri=YOUR_REDIRECT&client_i
 ```
 
 Exchanges authorization code for ID token and access token.
+
+#### Client Credentials Flow
+
+```
+POST /token
+Content-Type: application/x-www-form-urlencoded
+Authorization: Basic BASE64(client_id:client_secret)
+
+grant_type=client_credentials&scope=openid
+```
+
+Or using form parameters:
+
+```
+POST /token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials&client_id=YOUR_CLIENT&client_secret=YOUR_SECRET&scope=openid
+```
+
+Returns an access token for service-to-service authentication (no user context). This flow is useful for:
+
+- Backend services accessing APIs
+- Machine-to-machine authentication
+- Automated processes that don't involve user interaction
+
+Note: Client credentials flow does not return an ID token or refresh token, only an access token.
+
+#### Refresh Token Flow
+
+```
+POST /token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=refresh_token&refresh_token=YOUR_REFRESH_TOKEN&client_id=YOUR_CLIENT
+```
+
+Exchanges a refresh token for a new access token.
 
 ### UserInfo Endpoint
 
@@ -251,6 +298,31 @@ Returns JSON Web Key Set for token verification.
 ## Testing the Server
 
 ### Quick Health Check
+
+Test the discovery endpoint:
+
+```bash
+curl http://localhost:9000/obp-oidc/.well-known/openid-configuration
+```
+
+### Test Client Credentials Flow
+
+```bash
+# Using Basic Authentication
+curl -X POST http://localhost:9000/obp-oidc/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -H "Authorization: Basic $(echo -n 'YOUR_CLIENT_ID:YOUR_CLIENT_SECRET' | base64)" \
+  -d "grant_type=client_credentials&scope=openid"
+
+# Or using form parameters
+curl -X POST http://localhost:9000/obp-oidc/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials&client_id=YOUR_CLIENT_ID&client_secret=YOUR_CLIENT_SECRET&scope=openid"
+```
+
+Replace `YOUR_CLIENT_ID` and `YOUR_CLIENT_SECRET` with the values printed when the server starts.
+
+### Quick Health Check (Legacy)
 
 Once the server is running, test it with these curl commands:
 

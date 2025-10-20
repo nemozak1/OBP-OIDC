@@ -62,7 +62,7 @@ class TokenEndpoint(
         case Right(form) =>
           println(s"🎫 DEBUG: Form parsing successful")
           println(s"🎫 DEBUG: Form data: ${form.values}")
-          handleTokenRequest(form)
+          handleTokenRequest(req, form)
         case Left(error) =>
           println(s"💥 DEBUG: Form parsing failed: ${error.getMessage}")
           logger
@@ -77,7 +77,36 @@ class TokenEndpoint(
 
   }
 
-  private def handleTokenRequest(form: UrlForm): IO[Response[IO]] = {
+  private def extractBasicAuthCredentials(
+      req: Request[IO]
+  ): Option[(String, String)] = {
+    req.headers
+      .get(CIString("Authorization"))
+      .flatMap { authHeader =>
+        val authValue = authHeader.head.value
+        if (authValue.startsWith("Basic ")) {
+          val encoded = authValue.substring(6)
+          try {
+            val decoded = new String(
+              java.util.Base64.getDecoder.decode(encoded),
+              "UTF-8"
+            )
+            decoded.split(":", 2) match {
+              case Array(clientId, clientSecret) =>
+                Some((clientId, clientSecret))
+              case _ => None
+            }
+          } catch {
+            case _: Exception => None
+          }
+        } else None
+      }
+  }
+
+  private def handleTokenRequest(
+      req: Request[IO],
+      form: UrlForm
+  ): IO[Response[IO]] = {
     println(s"🎫 DEBUG: handleTokenRequest called")
     val formData = form.values.view.mapValues(_.headOption.getOrElse("")).toMap
     println(s"🎫 DEBUG: formData created: ${formData}")
@@ -149,6 +178,42 @@ class TokenEndpoint(
               OidcError(
                 "invalid_request",
                 Some("Missing required parameters for refresh_token grant")
+              ).asJson
+            )
+        }
+      case Some("client_credentials") =>
+        println(s"🎫 DEBUG: Matched client_credentials case")
+        logger.info(s"✅ Processing client_credentials grant")
+
+        // Extract client credentials from Basic Auth header or form data
+        val credentials = extractBasicAuthCredentials(req).orElse {
+          (formData.get("client_id"), formData.get("client_secret")) match {
+            case (Some(id), Some(secret)) => Some((id, secret))
+            case _                        => None
+          }
+        }
+
+        credentials match {
+          case Some((clientIdValue, clientSecretValue)) =>
+            val scope = formData.getOrElse("scope", "")
+            processClientCredentialsGrant(
+              clientIdValue,
+              clientSecretValue,
+              scope
+            )
+          case None =>
+            println(
+              s"🎫 DEBUG: Missing client credentials for client_credentials"
+            )
+            logger.warn(
+              s"❌ Missing client credentials for client_credentials grant"
+            )
+            BadRequest(
+              OidcError(
+                "invalid_request",
+                Some(
+                  "Missing client_id and client_secret for client_credentials grant"
+                )
               ).asJson
             )
         }
@@ -392,6 +457,65 @@ class TokenEndpoint(
         logger.warn(s"❌ Refresh token validation failed: ${error.error}")
         statsService
           .incrementRefreshTokenFailure(error.error)
+          .flatMap(_ => BadRequest(error.asJson))
+    }
+  }
+
+  private def processClientCredentialsGrant(
+      clientId: String,
+      clientSecret: String,
+      scope: String
+  ): IO[Response[IO]] = {
+    logger.info(
+      s"🔑 Processing client credentials grant for client: $clientId"
+    )
+
+    // Authenticate the client
+    authService.authenticateClient(clientId, clientSecret).flatMap {
+      case Right(client) =>
+        logger.info(s"✅ Client authenticated: ${client.client_name}")
+
+        for {
+          // Generate access token for the client (no user context)
+          accessToken <- jwtService
+            .generateClientCredentialsToken(clientId, scope)
+
+          // Create token response (no ID token or refresh token for client credentials)
+          tokenResponse = TokenResponse(
+            access_token = accessToken,
+            token_type = "Bearer",
+            expires_in = config.tokenExpirationSeconds,
+            id_token = "", // Not included in client credentials response
+            scope = scope,
+            refresh_token = None // No refresh token for client credentials
+          )
+
+          _ <- IO.pure(
+            logger.info(
+              s"🎉 Client credentials grant successful for client: $clientId"
+            )
+          )
+
+          // Track successful client credentials grant
+          _ <- statsService
+            .incrementAuthorizationCodeSuccess(clientId, clientId)
+
+          response <- Ok(tokenResponse.asJson)
+            .map(
+              _.withHeaders(
+                Header.Raw(CIString("Cache-Control"), "no-store"),
+                Header.Raw(CIString("Pragma"), "no-cache")
+              )
+            )
+
+        } yield response
+
+      case Left(error) =>
+        logger.warn(
+          s"❌ Client authentication failed: ${error.error} - ${error.error_description.getOrElse("No description")}"
+        )
+        statsService
+          .incrementAuthorizationCodeFailure(error.error)
           .flatMap(_ => BadRequest(error.asJson))
     }
   }
