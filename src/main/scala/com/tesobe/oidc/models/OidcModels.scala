@@ -34,7 +34,8 @@ case class OidcConfiguration(
     id_token_signing_alg_values_supported: List[String],
     scopes_supported: List[String],
     token_endpoint_auth_methods_supported: List[String],
-    claims_supported: List[String]
+    claims_supported: List[String],
+    grant_types_supported: List[String]
 )
 
 object OidcConfiguration {

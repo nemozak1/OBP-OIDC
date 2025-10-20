@@ -521,6 +521,34 @@ class DatabaseAuthService(
     }
   }
 
+  /** Authenticate a client by client_id and client_secret
+    */
+  def authenticateClient(
+      clientId: String,
+      clientSecret: String
+  ): IO[Either[OidcError, OidcClient]] = {
+    findClientById(clientId).map {
+      case Some(client) =>
+        client.client_secret match {
+          case Some(secret) if secret == clientSecret =>
+            Right(client)
+          case Some(_) =>
+            Left(
+              OidcError("invalid_client", Some("Invalid client credentials"))
+            )
+          case None =>
+            Left(
+              OidcError(
+                "invalid_client",
+                Some("Client has no secret configured")
+              )
+            )
+        }
+      case None =>
+        Left(OidcError("invalid_client", Some("Client not found")))
+    }
+  }
+
   /** Find OIDC client by client_name to prevent duplicates
     */
   def findClientByName(clientName: String): IO[Option[OidcClient]] = {
@@ -1134,7 +1162,11 @@ case class AdminDatabaseClient(
     client_name = name.getOrElse(""),
     consumer_id = consumerid.getOrElse(""),
     redirect_uris = parseSimpleString(redirecturl.getOrElse("")),
-    grant_types = List("authorization_code", "refresh_token"), // Default values
+    grant_types = List(
+      "authorization_code",
+      "refresh_token",
+      "client_credentials"
+    ), // Default values
     response_types = List("code"),
     scopes = List("openid", "profile", "email"),
     token_endpoint_auth_method = "client_secret_basic",

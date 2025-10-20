@@ -45,7 +45,8 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
   private val secureRandom = new SecureRandom()
 
   // Constants for client configuration
-  private val DEFAULT_GRANT_TYPES = List("authorization_code", "refresh_token")
+  private val DEFAULT_GRANT_TYPES =
+    List("authorization_code", "refresh_token", "client_credentials")
   private val DEFAULT_RESPONSE_TYPES = List("code")
   private val DEFAULT_SCOPES = List("openid", "profile", "email")
   private val DEFAULT_TOKEN_ENDPOINT_AUTH_METHOD = "client_secret_basic"

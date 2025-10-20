@@ -59,6 +59,10 @@ trait JwtService[F[_]] {
       clientId: String,
       scope: String
   ): F[String]
+  def generateClientCredentialsToken(
+      clientId: String,
+      scope: String
+  ): F[String]
   def validateAccessToken(
       token: String
   ): F[Either[OidcError, AccessTokenClaims]]
@@ -189,6 +193,44 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
       _ = logger.trace(s"Access Token JWT: $signedToken")
       _ = logger.info(
         s"✅ Access token generated successfully with azp: $clientId"
+      )
+    } yield signedToken
+  }
+
+  def generateClientCredentialsToken(
+      clientId: String,
+      scope: String
+  ): IO[String] = {
+    for {
+      algorithm <- getAlgorithm
+      now = Instant.now()
+      exp = now.plusSeconds(config.tokenExpirationSeconds)
+
+      issuer = config.issuer
+
+      _ = logger.info(
+        s"🔑 Generating client credentials token for client: $clientId"
+      )
+
+      // Create Access token for client credentials (no user context)
+      token = JWT
+        .create()
+        .withIssuer(issuer)
+        .withSubject(
+          clientId
+        ) // client_id is the subject for client credentials
+        .withAudience(issuer) // audience is the issuer for client credentials
+        .withIssuedAt(Date.from(now))
+        .withExpiresAt(Date.from(exp))
+        .withKeyId(config.keyId)
+        .withClaim("scope", scope)
+        .withClaim("client_id", clientId)
+        .withClaim("grant_type", "client_credentials")
+
+      signedToken = token.sign(algorithm)
+
+      _ = logger.info(
+        s"✅ Client credentials token generated successfully for client: $clientId"
       )
     } yield signedToken
   }
