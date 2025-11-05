@@ -252,9 +252,9 @@ object OidcServer extends IOApp {
                        |</ul>
                        |<h2>SQL Views:</h2>
                        |<ul>
-                       |<li><code>v_oidc_users</code> - User authentication (read-only)</li>
-                       |<li><code>v_oidc_clients</code> - Client validation (read-only)</li>
-                       |<li><code>v_oidc_admin_clients</code> - Client management (read-write)</li>
+                       |<li><code>v_oidc_users</code> - User authentication (read-only) - connected to by <strong>${config.database.username}</strong></li>
+                       |<li><code>v_oidc_clients</code> - Client validation (read-only) - connected to by <strong>${config.database.username}</strong></li>
+                       |<li><code>v_oidc_admin_clients</code> - Client management (read-write) - connected to by <strong>${config.adminDatabase.username}</strong></li>
                        |</ul>
                        |<h2>OIDC Endpoints:</h2>
                        |<ul>
