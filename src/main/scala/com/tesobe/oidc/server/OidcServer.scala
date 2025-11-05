@@ -250,6 +250,12 @@ object OidcServer extends IOApp {
                        |<li><strong>Authorization Code Lifetime:</strong> ${config.codeExpirationSeconds} seconds (${config.codeExpirationSeconds / 60} minutes)</li>
                        |<li><strong>Refresh Token Lifetime:</strong> ${config.tokenExpirationSeconds * 720} seconds (~${config.tokenExpirationSeconds * 720 / 86400} days)</li>
                        |</ul>
+                       |<h2>SQL Views:</h2>
+                       |<ul>
+                       |<li><code>v_oidc_users</code> - User authentication (read-only)</li>
+                       |<li><code>v_oidc_clients</code> - Client validation (read-only)</li>
+                       |<li><code>v_oidc_admin_clients</code> - Client management (read-write)</li>
+                       |</ul>
                        |$appsSection
                        |<h2>OIDC Endpoints:</h2>
                        |<ul>

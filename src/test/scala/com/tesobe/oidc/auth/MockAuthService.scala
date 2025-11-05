@@ -109,6 +109,29 @@ class MockAuthService extends AuthService[IO] {
   def findAdminClientById(clientId: String): IO[Option[OidcClient]] =
     findClientById(clientId)
 
+  def authenticateClient(
+      clientId: String,
+      clientSecret: String
+  ): IO[Either[OidcError, OidcClient]] = IO {
+    // Mock implementation for testing
+    if (clientSecret == "test-secret") {
+      Right(
+        OidcClient(
+          client_id = clientId,
+          client_secret = Some(clientSecret),
+          client_name = "Test Client",
+          consumer_id = "test-consumer",
+          redirect_uris = List("https://example.com/callback"),
+          grant_types = List("authorization_code", "client_credentials"),
+          response_types = List("code"),
+          scopes = List("openid", "profile", "email")
+        )
+      )
+    } else {
+      Left(OidcError("invalid_client", Some("Invalid client credentials")))
+    }
+  }
+
   def listClients(): IO[Either[OidcError, List[OidcClient]]] = IO {
     Right(
       List(
