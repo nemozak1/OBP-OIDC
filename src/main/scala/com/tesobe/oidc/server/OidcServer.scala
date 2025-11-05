@@ -256,7 +256,6 @@ object OidcServer extends IOApp {
                        |<li><code>v_oidc_clients</code> - Client validation (read-only)</li>
                        |<li><code>v_oidc_admin_clients</code> - Client management (read-write)</li>
                        |</ul>
-                       |$appsSection
                        |<h2>OIDC Endpoints:</h2>
                        |<ul>
                        |<li><a href="/obp-oidc/.well-known/openid-configuration">Discovery Configuration</a> - OpenID Connect metadata</li>
@@ -276,6 +275,7 @@ object OidcServer extends IOApp {
                        |<li><code>authorization_code</code> - Standard OIDC flow for web applications</li>
                        |<li><code>refresh_token</code> - Refresh access tokens without re-authentication</li>
                        |</ul>
+                       |$appsSection
                        |</body>
                        |</html>""".stripMargin)
                       .map(
