@@ -241,7 +241,7 @@ class ClientsEndpoint(authService: DatabaseAuthService) {
                 |    <thead>
                 |        <tr>
                 |            <th>Client Name</th>
-                |            <th>Client ID</th>
+                |            <th>Client ID / Consumer Key</th>
                 |            <th>Consumer ID</th>
                 |            <th>Client Secret</th>
                 |            <th>Redirect URIs</th>
