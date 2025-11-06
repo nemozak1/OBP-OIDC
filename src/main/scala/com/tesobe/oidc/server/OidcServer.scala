@@ -250,7 +250,12 @@ object OidcServer extends IOApp {
                        |<li><strong>Authorization Code Lifetime:</strong> ${config.codeExpirationSeconds} seconds (${config.codeExpirationSeconds / 60} minutes)</li>
                        |<li><strong>Refresh Token Lifetime:</strong> ${config.tokenExpirationSeconds * 720} seconds (~${config.tokenExpirationSeconds * 720 / 86400} days)</li>
                        |</ul>
-                       |$appsSection
+                       |<h2>SQL Views:</h2>
+                       |<ul>
+                       |<li><code>v_oidc_users</code> - User authentication (read-only) - connected to by <strong>${config.database.username}</strong></li>
+                       |<li><code>v_oidc_clients</code> - Client validation (read-only) - connected to by <strong>${config.database.username}</strong></li>
+                       |<li><code>v_oidc_admin_clients</code> - Client management (read-write) - connected to by <strong>${config.adminDatabase.username}</strong></li>
+                       |</ul>
                        |<h2>OIDC Endpoints:</h2>
                        |<ul>
                        |<li><a href="/obp-oidc/.well-known/openid-configuration">Discovery Configuration</a> - OpenID Connect metadata</li>
@@ -270,6 +275,7 @@ object OidcServer extends IOApp {
                        |<li><code>authorization_code</code> - Standard OIDC flow for web applications</li>
                        |<li><code>refresh_token</code> - Refresh access tokens without re-authentication</li>
                        |</ul>
+                       |$appsSection
                        |</body>
                        |</html>""".stripMargin)
                       .map(
