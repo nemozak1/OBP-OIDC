@@ -78,6 +78,10 @@ export OIDC_CLIENT_OPEY_ID=obp-opey-ii-client
 export OIDC_CLIENT_OPEY_SECRET=CHANGE_THIS_TO_OPEY_SECRET_2024
 export OIDC_CLIENT_OPEY_REDIRECTS=http://localhost:3002/callback,http://localhost:3002/oauth/callback
 
+export OIDC_CLIENT_STRIPE_ID=obp-stripe
+export OIDC_CLIENT_STRIPE_SECRET=CHANGE_THIS_TO_STRIPE_SECRET_2024
+export OIDC_CLIENT_STRIPE_REDIRECTS=http://localhost:4242/callback
+
 echo "📋 Configuration:"
 echo "  Server: $OIDC_HOST:$OIDC_PORT"
 echo "  Issuer: obp-oidc (hardcoded)"
@@ -89,6 +93,7 @@ echo "  OBP-API: $OIDC_CLIENT_OBP_API_ID"
 echo "  Portal: $OIDC_CLIENT_PORTAL_ID"
 echo "  Explorer II: $OIDC_CLIENT_EXPLORER_ID"
 echo "  Opey II: $OIDC_CLIENT_OPEY_ID"
+echo "  Stripe: $OIDC_CLIENT_STRIPE_ID"
 echo ""
 
 # Logging Configuration

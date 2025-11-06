@@ -435,6 +435,8 @@ object OidcServer extends IOApp {
                 IO(println(s"  JWKS: $baseUriString/jwks")) *>
                 IO(println(s"  Clients: $baseUriString/clients")) *>
                 IO(println(s"  Health Check: $baseUriString/health")) *>
+                config.obpApiUrl
+                  .fold(IO.unit)(url => IO(println(s"  OBP-API: $url"))) *>
                 printOBPConfiguration(baseUriString, authService) *>
                 IO(println(s"OIDC Provider started at ${server.baseUri}")) *>
                 IO.never
