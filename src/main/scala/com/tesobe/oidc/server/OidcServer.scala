@@ -426,14 +426,14 @@ object OidcServer extends IOApp {
               IO(println("Available endpoints:")) *>
                 IO(
                   println(
-                    s"  Discovery: $baseUriString/.well-known/openid-configuration"
+                    s"  Discovery: $baseUriString/obp-oidc/.well-known/openid-configuration"
                   )
                 ) *>
-                IO(println(s"  Authorization: $baseUriString/auth")) *>
-                IO(println(s"  Token: $baseUriString/token")) *>
-                IO(println(s"  UserInfo: $baseUriString/userinfo")) *>
-                IO(println(s"  JWKS: $baseUriString/jwks")) *>
-                IO(println(s"  Clients: $baseUriString/clients")) *>
+                IO(println(s"  Authorization: $baseUriString/obp-oidc/auth")) *>
+                IO(println(s"  Token: $baseUriString/obp-oidc/token")) *>
+                IO(println(s"  UserInfo: $baseUriString/obp-oidc/userinfo")) *>
+                IO(println(s"  JWKS: $baseUriString/obp-oidc/jwks")) *>
+                IO(println(s"  Clients: $baseUriString/obp-oidc/clients")) *>
                 IO(println(s"  Health Check: $baseUriString/health")) *>
                 config.obpApiUrl
                   .fold(IO.unit)(url => IO(println(s"  OBP-API: $url"))) *>
