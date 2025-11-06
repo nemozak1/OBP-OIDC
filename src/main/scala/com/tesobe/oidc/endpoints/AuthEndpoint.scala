@@ -89,37 +89,75 @@ class AuthEndpoint(
       nonce: Option[String]
   ): IO[Response[IO]] = {
 
-    // Validate request parameters
-    if (responseType != "code") {
-      val error = OidcError(
-        "unsupported_response_type",
-        Some("Only 'code' response type is supported"),
-        state = state
+    IO(
+      logger.info(
+        s"🔍 handleAuthorizationRequest called - responseType: $responseType, clientId: $clientId, redirectUri: $redirectUri, scope: $scope"
       )
-      redirectWithError(redirectUri, error)
-    } else if (!scope.contains("openid")) {
-      val error = OidcError(
-        "invalid_scope",
-        Some("'openid' scope is required"),
-        state = state
-      )
-      redirectWithError(redirectUri, error)
-    } else {
-      // Validate client and redirect URI
-      authService.validateClient(clientId, redirectUri).flatMap { isValid =>
-        if (!isValid) {
-          val error = OidcError(
-            "invalid_client",
-            Some("Invalid client_id or redirect_uri"),
-            state = state
-          )
-          redirectWithError(redirectUri, error)
-        } else {
-          // Show login form
-          showLoginForm(clientId, redirectUri, scope, state, nonce)
-        }
-      }
-    }
+    ) *>
+      IO(
+        println(
+          s"🔍 handleAuthorizationRequest called - responseType: $responseType, clientId: $clientId, redirectUri: $redirectUri, scope: $scope"
+        )
+      ) *>
+      // Validate request parameters
+      (if (responseType != "code") {
+         IO(logger.warn(s"❌ Unsupported response_type: $responseType")) *>
+           IO(println(s"❌ Unsupported response_type: $responseType")) *> {
+             val error = OidcError(
+               "unsupported_response_type",
+               Some("Only 'code' response type is supported"),
+               state = state
+             )
+             redirectWithError(redirectUri, error)
+           }
+       } else if (!scope.contains("openid")) {
+         IO(logger.warn(s"❌ Missing 'openid' scope: $scope")) *>
+           IO(println(s"❌ Missing 'openid' scope: $scope")) *> {
+             val error = OidcError(
+               "invalid_scope",
+               Some("'openid' scope is required"),
+               state = state
+             )
+             redirectWithError(redirectUri, error)
+           }
+       } else {
+         // Validate client and redirect URI
+         IO(
+           logger.info(s"✅ Response type and scope valid, validating client...")
+         ) *>
+           IO(
+             println(s"✅ Response type and scope valid, validating client...")
+           ) *>
+           authService.validateClient(clientId, redirectUri).flatMap {
+             isValid =>
+               if (!isValid) {
+                 IO(
+                   logger.warn(
+                     s"❌ Client validation failed for clientId: $clientId, redirectUri: $redirectUri"
+                   )
+                 ) *>
+                   IO(
+                     println(
+                       s"❌ Client validation failed for clientId: $clientId, redirectUri: $redirectUri"
+                     )
+                   ) *> {
+                     val error = OidcError(
+                       "invalid_client",
+                       Some("Invalid client_id or redirect_uri"),
+                       state = state
+                     )
+                     redirectWithError(redirectUri, error)
+                   }
+               } else {
+                 // Show login form
+                 IO(
+                   logger.info(s"✅ Client validated, showing login form...")
+                 ) *>
+                   IO(println(s"✅ Client validated, showing login form...")) *>
+                   showLoginForm(clientId, redirectUri, scope, state, nonce)
+               }
+           }
+       })
   }
 
   private def handleLoginSubmission(form: UrlForm): IO[Response[IO]] = {
@@ -215,27 +253,29 @@ class AuthEndpoint(
       nonce: Option[String]
   ): IO[Response[IO]] = {
 
-    for {
-      providers <- authService.getAvailableProviders()
-      clientOpt <- authService.findClientById(clientId)
+    IO(logger.info(s"🔍 showLoginForm called for clientId: $clientId")) *>
+      IO(println(s"🔍 showLoginForm called for clientId: $clientId")) *>
+      (for {
+        providers <- authService.getAvailableProviders()
+        clientOpt <- authService.findClientById(clientId)
 
-      stateParam = state
-        .map(s => s"""<input type="hidden" name="state" value="$s">""")
-        .getOrElse("")
-      nonceParam = nonce
-        .map(n => s"""<input type="hidden" name="nonce" value="$n">""")
-        .getOrElse("")
+        stateParam = state
+          .map(s => s"""<input type="hidden" name="state" value="$s">""")
+          .getOrElse("")
+        nonceParam = nonce
+          .map(n => s"""<input type="hidden" name="nonce" value="$n">""")
+          .getOrElse("")
 
-      providerOptions = providers
-        .map { provider =>
-          s"""<option value="$provider">$provider</option>"""
-        }
-        .mkString("\n            ")
+        providerOptions = providers
+          .map { provider =>
+            s"""<option value="$provider">$provider</option>"""
+          }
+          .mkString("\n            ")
 
-      clientName = clientOpt.map(_.client_name).getOrElse("Unknown Client")
-      consumerId = clientOpt.map(_.consumer_id).getOrElse("Unknown Consumer")
+        clientName = clientOpt.map(_.client_name).getOrElse("Unknown Client")
+        consumerId = clientOpt.map(_.consumer_id).getOrElse("Unknown Consumer")
 
-      html = s"""
+        html = s"""
       <!DOCTYPE html>
       <html>
       <head>
@@ -295,18 +335,22 @@ class AuthEndpoint(
       </html>
     """
 
-      response <- Ok(html).map(
-        _.withContentType(
-          org.http4s.headers.`Content-Type`(MediaType.text.html)
+        response <- Ok(html).map(
+          _.withContentType(
+            org.http4s.headers.`Content-Type`(MediaType.text.html)
+          )
         )
-      )
-    } yield response
+        _ <- IO(logger.info(s"✅ Login form HTML generated successfully"))
+        _ <- IO(println(s"✅ Login form HTML generated successfully"))
+      } yield response).flatTap { resp =>
+        IO(logger.info(s"✅ Login form response status: ${resp.status}")) *>
+          IO(println(s"✅ Login form response status: ${resp.status}"))
+      }
   }
 
-  /**
-    * Renders a standalone testing page that allows users to input all
-    * parameters and submit directly to /obp-oidc/auth.
-    * This is useful to verify the login flow without any external Portal.
+  /** Renders a standalone testing page that allows users to input all
+    * parameters and submit directly to /obp-oidc/auth. This is useful to verify
+    * the login flow without any external Portal.
     */
   private def showStandaloneLoginForm(): IO[Response[IO]] = {
     for {
@@ -345,7 +389,7 @@ class AuthEndpoint(
           <div class=\"hint\">This form submits to <code>/obp-oidc/auth</code> and simulates an OAuth2 Authorization Code request.</div>
         </div>
 
-        <form method=\"post\" action=\"/obp-oidc/auth\"> 
+        <form method=\"post\" action=\"/obp-oidc/auth\">
           <div class=\"form-group\">
             <label for=\"client_id\">Client ID</label>
             <input type=\"text\" id=\"client_id\" name=\"client_id\" placeholder=\"Required\" required>
@@ -365,11 +409,11 @@ class AuthEndpoint(
           <div class=\"row\">
             <div class=\"form-group\">
               <label for=\"state\">State (optional)</label>
-              <input type=\"text\" id=\"state\" name=\"state\" placeholder=\"optional\"> 
+              <input type=\"text\" id=\"state\" name=\"state\" placeholder=\"optional\">
             </div>
             <div class=\"form-group\">
               <label for=\"nonce\">Nonce (optional)</label>
-              <input type=\"text\" id=\"nonce\" name=\"nonce\" placeholder=\"optional\"> 
+              <input type=\"text\" id=\"nonce\" name=\"nonce\" placeholder=\"optional\">
             </div>
           </div>
 
