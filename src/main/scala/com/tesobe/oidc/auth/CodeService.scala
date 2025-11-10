@@ -79,6 +79,11 @@ class InMemoryCodeService(
       )
 
       _ <- codesRef.update(_ + (code -> authCode))
+      _ = logger.info(
+        s"✅ Generated authorization code: ${code.take(8)}... for clientId: $clientId, redirectUri: $redirectUri, sub: $sub, expires in ${config.codeExpirationSeconds}s"
+      )
+      totalCodes <- codesRef.get.map(_.size)
+      _ = logger.info(s"🔍 Total codes in memory: $totalCodes")
     } yield code
   }
 
@@ -138,6 +143,12 @@ class InMemoryCodeService(
           )
           logger.warn(
             s"❌ DEBUG: Authorization code not found: ${code.take(8)}..."
+          )
+          logger.warn(
+            s"❌ DEBUG: Available codes in memory: ${codes.keys.map(_.take(8)).mkString(", ")}"
+          )
+          logger.warn(
+            s"❌ DEBUG: Looking for exact code match for clientId: $clientId, redirectUri: $redirectUri"
           )
           IO.pure(
             OidcError("invalid_grant", Some("Authorization code not found"))
