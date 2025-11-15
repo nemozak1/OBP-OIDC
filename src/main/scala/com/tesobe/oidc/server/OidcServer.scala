@@ -165,13 +165,13 @@ object OidcServer extends IOApp {
 
             HttpRoutes
               .of[IO] {
-                // Health check
-                case GET -> Root / "health" =>
+                // Health check - only available in local development mode
+                case GET -> Root / "health" if config.localDevelopmentMode =>
                   IO(println("🏥 Health check requested")) *>
                     Ok("OIDC Provider is running")
 
-                // Root page
-                case GET -> Root =>
+                // Root page - only available in local development mode
+                case GET -> Root if config.localDevelopmentMode =>
                   for {
                     clientsResult <- authService.listClients()
                     appsSection = clientsResult match {
@@ -361,45 +361,54 @@ object OidcServer extends IOApp {
                                         s"👤 UserInfoEndpoint did not handle request, trying ClientsEndpoint"
                                       )
                                     ) *>
-                                      clientsEndpoint.routes
-                                        .run(req)
-                                        .value
-                                        .flatMap {
-                                          case Some(resp) =>
-                                            IO(
-                                              println(
-                                                s"📋 Request handled by ClientsEndpoint"
-                                              )
-                                            ) *>
-                                              IO.pure(resp)
-                                          case None =>
-                                            IO(
-                                              println(
-                                                s"📋 ClientsEndpoint did not handle request, trying StatsEndpoint"
-                                              )
-                                            ) *>
-                                              statsEndpoint.routes
-                                                .run(req)
-                                                .value
-                                                .flatMap {
-                                                  case Some(resp) =>
-                                                    IO(
-                                                      println(
-                                                        s"📊 Request handled by StatsEndpoint"
-                                                      )
-                                                    ) *>
-                                                      IO.pure(resp)
-                                                  case None =>
-                                                    IO(
-                                                      println(
-                                                        s"❌ No endpoint handled the request: ${req.method} ${req.uri}"
-                                                      )
-                                                    ) *>
-                                                      NotFound(
-                                                        "Endpoint not found"
-                                                      )
-                                                }
-                                        }
+                                      (if (config.localDevelopmentMode) {
+                                         clientsEndpoint.routes
+                                           .run(req)
+                                           .value
+                                           .flatMap {
+                                             case Some(resp) =>
+                                               IO(
+                                                 println(
+                                                   s"Request handled by ClientsEndpoint"
+                                                 )
+                                               ) *>
+                                                 IO.pure(resp)
+                                             case None =>
+                                               IO(
+                                                 println(
+                                                   s"ClientsEndpoint did not handle request, trying StatsEndpoint"
+                                                 )
+                                               ) *>
+                                                 statsEndpoint.routes
+                                                   .run(req)
+                                                   .value
+                                                   .flatMap {
+                                                     case Some(resp) =>
+                                                       IO(
+                                                         println(
+                                                           s"Request handled by StatsEndpoint"
+                                                         )
+                                                       ) *>
+                                                         IO.pure(resp)
+                                                     case None =>
+                                                       IO(
+                                                         println(
+                                                           s"No endpoint handled the request: ${req.method} ${req.uri}"
+                                                         )
+                                                       ) *>
+                                                         NotFound(
+                                                           "Endpoint not enabled"
+                                                         )
+                                                   }
+                                           }
+                                       } else {
+                                         IO(
+                                           println(
+                                             s"No endpoint handled the request: ${req.method} ${req.uri}"
+                                           )
+                                         ) *>
+                                           NotFound("Endpoint not enabled")
+                                       })
                                 }
                           }
                     }

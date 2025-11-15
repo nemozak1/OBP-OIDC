@@ -163,6 +163,35 @@ The script will:
 
 ### Server Configuration
 
+#### Local Development Mode
+
+By default, the server only exposes OIDC endpoints under `/obp-oidc/*` for security. Administrative and debugging pages are disabled in production.
+
+To enable additional pages for local development and testing, set `LOCAL_DEVELOPMENT_MODE=true`:
+
+```bash
+# Enable local development mode (shows /, /health, /stats, /clients pages)
+export LOCAL_DEVELOPMENT_MODE=true
+mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
+```
+
+**When `LOCAL_DEVELOPMENT_MODE=false` (default/production):**
+
+- ✅ `/obp-oidc/*` endpoints (auth, token, userinfo, jwks, discovery) - **ENABLED**
+- ❌ `/` (root page) - **DISABLED**
+- ❌ `/health` (health check) - **DISABLED**
+- ❌ `/stats` (statistics dashboard) - **DISABLED**
+- ❌ `/clients` (client list) - **DISABLED**
+
+**When `LOCAL_DEVELOPMENT_MODE=true` (development/testing):**
+
+- ✅ All `/obp-oidc/*` endpoints - **ENABLED**
+- ✅ `/` (root page with documentation) - **ENABLED**
+- ✅ `/health` (health check) - **ENABLED**
+- ✅ `/stats` (statistics dashboard) - **ENABLED**
+- ✅ `/clients` (client list) - **ENABLED**
+
+
 #### Port Configuration
 
 The server runs on port **9000** by default. You can change this by setting the `OIDC_PORT` environment variable:
