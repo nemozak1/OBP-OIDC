@@ -306,9 +306,13 @@ class AuthEndpoint(
                 s"Authentication failed for username: '$validUsername', error: ${error.error}"
               )
             ) *>
-            redirectWithError(
+            showLoginForm(
+              clientId,
               redirectUri,
-              error.copy(state = state)
+              scope,
+              state,
+              nonce,
+              Some("Incorrect username/password")
             )
       }
     } yield response
@@ -353,7 +357,8 @@ class AuthEndpoint(
       redirectUri: String,
       scope: String,
       state: Option[String],
-      nonce: Option[String]
+      nonce: Option[String],
+      errorMessage: Option[String] = None
   ): IO[Response[IO]] = {
 
     IO(logger.info(s"🔍 showLoginForm called for clientId: $clientId")) *>
@@ -378,6 +383,10 @@ class AuthEndpoint(
         clientName = clientOpt.map(_.client_name).getOrElse("Unknown Client")
         consumerId = clientOpt.map(_.consumer_id).getOrElse("Unknown Consumer")
 
+        errorHtml = errorMessage
+          .map(msg => s"""<div class="error">$msg</div>""")
+          .getOrElse("")
+
         html = s"""
       <!DOCTYPE html>
       <html>
@@ -387,6 +396,7 @@ class AuthEndpoint(
           body { font-family: Arial, sans-serif; max-width: 400px; margin: 100px auto; padding: 20px; }
           .form-group { margin-bottom: 15px; }
           label { display: block; margin-bottom: 5px; font-weight: bold; }
+          .error { background: #ffebee; color: #c62828; padding: 10px; border-radius: 4px; margin-bottom: 15px; border: 1px solid #ef5350; }
           input[type="text"], input[type="password"] {
             width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;
           }
@@ -401,6 +411,7 @@ class AuthEndpoint(
       </head>
       <body>
         <h2>Sign In</h2>
+        $errorHtml
         <div class="info">
           <strong>Consumer ID:</strong> $consumerId<br>
           <strong>Client Name:</strong> $clientName<br>
