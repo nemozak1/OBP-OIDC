@@ -241,9 +241,9 @@ class OidcProviderIntegrationTest extends AnyFlatSpec with Matchers {
 
       // Step 1: Login with valid credentials
       loginForm = UrlForm(
-        "username" -> "alice",
-        "password" -> "secret123",
-        "provider" -> "obp",
+        "username" -> "alice123",
+        "password" -> "secret123456",
+        "provider" -> "obp-test",
         "client_id" -> clientId,
         "redirect_uri" -> redirectUri,
         "scope" -> scope,
@@ -319,7 +319,7 @@ class OidcProviderIntegrationTest extends AnyFlatSpec with Matchers {
       tokens.id_token should not be empty
 
       // Verify user info
-      user.sub should be("alice")
+      user.sub should be("alice123")
       user.name should be(Some("Alice Smith"))
       user.email should be(Some("alice@example.com"))
       user.email_verified should be(Some(true))

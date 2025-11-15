@@ -448,6 +448,12 @@ object OidcServer extends IOApp {
                   .fold(IO.unit)(url => IO(println(s"  OBP-API: $url"))) *>
                 printOBPConfiguration(baseUriString, authService) *>
                 IO(println(s"OIDC Provider started at ${server.baseUri}")) *>
+                IO(
+                  println(
+                    s"Local Development Mode: ${if (config.localDevelopmentMode) "ENABLED"
+                      else "DISABLED"}"
+                  )
+                ) *>
                 IO.never
             }
         } yield ExitCode.Success

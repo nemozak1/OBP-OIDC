@@ -160,6 +160,33 @@ class AuthEndpoint(
        })
   }
 
+  private def validateAuthInput(
+      username: String,
+      password: String,
+      provider: String
+  ): Either[String, (String, String, String)] = {
+    if (username.isEmpty || username.trim.isEmpty)
+      Left("Username cannot be empty")
+    else if (username.length < 8)
+      Left("Username must be at least 8 characters")
+    else if (username.length > 100)
+      Left("Username must not exceed 100 characters")
+    else if (password.isEmpty)
+      Left("Password cannot be empty")
+    else if (password.length < 10)
+      Left("Password must be at least 10 characters")
+    else if (password.length > 512)
+      Left("Password must not exceed 512 characters")
+    else if (provider.isEmpty || provider.trim.isEmpty)
+      Left("Provider cannot be empty")
+    else if (provider.length < 5)
+      Left("Provider must be at least 5 characters")
+    else if (provider.length > 512)
+      Left("Provider must not exceed 512 characters")
+    else
+      Right((username.trim, password, provider.trim))
+  }
+
   private def handleLoginSubmission(form: UrlForm): IO[Response[IO]] = {
     val formData = form.values.view.mapValues(_.headOption.getOrElse("")).toMap
 
@@ -181,6 +208,23 @@ class AuthEndpoint(
         new RuntimeException("Missing provider")
       )
       _ <- IO(logger.info(s"🏢 Provider selected: '$provider'"))
+
+      // Validate input lengths
+      validatedInput <- IO
+        .fromEither(
+          validateAuthInput(username, password, provider).left.map(errorMsg =>
+            new RuntimeException(errorMsg)
+          )
+        )
+        .handleErrorWith { error =>
+          IO(logger.warn(s"⚠️ Input validation failed: ${error.getMessage}")) *>
+            IO(println(s"⚠️ Input validation failed: ${error.getMessage}")) *>
+            IO.raiseError(error)
+        }
+      validUsername = validatedInput._1
+      validPassword = validatedInput._2
+      validProvider = validatedInput._3
+
       clientId <- IO.fromOption(formData.get("client_id"))(
         new RuntimeException("Missing client_id")
       )
@@ -195,13 +239,13 @@ class AuthEndpoint(
 
       _ <- IO(
         logger.info(
-          s"🔄 Calling authentication service for username: '$username' with provider: '$provider'"
+          s"🔄 Calling authentication service for username: '$validUsername' with provider: '$validProvider'"
         )
       )
       response <- authenticateAndGenerateCode(
-        username,
-        password,
-        provider,
+        validUsername,
+        validPassword,
+        validProvider,
         clientId,
         redirectUri,
         scope,
@@ -214,7 +258,7 @@ class AuthEndpoint(
       s"💥 Error handling login submission: ${error.getMessage}",
       error
     )
-    BadRequest("Invalid form data")
+    BadRequest(s"Invalid form data: ${error.getMessage}")
   }
 
   private def authenticateAndGenerateCode(
