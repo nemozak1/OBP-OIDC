@@ -26,6 +26,7 @@ import com.tesobe.oidc.endpoints._
 import com.tesobe.oidc.models._
 import com.tesobe.oidc.tokens.JwtService
 import com.tesobe.oidc.stats.StatsService
+import com.tesobe.oidc.ratelimit.{RateLimitConfig, InMemoryRateLimitService}
 import io.circe.parser._
 import org.http4s._
 
@@ -55,10 +56,18 @@ class OidcProviderIntegrationTest extends AnyFlatSpec with Matchers {
       codeService <- CodeService(testConfig)
       jwtService <- JwtService(testConfig)
       statsService <- StatsService()
+      rateLimitConfig = RateLimitConfig()
+      rateLimitService <- InMemoryRateLimitService(rateLimitConfig)
 
       discoveryEndpoint = DiscoveryEndpoint(testConfig)
       jwksEndpoint = JwksEndpoint(jwtService)
-      authEndpoint = AuthEndpoint(authService, codeService, statsService)
+      authEndpoint = AuthEndpoint(
+        authService,
+        codeService,
+        statsService,
+        rateLimitService,
+        testConfig
+      )
       tokenEndpoint = TokenEndpoint(
         authService,
         codeService,

@@ -22,6 +22,8 @@ package com.tesobe.oidc.endpoints
 import cats.effect.IO
 import com.tesobe.oidc.auth.{AuthService, CodeService}
 import com.tesobe.oidc.models.{OidcError}
+import com.tesobe.oidc.ratelimit.RateLimitService
+import com.tesobe.oidc.config.OidcConfig
 import org.http4s._
 import org.http4s.dsl.io._
 import org.http4s.headers.Location
@@ -31,7 +33,9 @@ import com.tesobe.oidc.stats.StatsService
 class AuthEndpoint(
     authService: AuthService[IO],
     codeService: CodeService[IO],
-    statsService: StatsService[IO]
+    statsService: StatsService[IO],
+    rateLimitService: RateLimitService[IO],
+    config: OidcConfig
 ) {
 
   private val logger = LoggerFactory.getLogger(getClass)
@@ -43,7 +47,9 @@ class AuthEndpoint(
   val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
     // Standalone testing page that does not require query parameters
     // Allows manual login verification without any external client/Portal
-    case GET -> Root / "obp-oidc" / "test-login" =>
+    // Only available in local development mode
+    case GET -> Root / "obp-oidc" / "test-login"
+        if config.localDevelopmentMode =>
       showStandaloneLoginForm()
 
     case GET -> Root / "obp-oidc" / "auth" :?
@@ -63,7 +69,9 @@ class AuthEndpoint(
       )
 
     case req @ POST -> Root / "obp-oidc" / "auth" =>
-      req.as[UrlForm].flatMap(handleLoginSubmission)
+      req
+        .as[UrlForm]
+        .flatMap(form => handleLoginSubmissionWithRequest(form, Some(req)))
   }
 
   // Query parameter matchers
@@ -188,26 +196,49 @@ class AuthEndpoint(
   }
 
   private def handleLoginSubmission(form: UrlForm): IO[Response[IO]] = {
+    handleLoginSubmissionWithRequest(form, None)
+  }
+
+  private def handleLoginSubmissionWithRequest(
+      form: UrlForm,
+      requestOpt: Option[Request[IO]]
+  ): IO[Response[IO]] = {
     val formData = form.values.view.mapValues(_.headOption.getOrElse("")).toMap
 
     for {
-      _ <- IO(logger.info("🔥 LOGIN FORM SUBMISSION STARTED"))
-      _ <- IO(println("🔥 LOGIN FORM SUBMISSION STARTED"))
+      _ <- IO(logger.info("LOGIN FORM SUBMISSION STARTED"))
+      _ <- IO(println("LOGIN FORM SUBMISSION STARTED"))
+
+      // Extract IP address for rate limiting
+      ip = requestOpt
+        .flatMap(_.remoteAddr)
+        .map(_.toString)
+        .getOrElse("unknown")
+
       username <- IO.fromOption(formData.get("username"))(
         new RuntimeException("Missing username")
       )
-      _ <- IO(logger.info(s"📋 Auth form submitted for username: '$username'"))
-      _ <- IO(println(s"📋 Auth form submitted for username: '$username'"))
+      _ <- IO(
+        logger.info(
+          s"Auth form submitted for username: '$username' from IP: $ip"
+        )
+      )
+      _ <- IO(
+        println(
+          s"Auth form submitted for username: '$username' from IP: $ip"
+        )
+      )
+
       password <- IO.fromOption(formData.get("password"))(
         new RuntimeException("Missing password")
       )
       _ <- IO(
-        logger.debug(s"🔑 Password received (length: ${password.length})")
+        logger.debug(s"Password received (length: ${password.length})")
       )
       provider <- IO.fromOption(formData.get("provider"))(
         new RuntimeException("Missing provider")
       )
-      _ <- IO(logger.info(s"🏢 Provider selected: '$provider'"))
+      _ <- IO(logger.info(s"Provider selected: '$provider'"))
 
       // Validate input lengths
       validatedInput <- IO
@@ -239,23 +270,51 @@ class AuthEndpoint(
 
       _ <- IO(
         logger.info(
-          s"🔄 Calling authentication service for username: '$validUsername' with provider: '$validProvider'"
+          s"Calling authentication service for username: '$validUsername' with provider: '$validProvider'"
         )
       )
-      response <- authenticateAndGenerateCode(
+
+      // Perform authentication
+      authResult <- authService.authenticate(
         validUsername,
         validPassword,
-        validProvider,
-        clientId,
-        redirectUri,
-        scope,
-        state,
-        nonce
+        validProvider
       )
+
+      response <- authResult match {
+        case Right(user) =>
+          // Authentication successful - clear rate limit tracking
+          rateLimitService.recordSuccessfulLogin(ip, validUsername) *>
+            IO(
+              logger.info(s"Authentication successful for user: ${user.sub}")
+            ) *>
+            authenticateAndGenerateCode(
+              validUsername,
+              validPassword,
+              validProvider,
+              clientId,
+              redirectUri,
+              scope,
+              state,
+              nonce
+            )
+        case Left(error) =>
+          // Authentication failed - record failed attempt for rate limiting
+          rateLimitService.checkAndRecordFailedAttempt(ip, validUsername) *>
+            IO(
+              logger.warn(
+                s"Authentication failed for username: '$validUsername', error: ${error.error}"
+              )
+            ) *>
+            redirectWithError(
+              redirectUri,
+              error.copy(state = state)
+            )
+      }
     } yield response
   }.handleErrorWith { error =>
     logger.error(
-      s"💥 Error handling login submission: ${error.getMessage}",
+      s"Error handling login submission: ${error.getMessage}",
       error
     )
     BadRequest(s"Invalid form data: ${error.getMessage}")
@@ -521,7 +580,15 @@ object AuthEndpoint {
   def apply(
       authService: AuthService[IO],
       codeService: CodeService[IO],
-      statsService: StatsService[IO]
+      statsService: StatsService[IO],
+      rateLimitService: RateLimitService[IO],
+      config: OidcConfig
   ): AuthEndpoint =
-    new AuthEndpoint(authService, codeService, statsService)
+    new AuthEndpoint(
+      authService,
+      codeService,
+      statsService,
+      rateLimitService,
+      config
+    )
 }

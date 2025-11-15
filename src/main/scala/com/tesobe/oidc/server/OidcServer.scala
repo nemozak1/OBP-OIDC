@@ -31,6 +31,7 @@ import com.tesobe.oidc.config.Config
 import com.tesobe.oidc.endpoints._
 import com.tesobe.oidc.tokens.JwtService
 import com.tesobe.oidc.stats.StatsService
+import com.tesobe.oidc.ratelimit.{RateLimitConfig, InMemoryRateLimitService}
 import org.http4s._
 import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.implicits._
@@ -143,11 +144,25 @@ object OidcServer extends IOApp {
           codeService <- CodeService(config)
           jwtService <- JwtService(config)
           statsService <- StatsService()
+          rateLimitConfig = RateLimitConfig.fromEnv
+          rateLimitService <- InMemoryRateLimitService(rateLimitConfig)
+
+          _ <- IO(
+            println(
+              s"Rate limiting enabled: ${rateLimitConfig.maxAttemptsPerIP} attempts per IP, ${rateLimitConfig.maxAttemptsPerUsername} attempts per username"
+            )
+          )
 
           // Initialize endpoints
           discoveryEndpoint = DiscoveryEndpoint(config)
           jwksEndpoint = JwksEndpoint(jwtService)
-          authEndpoint = AuthEndpoint(authService, codeService, statsService)
+          authEndpoint = AuthEndpoint(
+            authService,
+            codeService,
+            statsService,
+            rateLimitService,
+            config
+          )
           tokenEndpoint = TokenEndpoint(
             authService,
             codeService,
@@ -165,13 +180,49 @@ object OidcServer extends IOApp {
 
             HttpRoutes
               .of[IO] {
-                // Health check - only available in local development mode
-                case GET -> Root / "health" if config.localDevelopmentMode =>
-                  IO(println("🏥 Health check requested")) *>
+                // Health check - always available
+                case GET -> Root / "health" =>
+                  IO(println("Health check requested")) *>
                     Ok("OIDC Provider is running")
 
-                // Root page - only available in local development mode
-                case GET -> Root if config.localDevelopmentMode =>
+                // Root page - simple landing with links - always available
+                case GET -> Root =>
+                  val modeStatus =
+                    if (config.localDevelopmentMode) "Local Developer Mode"
+                    else "Production"
+                  Ok(s"""<!DOCTYPE html>
+                     |<html>
+                     |<head>
+                     |  <title>OBP OIDC Provider</title>
+                     |  <style>
+                     |    body { font-family: Arial, sans-serif; max-width: 600px; margin: 100px auto; padding: 20px; text-align: center; }
+                     |    h1 { color: #333; }
+                     |    .mode { color: #666; font-size: 16px; margin-top: 10px; }
+                     |    .links { margin-top: 40px; }
+                     |    .links a { display: block; margin: 10px 0; color: #0066cc; text-decoration: none; font-size: 18px; }
+                     |    .links a:hover { text-decoration: underline; }
+                     |    .version { color: #666; margin-top: 40px; font-size: 14px; }
+                     |  </style>
+                     |</head>
+                     |<body>
+                     |  <h1>OBP OIDC Provider</h1>
+                     |  <p>OpenID Connect Authentication Server</p>
+                     |  <div class="mode">$modeStatus</div>
+                     |  <div class="links">
+                     |    <a href="/info">Server Info</a>
+                     |    <a href="/health">Health Check</a>
+                     |  </div>
+                     |  <div class="version">Version: v${readVersion()} (${readGitCommit()})</div>
+                     |</body>
+                     |</html>""".stripMargin)
+                    .map(
+                      _.withContentType(
+                        org.http4s.headers.`Content-Type`(MediaType.text.html)
+                      )
+                    )
+
+                // Info page - detailed server information
+                case GET -> Root / "info" if config.localDevelopmentMode =>
                   for {
                     clientsResult <- authService.listClients()
                     appsSection = clientsResult match {
@@ -266,6 +317,7 @@ object OidcServer extends IOApp {
                        |</ul>
                        |<h2>Admin Endpoints:</h2>
                        |<ul>
+                       |<li><a href="/info">Server Info</a> - This page</li>
                        |<li><a href="/clients">OIDC Clients</a> - View registered clients</li>
                        |<li><a href="/stats">Statistics</a> - Real-time usage statistics</li>
                        |<li><a href="/health">Health Check</a> - Service status</li>

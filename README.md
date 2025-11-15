@@ -177,20 +177,34 @@ mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
 
 **When `LOCAL_DEVELOPMENT_MODE=false` (default/production):**
 
-- ✅ `/obp-oidc/*` endpoints (auth, token, userinfo, jwks, discovery) - **ENABLED**
-- ❌ `/` (root page) - **DISABLED**
-- ❌ `/health` (health check) - **DISABLED**
+- ✅ `/obp-oidc/auth` (authorization endpoint) - **ENABLED**
+- ✅ `/obp-oidc/token` (token endpoint) - **ENABLED**
+- ✅ `/obp-oidc/userinfo` (user info endpoint) - **ENABLED**
+- ✅ `/obp-oidc/jwks` (JSON Web Key Set) - **ENABLED**
+- ✅ `/obp-oidc/.well-known/openid-configuration` (discovery) - **ENABLED**
+- ✅ `/` (root landing page with links) - **ENABLED**
+- ✅ `/health` (health check) - **ENABLED**
+- ❌ `/obp-oidc/test-login` (standalone test form) - **DISABLED**
+- ❌ `/info` (detailed server info) - **DISABLED**
 - ❌ `/stats` (statistics dashboard) - **DISABLED**
 - ❌ `/clients` (client list) - **DISABLED**
 
 **When `LOCAL_DEVELOPMENT_MODE=true` (development/testing):**
 
 - ✅ All `/obp-oidc/*` endpoints - **ENABLED**
-- ✅ `/` (root page with documentation) - **ENABLED**
+- ✅ `/obp-oidc/test-login` (standalone test form) - **ENABLED**
+- ✅ `/` (root landing page with links to /info and /health) - **ENABLED**
+- ✅ `/info` (detailed server information and configuration) - **ENABLED**
 - ✅ `/health` (health check) - **ENABLED**
 - ✅ `/stats` (statistics dashboard) - **ENABLED**
 - ✅ `/clients` (client list) - **ENABLED**
 
+**⚠️ Security Note:** Never set `LOCAL_DEVELOPMENT_MODE=true` in production environments, as it exposes:
+
+- Server information page (`/info`) showing configuration and database details
+- The `/obp-oidc/test-login` endpoint which bypasses normal OAuth flow
+- Statistics and debugging information (`/stats`)
+- Client configuration details (`/clients`)
 
 #### Port Configuration
 
