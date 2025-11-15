@@ -59,6 +59,9 @@ class DatabaseAuthService(
   def getAvailableProviders(): IO[List[String]] = {
     logger.debug("🔍 Fetching available providers from database")
 
+    val excludedProviders =
+      List("google", "yahoo", "azure", "auth0", "keycloak", "hydra", "mitreid")
+
     val query = sql"""
       SELECT DISTINCT provider
       FROM v_oidc_users
@@ -66,13 +69,26 @@ class DatabaseAuthService(
       ORDER BY provider
     """.query[String]
 
-    query.to[List].transact(transactor).handleErrorWith { error =>
-      logger.error("🚨 Database error while fetching providers", error)
-      println(
-        s"🚨 Database error while fetching providers: ${error.getMessage}"
-      )
-      IO.pure(List.empty[String])
-    }
+    query
+      .to[List]
+      .transact(transactor)
+      .map { providers =>
+        logger.info(
+          s"🔍 Filtering out excluded providers: ${excludedProviders.mkString(", ")}"
+        )
+        providers.filterNot { provider =>
+          excludedProviders.exists(excluded =>
+            provider.toLowerCase.contains(excluded.toLowerCase)
+          )
+        }
+      }
+      .handleErrorWith { error =>
+        logger.error("🚨 Database error while fetching providers", error)
+        println(
+          s"🚨 Database error while fetching providers: ${error.getMessage}"
+        )
+        IO.pure(List.empty[String])
+      }
   }
 
   /** Authenticate a user by username, password, and provider Returns the user
