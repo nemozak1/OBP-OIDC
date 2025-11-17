@@ -392,6 +392,7 @@ class AuthEndpoint(
             else word.charAt(0).toUpper + word.substring(1).toLowerCase
           )
           .mkString(" ")
+          .replace("Obp ", "OBP ")
 
         errorHtml = errorMessage
           .map(msg => s"""<div class="error">$msg</div>""")
@@ -409,7 +410,7 @@ class AuthEndpoint(
       <body class="form-page">
         <div class="login-container">
           <h2>Sign In</h2>
-          <p class="subtitle">OBP OIDC Provider</p>
+          <p class="subtitle">$formattedClientName is asking you to login</p>
           $errorHtml
           ${if (config.localDevelopmentMode) {
             s"""<div class="info">
@@ -419,9 +420,7 @@ class AuthEndpoint(
             <strong>Requested Scopes:</strong> $scope
           </div>"""
           } else {
-            s"""<div class="production-info">
-            <strong>$formattedClientName is asking you to login</strong>
-          </div>"""
+            ""
           }}
 
           <form method="post" action="/obp-oidc/auth">
