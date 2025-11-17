@@ -173,6 +173,7 @@ object OidcServer extends IOApp {
           userInfoEndpoint = UserInfoEndpoint(authService, jwtService)
           clientsEndpoint = ClientsEndpoint(authService)
           statsEndpoint = StatsEndpoint(statsService, config)
+          staticFilesEndpoint = StaticFilesEndpoint()
 
           // Create all routes in a single HttpRoutes definition
           routes = {
@@ -180,39 +181,152 @@ object OidcServer extends IOApp {
 
             HttpRoutes
               .of[IO] {
+                // Static files - always available
+                case req @ GET -> Root / "static" / "css" / _ =>
+                  staticFilesEndpoint.routes.run(req).value.flatMap {
+                    case Some(response) => IO.pure(response)
+                    case None           => NotFound("CSS file not found")
+                  }
+
                 // Health check - always available
                 case GET -> Root / "health" =>
                   IO(println("Health check requested")) *>
-                    Ok("OIDC Provider is running")
+                    Ok(s"""<!DOCTYPE html>
+                       |<html>
+                       |<head>
+                       |  <title>Health Check - OBP OIDC Provider</title>
+                       |  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                       |  <link rel="stylesheet" href="/static/css/main.css">
+                       |  <style>
+                       |    body {
+                       |      min-height: 100vh;
+                       |      display: flex;
+                       |      align-items: center;
+                       |      justify-content: center;
+                       |    }
+                       |    .status {
+                       |      display: inline-flex;
+                       |      align-items: center;
+                       |      gap: 10px;
+                       |      background: #d1fae5;
+                       |      color: #065f46;
+                       |      padding: 16px 24px;
+                       |      border-radius: 8px;
+                       |      font-size: 1.1rem;
+                       |      font-weight: 600;
+                       |      margin: 30px 0;
+                       |      border: 2px solid #10b981;
+                       |    }
+                       |    .status-icon {
+                       |      width: 24px;
+                       |      height: 24px;
+                       |      background: #10b981;
+                       |      border-radius: 50%;
+                       |      display: flex;
+                       |      align-items: center;
+                       |      justify-content: center;
+                       |      color: white;
+                       |      font-weight: bold;
+                       |      font-size: 1.2rem;
+                       |    }
+                       |  </style>
+                       |</head>
+                       |<body>
+                       |  <div class="container container-small text-center">
+                       |    <h1>Health Check</h1>
+                       |    <p class="subtitle">OBP OIDC Provider</p>
+                       |    <div class="status">
+                       |      <span class="status-icon">✓</span>
+                       |      <span>Service is running</span>
+                       |    </div>
+                       |    <div class="nav">
+                       |      <a href="/">Home</a>
+                       |      <a href="/info">Server Info</a>
+                       |    </div>
+                       |  </div>
+                       |</body>
+                       |</html>""".stripMargin)
+                      .map(
+                        _.withContentType(
+                          org.http4s.headers.`Content-Type`(MediaType.text.html)
+                        )
+                      )
 
                 // Root page - simple landing with links - always available
                 case GET -> Root =>
                   val modeStatus =
-                    if (config.localDevelopmentMode) "Local Developer Mode"
+                    if (config.localDevelopmentMode) "Local Development Mode"
                     else "Production"
+                  val modeBadgeColor =
+                    if (config.localDevelopmentMode) "#ff9800" else "#26a69a"
+                  val modeClass =
+                    if (config.localDevelopmentMode) "mode-development"
+                    else "mode-production"
                   Ok(s"""<!DOCTYPE html>
                      |<html>
                      |<head>
                      |  <title>OBP OIDC Provider</title>
+                     |  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                     |  <link rel="stylesheet" href="/static/css/main.css">
                      |  <style>
-                     |    body { font-family: Arial, sans-serif; max-width: 600px; margin: 100px auto; padding: 20px; text-align: center; }
-                     |    h1 { color: #333; }
-                     |    .mode { color: #666; font-size: 16px; margin-top: 10px; }
-                     |    .links { margin-top: 40px; }
-                     |    .links a { display: block; margin: 10px 0; color: #0066cc; text-decoration: none; font-size: 18px; }
-                     |    .links a:hover { text-decoration: underline; }
-                     |    .version { color: #666; margin-top: 40px; font-size: 14px; }
+                     |    body {
+                     |      min-height: 100vh;
+                     |      display: flex;
+                     |      align-items: center;
+                     |      justify-content: center;
+                     |    }
+                     |    .container {
+                     |      max-width: 700px;
+                     |      padding: 50px 40px;
+                     |      text-align: center;
+                     |    }
+                     |    .links {
+                     |      display: grid;
+                     |      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                     |      gap: 15px;
+                     |      margin: 30px 0;
+                     |    }
+                     |    .links a {
+                     |      display: block;
+                     |      background: #f8f9fa;
+                     |      color: #2c3e50;
+                     |      text-decoration: none;
+                     |      padding: 20px;
+                     |      border-radius: 6px;
+                     |      font-weight: 600;
+                     |      font-size: 1rem;
+                     |      transition: all 0.2s;
+                     |      border-left: 4px solid #26a69a;
+                     |    }
+                     |    .links a:hover {
+                     |      background: #26a69a;
+                     |      color: white;
+                     |      transform: translateY(-2px);
+                     |      box-shadow: 0 4px 12px rgba(38, 166, 154, 0.3);
+                     |    }
+                     |    @media (max-width: 600px) {
+                     |      .container {
+                     |        padding: 30px 20px;
+                     |      }
+                     |      .links {
+                     |        grid-template-columns: 1fr;
+                     |      }
+                     |    }
                      |  </style>
                      |</head>
                      |<body>
-                     |  <h1>OBP OIDC Provider</h1>
-                     |  <p>OpenID Connect Authentication Server</p>
-                     |  <div class="mode">$modeStatus</div>
-                     |  <div class="links">
-                     |    <a href="/info">Server Info</a>
-                     |    <a href="/health">Health Check</a>
+                     |  <div class="container">
+                     |    <h1>OBP OIDC Provider</h1>
+                     |    <p class="subtitle">OpenID Connect Authentication Server</p>
+                     |    <div class="mode-indicator $modeClass">$modeStatus</div>
+                     |    <div class="links">
+                     |      <a href="/info">Server Info</a>
+                     |      <a href="/health">Health Check</a>
+                     |    </div>
+                     |    <div class="version">
+                     |      <strong>Version:</strong> v${readVersion()} (${readGitCommit()})
+                     |    </div>
                      |  </div>
-                     |  <div class="version">Version: v${readVersion()} (${readGitCommit()})</div>
                      |</body>
                      |</html>""".stripMargin)
                     .map(

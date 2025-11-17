@@ -393,132 +393,26 @@ class AuthEndpoint(
       <head>
         <title>Sign In - OBP OIDC Provider</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body {
-            font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background: #f8f9fa;
-            color: #2c3e50;
-            line-height: 1.6;
-            padding: 20px;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          }
-          .login-container {
-            max-width: 450px;
-            width: 100%;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            padding: 40px;
-          }
-          h2 {
-            color: #1a1a1a;
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 10px;
-            letter-spacing: -0.02em;
-          }
-          .subtitle {
-            color: #666;
-            font-size: 0.95rem;
-            margin-bottom: 30px;
-          }
-          .error {
-            background: #ffebee;
-            color: #c62828;
-            padding: 12px 16px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-            border-left: 4px solid #ef5350;
-            font-size: 0.95rem;
-          }
-          .info {
-            background: #f8f9fa;
-            padding: 16px;
-            border-radius: 6px;
-            margin-bottom: 24px;
-            font-size: 0.9rem;
-            border-left: 4px solid #26a69a;
-          }
-          .info strong {
-            color: #2c3e50;
-            font-weight: 600;
-          }
-          .form-group {
-            margin-bottom: 20px;
-          }
-          label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #2c3e50;
-            font-size: 0.95rem;
-          }
-          input[type="text"],
-          input[type="password"],
-          select {
-            width: 100%;
-            padding: 12px 16px;
-            border: 1px solid #dee2e6;
-            border-radius: 6px;
-            font-size: 1rem;
-            font-family: inherit;
-            transition: all 0.2s;
-            background: white;
-          }
-          input[type="text"]:focus,
-          input[type="password"]:focus,
-          select:focus {
-            outline: none;
-            border-color: #26a69a;
-            box-shadow: 0 0 0 3px rgba(38, 166, 154, 0.1);
-          }
-          select {
-            cursor: pointer;
-            appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%232c3e50' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 16px center;
-            padding-right: 40px;
-          }
-          button {
-            width: 100%;
-            background: #26a69a;
-            color: white;
-            padding: 14px 24px;
-            border: none;
-            border-radius: 6px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-family: inherit;
-            margin-top: 8px;
-          }
-          button:hover {
-            background: #1f8a7e;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(38, 166, 154, 0.3);
-          }
-          button:active {
-            transform: translateY(0);
-          }
-        </style>
+        <link rel="stylesheet" href="/static/css/main.css">
+        <link rel="stylesheet" href="/static/css/forms.css">
       </head>
-      <body>
+      <body class="form-page">
         <div class="login-container">
           <h2>Sign In</h2>
           <p class="subtitle">OBP OIDC Provider</p>
           $errorHtml
-          <div class="info">
+          ${if (config.localDevelopmentMode) {
+            s"""<div class="info">
             <strong>Consumer ID:</strong> $consumerId<br>
             <strong>Client Name:</strong> $clientName<br>
             <strong>Client ID:</strong> $clientId<br>
             <strong>Requested Scopes:</strong> $scope
-          </div>
+          </div>"""
+          } else {
+            s"""<div class="production-info">
+            <strong>$clientName</strong>
+          </div>"""
+          }}
 
           <form method="post" action="/obp-oidc/auth">
             <div class="form-group">
@@ -583,128 +477,12 @@ class AuthEndpoint(
       <html>
       <head>
         <title>Test Login - OBP OIDC Provider</title>
-        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body {
-            font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background: #f8f9fa;
-            color: #2c3e50;
-            line-height: 1.6;
-            padding: 20px;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          }
-          .login-container {
-            max-width: 520px;
-            width: 100%;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            padding: 40px;
-          }
-          h2 {
-            color: #1a1a1a;
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 10px;
-            letter-spacing: -0.02em;
-          }
-          .subtitle {
-            color: #666;
-            font-size: 0.95rem;
-            margin-bottom: 30px;
-          }
-          .box {
-            background: #f8f9fa;
-            border-left: 4px solid #26a69a;
-            padding: 16px;
-            border-radius: 6px;
-            margin-bottom: 24px;
-          }
-          .hint {
-            color: #666;
-            font-size: 0.85rem;
-            margin-top: 5px;
-          }
-          code {
-            background: #f1f3f5;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-family: 'Monaco', 'Courier New', monospace;
-            font-size: 0.9em;
-            color: #c7254e;
-          }
-          .form-group {
-            margin-bottom: 20px;
-          }
-          label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #2c3e50;
-            font-size: 0.95rem;
-          }
-          input[type=\"text\"],
-          input[type=\"password\"],
-          select {
-            width: 100%;
-            padding: 12px 16px;
-            border: 1px solid #dee2e6;
-            border-radius: 6px;
-            font-size: 1rem;
-            font-family: inherit;
-            transition: all 0.2s;
-            background: white;
-          }
-          input[type=\"text\"]:focus,
-          input[type=\"password\"]:focus,
-          select:focus {
-            outline: none;
-            border-color: #26a69a;
-            box-shadow: 0 0 0 3px rgba(38, 166, 154, 0.1);
-          }
-          select {
-            cursor: pointer;
-            appearance: none;
-            background-image: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%232c3e50' d='M6 9L1 4h10z'/%3E%3C/svg%3E\");
-            background-repeat: no-repeat;
-            background-position: right 16px center;
-            padding-right: 40px;
-          }
-          .row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-          }
-          button {
-            width: 100%;
-            background: #26a69a;
-            color: white;
-            padding: 14px 24px;
-            border: none;
-            border-radius: 6px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-family: inherit;
-            margin-top: 8px;
-          }
-          button:hover {
-            background: #1f8a7e;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(38, 166, 154, 0.3);
-          }
-          button:active {
-            transform: translateY(0);
-          }
-        </style>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet" href="/static/css/main.css">
+        <link rel="stylesheet" href="/static/css/forms.css">
       </head>
-      <body>
-        <div class=\"login-container\">
+      <body class="form-page">
+        <div class="login-container-large">
           <h2>OBP-OIDC Test Login</h2>
           <p class=\"subtitle\">Development Testing Interface</p>
           <div class=\"box\">
