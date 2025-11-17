@@ -206,6 +206,45 @@ mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
 - Statistics and debugging information (`/stats`)
 - Client configuration details (`/clients`)
 
+#### Logo Configuration
+
+The login page displays the **Open Bank Project logo by default**. You can customize it with your own logo by setting these environment variables:
+
+```bash
+# Set custom logo URL (displays at top of login page)
+export LOGO_URL="https://example.com/logo.png"
+
+# Set logo alt text for accessibility
+export LOGO_ALT_TEXT="Company Logo"
+```
+
+**Default Logo:**
+
+- URL: `https://static.openbankproject.com/images/OBP_full_web.png`
+- Alt Text: "Open Bank Project"
+
+**Logo Display:**
+
+- Maximum width: 200px (150px on mobile)
+- Maximum height: 80px (60px on mobile)
+- Image automatically scales to fit while maintaining aspect ratio
+- Appears at the top of the login form, above the "Sign In" heading
+
+**Example (Custom Logo):**
+
+```bash
+export LOGO_URL="https://mybank.com/logo.png"
+export LOGO_ALT_TEXT="My Bank"
+mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
+```
+
+**To remove the logo entirely**, set `LOGO_URL` to an empty string:
+
+```bash
+export LOGO_URL=""
+mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
+```
+
 #### Port Configuration
 
 The server runs on port **9000** by default. You can change this by setting the `OIDC_PORT` environment variable:

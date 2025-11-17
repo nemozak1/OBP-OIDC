@@ -398,6 +398,14 @@ class AuthEndpoint(
           .map(msg => s"""<div class="error">$msg</div>""")
           .getOrElse("")
 
+        logoHtml = config.logoUrl match {
+          case Some(url) =>
+            s"""<div class="login-logo">
+              <img src="$url" alt="${config.logoAltText}">
+            </div>"""
+          case None => ""
+        }
+
         html = s"""
       <!DOCTYPE html>
       <html>
@@ -409,6 +417,7 @@ class AuthEndpoint(
       </head>
       <body class="form-page">
         <div class="login-container">
+          $logoHtml
           <h2>Sign In</h2>
           <p class="subtitle">$formattedClientName is asking you to login</p>
           $errorHtml
