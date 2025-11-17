@@ -7,11 +7,13 @@
 .login-container {
     max-width: 450px;
     width: 100%;
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
     padding: 40px;
     margin: 0 auto;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .login-logo {
@@ -31,6 +33,30 @@ body.form-page {
     display: flex;
     align-items: center;
     justify-content: center;
+    background: conic-gradient(
+        from 180deg at 50% 50%,
+        oklch(14.97% 0.03 285.58deg) 0deg,
+        oklch(68.5% 0.14 148.36deg) 120deg,
+        oklch(14.97% 0.03 285.58deg) 240deg,
+        oklch(68.5% 0.14 148.36deg) 360deg
+    );
+    position: relative;
+}
+
+body.form-page::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    backdrop-filter: blur(40px);
+    z-index: 0;
+}
+
+body.form-page > * {
+    position: relative;
+    z-index: 1;
 }
 
 /* Form elements */
@@ -205,9 +231,11 @@ form button[type="submit"]:active {
 .login-container-large {
     max-width: 520px;
     width: 100%;
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
     padding: 40px;
     margin: 0 auto;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
 }
