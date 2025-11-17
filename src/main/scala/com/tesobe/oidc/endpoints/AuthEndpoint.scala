@@ -443,12 +443,28 @@ class AuthEndpoint(
               <input type="password" id="password" name="password" required autocomplete="current-password">
             </div>
 
-            <div class="form-group">
+            ${
+          // Show dropdown if: multiple providers OR single provider in dev mode
+          // Hide dropdown if: single provider in production mode
+          if (providers.length > 1 || config.localDevelopmentMode) {
+            s"""<div class="form-group">
               <label for="provider">Authentication Provider</label>
               <select id="provider" name="provider" required>
               $providerOptions
               </select>
-            </div>
+            </div>"""
+          } else if (providers.length == 1) {
+            // Single provider in production: use hidden field
+            s"""<input type="hidden" name="provider" value="${providers.head}">"""
+          } else {
+            // No providers - shouldn't happen but handle gracefully
+            s"""<div class="form-group">
+              <label for="provider">Authentication Provider</label>
+              <select id="provider" name="provider" required>
+              $providerOptions
+              </select>
+            </div>"""
+          }}
 
             <input type="hidden" name="client_id" value="$clientId">
             <input type="hidden" name="redirect_uri" value="$redirectUri">

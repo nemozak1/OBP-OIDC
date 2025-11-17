@@ -206,6 +206,21 @@ mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
 - Statistics and debugging information (`/stats`)
 - Client configuration details (`/clients`)
 
+#### Authentication Provider Dropdown
+
+The login form intelligently handles the authentication provider selection:
+
+**Production Mode (`LOCAL_DEVELOPMENT_MODE=false`):**
+
+- **Single Provider**: Dropdown is hidden, value submitted via hidden field (cleaner UX)
+- **Multiple Providers**: Dropdown is visible for user selection
+
+**Development Mode (`LOCAL_DEVELOPMENT_MODE=true`):**
+
+- **Always shows** the provider dropdown (even with single provider) for testing/debugging
+
+This provides a clean, professional login experience in production while maintaining flexibility for development.
+
 #### Logo Configuration
 
 The login page displays the **Open Bank Project logo by default**. You can customize it with your own logo by setting these environment variables:
