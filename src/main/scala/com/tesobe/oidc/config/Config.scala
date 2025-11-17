@@ -46,7 +46,7 @@ case class OidcConfig(
     obpApiUrl: Option[String] = None,
     localDevelopmentMode: Boolean = false,
     logoUrl: Option[String] = Some(
-      "https://static.openbankproject.com/images/OBP_full_web.png"
+      "https://static.openbankproject.com/images/OBP/OBP_Horizontal_2025.png"
     ),
     logoAltText: String = "Open Bank Project"
 )
@@ -112,7 +112,9 @@ object Config {
         .get("LOGO_URL")
         .flatMap(url => if (url.trim.isEmpty) None else Some(url))
         .orElse(
-          Some("https://static.openbankproject.com/images/OBP_full_web.png")
+          Some(
+            "https://static.openbankproject.com/images/OBP/OBP_Horizontal_2025.png"
+          )
         ),
       logoAltText = sys.env.getOrElse("LOGO_ALT_TEXT", "Open Bank Project")
     )

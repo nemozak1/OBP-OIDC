@@ -235,7 +235,7 @@ export LOGO_ALT_TEXT="Company Logo"
 
 **Default Logo:**
 
-- URL: `https://static.openbankproject.com/images/OBP_full_web.png`
+- URL: `https://static.openbankproject.com/images/OBP/OBP_Horizontal_2025.png`
 - Alt Text: "Open Bank Project"
 
 **Logo Display:**
@@ -244,6 +244,13 @@ export LOGO_ALT_TEXT="Company Logo"
 - Maximum height: 80px (60px on mobile)
 - Image automatically scales to fit while maintaining aspect ratio
 - Appears at the top of the login form, above the "Sign In" heading
+
+**Example (Using Default OBP Logo):**
+
+```bash
+# Default logo displays automatically - no configuration needed
+mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
+```
 
 **Example (Custom Logo):**
 

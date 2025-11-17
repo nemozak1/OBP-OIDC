@@ -10,10 +10,10 @@ The OBP OIDC Provider displays the **Open Bank Project logo by default** on the 
 
 Two environment variables control the logo display:
 
-| Variable        | Required | Default                                                      | Description                        |
-| --------------- | -------- | ------------------------------------------------------------ | ---------------------------------- |
-| `LOGO_URL`      | No       | `https://static.openbankproject.com/images/OBP_full_web.png` | URL to your logo image             |
-| `LOGO_ALT_TEXT` | No       | `"Open Bank Project"`                                        | Alternative text for accessibility |
+| Variable        | Required | Default                                                                 | Description                        |
+| --------------- | -------- | ----------------------------------------------------------------------- | ---------------------------------- |
+| `LOGO_URL`      | No       | `https://static.openbankproject.com/images/OBP/OBP_Horizontal_2025.png` | URL to your logo image             |
+| `LOGO_ALT_TEXT` | No       | `"Open Bank Project"`                                                   | Alternative text for accessibility |
 
 ### Using the Default Logo
 
@@ -116,7 +116,7 @@ mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
 
 Default values:
 
-- URL: `https://static.openbankproject.com/images/OBP_full_web.png`
+- URL: `https://static.openbankproject.com/images/OBP/OBP_Horizontal_2025.png`
 - Alt Text: "Open Bank Project"
 
 ### Example 2: Custom Company Logo

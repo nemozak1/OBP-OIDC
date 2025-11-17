@@ -297,7 +297,7 @@ Aspect Ratio: Preserved automatically
 
 **Default Logo:**
 
-- URL: `https://static.openbankproject.com/images/OBP_full_web.png`
+- URL: `https://static.openbankproject.com/images/OBP/OBP_Horizontal_2025.png`
 - Alt Text: "Open Bank Project"
 
 ## Responsive Design
