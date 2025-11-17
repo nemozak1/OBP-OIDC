@@ -383,6 +383,16 @@ class AuthEndpoint(
         clientName = clientOpt.map(_.client_name).getOrElse("Unknown Client")
         consumerId = clientOpt.map(_.consumer_id).getOrElse("Unknown Consumer")
 
+        // Format client name for production display: replace dashes with spaces and convert to proper case
+        formattedClientName = clientName
+          .replace("-", " ")
+          .split(" ")
+          .map(word =>
+            if (word.isEmpty) ""
+            else word.charAt(0).toUpper + word.substring(1).toLowerCase
+          )
+          .mkString(" ")
+
         errorHtml = errorMessage
           .map(msg => s"""<div class="error">$msg</div>""")
           .getOrElse("")
@@ -410,7 +420,7 @@ class AuthEndpoint(
           </div>"""
           } else {
             s"""<div class="production-info">
-            <strong>$clientName</strong>
+            <strong>$formattedClientName is asking you to login</strong>
           </div>"""
           }}
 
