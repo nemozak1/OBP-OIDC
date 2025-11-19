@@ -21,11 +21,24 @@
     margin-bottom: 30px;
 }
 
+.login-logo a {
+    display: inline-block;
+    transition:
+        opacity 0.2s ease,
+        transform 0.2s ease;
+}
+
+.login-logo a:hover {
+    opacity: 0.8;
+    transform: scale(1.02);
+}
+
 .login-logo img {
     max-width: 200px;
     max-height: 80px;
     height: auto;
     width: auto;
+    display: block;
 }
 
 body.form-page {
@@ -207,6 +220,10 @@ form button[type="submit"]:active {
     .login-container {
         padding: 30px 20px;
         max-width: 100%;
+    }
+
+    .login-logo a:hover {
+        transform: scale(1.01);
     }
 
     .login-logo img {

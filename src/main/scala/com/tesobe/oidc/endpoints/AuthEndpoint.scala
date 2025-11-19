@@ -398,10 +398,28 @@ class AuthEndpoint(
           .map(msg => s"""<div class="error">$msg</div>""")
           .getOrElse("")
 
+        // Extract domain origin from redirect_uri for logo link
+        logoLinkUrl =
+          try {
+            val uri = new java.net.URI(redirectUri)
+            val port =
+              if (uri.getPort > 0 && uri.getPort != 80 && uri.getPort != 443) {
+                s":${uri.getPort}"
+              } else {
+                ""
+              }
+            s"${uri.getScheme}://${uri.getHost}${port}"
+          } catch {
+            case _: Exception =>
+              redirectUri // Fallback to full redirect_uri if parsing fails
+          }
+
         logoHtml = config.logoUrl match {
           case Some(url) =>
             s"""<div class="login-logo">
-              <img src="$url" alt="${config.logoAltText}">
+              <a href="$logoLinkUrl" title="Return to ${formattedClientName}">
+                <img src="$url" alt="${config.logoAltText}">
+              </a>
             </div>"""
           case None => ""
         }
