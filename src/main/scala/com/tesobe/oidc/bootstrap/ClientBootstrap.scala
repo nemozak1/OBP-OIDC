@@ -84,6 +84,22 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
     ClientDefinition(
       name = "obp-stripe",
       redirect_uris = "http://localhost:4242/callback"
+    ),
+    ClientDefinition(
+      name = "other_app_1",
+      redirect_uris = "http://localhost:5175/login/obp/callback"
+    ),
+    ClientDefinition(
+      name = "other_app_2",
+      redirect_uris = "http://localhost:5176/login/obp/callback"
+    ),
+    ClientDefinition(
+      name = "other_app_3",
+      redirect_uris = "http://localhost:5177/login/obp/callback"
+    ),
+    ClientDefinition(
+      name = "other_app_4",
+      redirect_uris = "http://localhost:5178/login/obp/callback"
     )
   )
 
