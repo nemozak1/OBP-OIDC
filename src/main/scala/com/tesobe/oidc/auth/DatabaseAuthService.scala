@@ -825,7 +825,7 @@ class DatabaseAuthService(
       SELECT client_id, client_secret, client_name, consumer_id, redirect_uris,
              grant_types, response_types, scopes, token_endpoint_auth_method, created_at
       FROM v_oidc_clients
-      ORDER BY created_at DESC
+      ORDER BY client_name ASC
     """.query[DatabaseClient]
 
     println("🔄 DEBUG: Executing SELECT query on v_oidc_clients")
