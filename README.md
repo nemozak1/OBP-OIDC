@@ -244,6 +244,17 @@ export LOGO_ALT_TEXT="Company Logo"
 - Maximum height: 80px (60px on mobile)
 - Image automatically scales to fit while maintaining aspect ratio
 - Appears at the top of the login form, above the "Sign In" heading
+- **Clickable** - Links back to the origin domain of the calling application
+
+**Logo Interaction:**
+
+The logo is clickable and links to the origin (domain) of the `redirect_uri` parameter. This provides users an intuitive way to cancel authentication and return to the calling application.
+
+Examples:
+
+- `http://localhost:5174/login/callback` → Logo links to `http://localhost:5174`
+- `https://portal.example.com/oauth/callback` → Logo links to `https://portal.example.com`
+- `https://api.bank.com:8080/auth/callback` → Logo links to `https://api.bank.com:8080`
 
 **Example (Using Default OBP Logo):**
 
