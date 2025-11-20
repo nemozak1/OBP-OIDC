@@ -82,6 +82,22 @@ export OIDC_CLIENT_STRIPE_ID=obp-stripe
 export OIDC_CLIENT_STRIPE_SECRET=CHANGE_THIS_TO_STRIPE_SECRET_2024
 export OIDC_CLIENT_STRIPE_REDIRECTS=http://localhost:4242/callback
 
+export OIDC_CLIENT_OTHER_APP_1_ID=other_app_1
+export OIDC_CLIENT_OTHER_APP_1_SECRET=CHANGE_THIS_TO_OTHER_APP_1_SECRET_2024
+export OIDC_CLIENT_OTHER_APP_1_REDIRECTS=http://localhost:5175/login/obp/callback
+
+export OIDC_CLIENT_OTHER_APP_2_ID=other_app_2
+export OIDC_CLIENT_OTHER_APP_2_SECRET=CHANGE_THIS_TO_OTHER_APP_2_SECRET_2024
+export OIDC_CLIENT_OTHER_APP_2_REDIRECTS=http://localhost:5176/login/obp/callback
+
+export OIDC_CLIENT_OTHER_APP_3_ID=other_app_3
+export OIDC_CLIENT_OTHER_APP_3_SECRET=CHANGE_THIS_TO_OTHER_APP_3_SECRET_2024
+export OIDC_CLIENT_OTHER_APP_3_REDIRECTS=http://localhost:5177/login/obp/callback
+
+export OIDC_CLIENT_OTHER_APP_4_ID=other_app_4
+export OIDC_CLIENT_OTHER_APP_4_SECRET=CHANGE_THIS_TO_OTHER_APP_4_SECRET_2024
+export OIDC_CLIENT_OTHER_APP_4_REDIRECTS=http://localhost:5178/login/obp/callback
+
 echo "📋 Configuration:"
 echo "  Server: $OIDC_HOST:$OIDC_PORT"
 echo "  Issuer: obp-oidc (hardcoded)"
@@ -94,6 +110,10 @@ echo "  Portal: $OIDC_CLIENT_PORTAL_ID"
 echo "  Explorer II: $OIDC_CLIENT_EXPLORER_ID"
 echo "  Opey II: $OIDC_CLIENT_OPEY_ID"
 echo "  Stripe: $OIDC_CLIENT_STRIPE_ID"
+echo "  Other App 1: $OIDC_CLIENT_OTHER_APP_1_ID"
+echo "  Other App 2: $OIDC_CLIENT_OTHER_APP_2_ID"
+echo "  Other App 3: $OIDC_CLIENT_OTHER_APP_3_ID"
+echo "  Other App 4: $OIDC_CLIENT_OTHER_APP_4_ID"
 echo ""
 
 # Logging Configuration
