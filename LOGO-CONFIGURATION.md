@@ -80,12 +80,35 @@ The logo will automatically scale to fit within the maximum dimensions while mai
 ### Where the Logo Appears
 
 The logo is displayed:
+**Logo Display:**
 
 - ✅ On the main login page (`/obp-oidc/auth`)
 - ✅ Above the "Sign In" heading
 - ✅ Centered in the login container
 - ✅ In both development and production modes
 - ✅ **By default** (OBP logo) unless customized or disabled
+- ✅ **Clickable** - links back to the origin domain of the application
+
+### Logo Interaction
+
+The logo is **clickable** and links back to the origin domain of the redirect URI. This allows users to return to the calling application.
+
+**How it works:**
+
+- Extracts the domain from the OAuth `redirect_uri` parameter
+- Creates a link to: `scheme://host:port` (e.g., `https://portal.example.com:5174`)
+- Hover effect: Logo slightly scales and fades for visual feedback
+- Title attribute shows: "Return to [Client Name]"
+
+**Examples:**
+
+| Redirect URI                                | Logo Links To                |
+| ------------------------------------------- | ---------------------------- |
+| `http://localhost:5174/login/callback`      | `http://localhost:5174`      |
+| `https://portal.example.com/oauth/callback` | `https://portal.example.com` |
+| `https://api.bank.com:8080/auth/callback`   | `https://api.bank.com:8080`  |
+
+This provides an intuitive way for users to cancel authentication and return to the application.
 
 ### Disabling the Logo
 
@@ -266,15 +289,32 @@ The logo is styled with the `.login-logo` class defined in `/static/css/forms.cs
   margin-bottom: 30px;
 }
 
+.login-logo a {
+  display: inline-block;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.login-logo a:hover {
+  opacity: 0.8;
+  transform: scale(1.02);
+}
+
 .login-logo img {
   max-width: 200px;
   max-height: 80px;
   height: auto;
   width: auto;
+  display: block;
 }
 
 /* Mobile responsive */
 @media (max-width: 768px) {
+  .login-logo a:hover {
+    transform: scale(1.01);
+  }
+
   .login-logo img {
     max-width: 150px;
     max-height: 60px;
@@ -387,3 +427,4 @@ For issues or questions about logo configuration:
 - ✅ Accessibility support with alt text
 - ✅ Can be customized or disabled via environment variables
 - ✅ Automatic image scaling
+- ✅ Clickable logo that links back to calling application origin
