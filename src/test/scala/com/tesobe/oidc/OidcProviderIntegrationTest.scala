@@ -26,6 +26,7 @@ import com.tesobe.oidc.endpoints._
 import com.tesobe.oidc.models._
 import com.tesobe.oidc.tokens.JwtService
 import com.tesobe.oidc.stats.StatsService
+import com.tesobe.oidc.ratelimit.{RateLimitConfig, InMemoryRateLimitService}
 import io.circe.parser._
 import org.http4s._
 
@@ -55,10 +56,18 @@ class OidcProviderIntegrationTest extends AnyFlatSpec with Matchers {
       codeService <- CodeService(testConfig)
       jwtService <- JwtService(testConfig)
       statsService <- StatsService()
+      rateLimitConfig = RateLimitConfig()
+      rateLimitService <- InMemoryRateLimitService(rateLimitConfig)
 
       discoveryEndpoint = DiscoveryEndpoint(testConfig)
       jwksEndpoint = JwksEndpoint(jwtService)
-      authEndpoint = AuthEndpoint(authService, codeService, statsService)
+      authEndpoint = AuthEndpoint(
+        authService,
+        codeService,
+        statsService,
+        rateLimitService,
+        testConfig
+      )
       tokenEndpoint = TokenEndpoint(
         authService,
         codeService,
@@ -241,9 +250,9 @@ class OidcProviderIntegrationTest extends AnyFlatSpec with Matchers {
 
       // Step 1: Login with valid credentials
       loginForm = UrlForm(
-        "username" -> "alice",
-        "password" -> "secret123",
-        "provider" -> "obp",
+        "username" -> "alice123",
+        "password" -> "secret123456",
+        "provider" -> "obp-test",
         "client_id" -> clientId,
         "redirect_uri" -> redirectUri,
         "scope" -> scope,
@@ -319,7 +328,7 @@ class OidcProviderIntegrationTest extends AnyFlatSpec with Matchers {
       tokens.id_token should not be empty
 
       // Verify user info
-      user.sub should be("alice")
+      user.sub should be("alice123")
       user.name should be(Some("Alice Smith"))
       user.email should be(Some("alice@example.com"))
       user.email_verified should be(Some(true))

@@ -87,20 +87,12 @@ class StatsEndpoint(statsService: StatsService[IO], config: OidcConfig) {
        |<html>
        |<head>
        |    <title>OIDC Statistics - Real-time</title>
+       |    <meta name="viewport" content="width=device-width, initial-scale=1.0">
        |    <meta http-equiv="refresh" content="10">
+       |    <link rel="stylesheet" href="/static/css/main.css">
        |    <style>
-       |        body {
-       |            font-family: 'Segoe UI', Arial, sans-serif;
-       |            margin: 0;
-       |            padding: 20px;
-       |            background-color: #f5f7fa;
-       |        }
        |        .container {
        |            max-width: 1200px;
-       |            margin: 0 auto;
-       |            background: white;
-       |            border-radius: 10px;
-       |            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
        |            overflow: hidden;
        |        }
        |        .header {
@@ -108,11 +100,14 @@ class StatsEndpoint(statsService: StatsService[IO], config: OidcConfig) {
        |            color: white;
        |            padding: 30px;
        |            text-align: center;
+       |            border-radius: 8px 8px 0 0;
+       |            margin: -40px -40px 30px -40px;
        |        }
        |        .header h1 {
        |            margin: 0;
        |            font-size: 2.5em;
        |            font-weight: 300;
+       |            color: white;
        |        }
        |        .header p {
        |            margin: 10px 0 0 0;
@@ -127,79 +122,14 @@ class StatsEndpoint(statsService: StatsService[IO], config: OidcConfig) {
        |            margin-top: 15px;
        |            font-size: 0.9em;
        |        }
-       |        .stats-grid {
-       |            display: grid;
-       |            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-       |            gap: 20px;
-       |            padding: 30px;
-       |        }
-       |        .stat-card {
-       |            background: white;
-       |            border-radius: 8px;
-       |            padding: 25px;
-       |            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-       |            border-left: 4px solid #667eea;
-       |            transition: transform 0.2s ease;
-       |        }
-       |        .stat-card:hover {
-       |            transform: translateY(-2px);
-       |        }
-       |        .stat-card.success {
-       |            border-left-color: #10b981;
-       |        }
-       |        .stat-card.error {
-       |            border-left-color: #ef4444;
-       |        }
-       |        .stat-card.info {
-       |            border-left-color: #3b82f6;
-       |        }
-       |        .stat-number {
-       |            font-size: 2.5em;
-       |            font-weight: bold;
-       |            color: #1f2937;
-       |            margin: 0;
-       |        }
-       |        .stat-label {
-       |            color: #6b7280;
-       |            font-size: 1em;
-       |            margin: 8px 0 0 0;
-       |        }
-       |        .stat-description {
-       |            color: #9ca3af;
-       |            font-size: 0.85em;
-       |            margin: 5px 0 0 0;
-       |        }
        |        .events-section {
-       |            margin: 20px 30px;
+       |            margin: 40px 0 20px 0;
        |        }
        |        .section-title {
        |            font-size: 1.5em;
        |            color: #1f2937;
        |            margin: 0 0 20px 0;
        |            font-weight: 500;
-       |        }
-       |        .events-table {
-       |            width: 100%;
-       |            border-collapse: collapse;
-       |            background: white;
-       |            border-radius: 8px;
-       |            overflow: hidden;
-       |            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-       |        }
-       |        .events-table th {
-       |            background: #f8fafc;
-       |            padding: 15px;
-       |            text-align: left;
-       |            font-weight: 600;
-       |            color: #374151;
-       |            border-bottom: 1px solid #e5e7eb;
-       |        }
-       |        .events-table td {
-       |            padding: 12px 15px;
-       |            border-bottom: 1px solid #f3f4f6;
-       |        }
-       |        .events-table tr:hover {
-       |            background-color: #f9fafb;
        |        }
        |        .event-type {
        |            font-weight: 600;
@@ -215,48 +145,14 @@ class StatsEndpoint(statsService: StatsService[IO], config: OidcConfig) {
        |            border-left: 3px solid #ef4444;
        |        }
        |        .nav {
-       |            padding: 20px 30px;
+       |            padding: 20px 0;
        |            background: #f8fafc;
        |            border-top: 1px solid #e5e7eb;
+       |            margin: 30px -40px -40px -40px;
+       |            padding: 20px 40px;
        |        }
        |        .nav a {
-       |            color: #667eea;
-       |            text-decoration: none;
-       |            margin-right: 20px;
-       |            font-weight: 500;
-       |        }
-       |        .nav a:hover {
-       |            text-decoration: underline;
-       |        }
-       |        .reset-btn {
-       |            background: #ef4444;
-       |            color: white;
-       |            padding: 8px 16px;
-       |            border: none;
-       |            border-radius: 6px;
-       |            cursor: pointer;
-       |            font-weight: 500;
-       |            transition: background 0.2s ease;
-       |        }
-       |        .reset-btn:hover {
-       |            background: #dc2626;
-       |        }
-       |        @media (max-width: 768px) {
-       |            .stats-grid {
-       |                grid-template-columns: 1fr;
-       |                gap: 15px;
-       |                padding: 20px;
-       |            }
-       |            .header h1 {
-       |                font-size: 2em;
-       |            }
-       |            .events-table {
-       |                font-size: 0.9em;
-       |            }
-       |            .events-table th,
-       |            .events-table td {
-       |                padding: 10px;
-       |            }
+       |            color: #26a69a;
        |        }
        |    </style>
        |</head>
@@ -270,7 +166,7 @@ class StatsEndpoint(statsService: StatsService[IO], config: OidcConfig) {
        |            </div>
        |        </div>
        |
-       |        <div class="stats-grid">
+       |        <div class="stats-grid" style="padding: 0;">
        |            <div class="stat-card success">
        |                <h2 class="stat-number">${stats.refreshTokenGrantsSuccessful}</h2>
        |                <p class="stat-label">Refresh Tokens Used</p>
@@ -341,7 +237,7 @@ class StatsEndpoint(statsService: StatsService[IO], config: OidcConfig) {
        |            <a href="/clients">View Clients</a>
        |            <a href="/health">Health Check</a>
        |            <form style="display: inline;" method="post" action="/stats/reset">
-       |                <button type="submit" class="reset-btn" onclick="return confirm('Are you sure you want to reset all statistics?')">
+       |                <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to reset all statistics?')">
        |                    Reset Stats
        |                </button>
        |            </form>

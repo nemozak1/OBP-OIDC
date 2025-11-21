@@ -31,6 +31,7 @@ import com.tesobe.oidc.config.Config
 import com.tesobe.oidc.endpoints._
 import com.tesobe.oidc.tokens.JwtService
 import com.tesobe.oidc.stats.StatsService
+import com.tesobe.oidc.ratelimit.{RateLimitConfig, InMemoryRateLimitService}
 import org.http4s._
 import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.implicits._
@@ -143,11 +144,25 @@ object OidcServer extends IOApp {
           codeService <- CodeService(config)
           jwtService <- JwtService(config)
           statsService <- StatsService()
+          rateLimitConfig = RateLimitConfig.fromEnv
+          rateLimitService <- InMemoryRateLimitService(rateLimitConfig)
+
+          _ <- IO(
+            println(
+              s"Rate limiting enabled: ${rateLimitConfig.maxAttemptsPerIP} attempts per IP, ${rateLimitConfig.maxAttemptsPerUsername} attempts per username"
+            )
+          )
 
           // Initialize endpoints
           discoveryEndpoint = DiscoveryEndpoint(config)
           jwksEndpoint = JwksEndpoint(jwtService)
-          authEndpoint = AuthEndpoint(authService, codeService, statsService)
+          authEndpoint = AuthEndpoint(
+            authService,
+            codeService,
+            statsService,
+            rateLimitService,
+            config
+          )
           tokenEndpoint = TokenEndpoint(
             authService,
             codeService,
@@ -158,6 +173,7 @@ object OidcServer extends IOApp {
           userInfoEndpoint = UserInfoEndpoint(authService, jwtService)
           clientsEndpoint = ClientsEndpoint(authService)
           statsEndpoint = StatsEndpoint(statsService, config)
+          staticFilesEndpoint = StaticFilesEndpoint()
 
           // Create all routes in a single HttpRoutes definition
           routes = {
@@ -165,13 +181,162 @@ object OidcServer extends IOApp {
 
             HttpRoutes
               .of[IO] {
-                // Health check
-                case GET -> Root / "health" =>
-                  IO(println("🏥 Health check requested")) *>
-                    Ok("OIDC Provider is running")
+                // Static files - always available
+                case req @ GET -> Root / "static" / "css" / _ =>
+                  staticFilesEndpoint.routes.run(req).value.flatMap {
+                    case Some(response) => IO.pure(response)
+                    case None           => NotFound("CSS file not found")
+                  }
 
-                // Root page
+                // Health check - always available
+                case GET -> Root / "health" =>
+                  IO(println("Health check requested")) *>
+                    Ok(s"""<!DOCTYPE html>
+                       |<html>
+                       |<head>
+                       |  <title>Health Check - OBP OIDC Provider</title>
+                       |  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                       |  <link rel="stylesheet" href="/static/css/main.css">
+                       |  <style>
+                       |    body {
+                       |      min-height: 100vh;
+                       |      display: flex;
+                       |      align-items: center;
+                       |      justify-content: center;
+                       |    }
+                       |    .status {
+                       |      display: inline-flex;
+                       |      align-items: center;
+                       |      gap: 10px;
+                       |      background: #d1fae5;
+                       |      color: #065f46;
+                       |      padding: 16px 24px;
+                       |      border-radius: 8px;
+                       |      font-size: 1.1rem;
+                       |      font-weight: 600;
+                       |      margin: 30px 0;
+                       |      border: 2px solid #10b981;
+                       |    }
+                       |    .status-icon {
+                       |      width: 24px;
+                       |      height: 24px;
+                       |      background: #10b981;
+                       |      border-radius: 50%;
+                       |      display: flex;
+                       |      align-items: center;
+                       |      justify-content: center;
+                       |      color: white;
+                       |      font-weight: bold;
+                       |      font-size: 1.2rem;
+                       |    }
+                       |  </style>
+                       |</head>
+                       |<body>
+                       |  <div class="container container-small text-center">
+                       |    <h1>Health Check</h1>
+                       |    <p class="subtitle">OBP OIDC Provider</p>
+                       |    <div class="status">
+                       |      <span class="status-icon">✓</span>
+                       |      <span>Service is running</span>
+                       |    </div>
+                       |    <div class="nav">
+                       |      <a href="/">Home</a>
+                       |      <a href="/info">Server Info</a>
+                       |    </div>
+                       |  </div>
+                       |</body>
+                       |</html>""".stripMargin)
+                      .map(
+                        _.withContentType(
+                          org.http4s.headers.`Content-Type`(MediaType.text.html)
+                        )
+                      )
+
+                // Root page - simple landing with links - always available
                 case GET -> Root =>
+                  val modeStatus =
+                    if (config.localDevelopmentMode) "Local Development Mode"
+                    else "Production"
+                  val modeBadgeColor =
+                    if (config.localDevelopmentMode) "#ff9800" else "#26a69a"
+                  val modeClass =
+                    if (config.localDevelopmentMode) "mode-development"
+                    else "mode-production"
+                  Ok(s"""<!DOCTYPE html>
+                     |<html>
+                     |<head>
+                     |  <title>OBP OIDC Provider</title>
+                     |  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                     |  <link rel="stylesheet" href="/static/css/main.css">
+                     |  <style>
+                     |    body {
+                     |      min-height: 100vh;
+                     |      display: flex;
+                     |      align-items: center;
+                     |      justify-content: center;
+                     |    }
+                     |    .container {
+                     |      max-width: 700px;
+                     |      padding: 50px 40px;
+                     |      text-align: center;
+                     |    }
+                     |    .links {
+                     |      display: grid;
+                     |      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                     |      gap: 15px;
+                     |      margin: 30px 0;
+                     |    }
+                     |    .links a {
+                     |      display: block;
+                     |      background: #f8f9fa;
+                     |      color: #2c3e50;
+                     |      text-decoration: none;
+                     |      padding: 20px;
+                     |      border-radius: 6px;
+                     |      font-weight: 600;
+                     |      font-size: 1rem;
+                     |      transition: all 0.2s;
+                     |      border-left: 4px solid #26a69a;
+                     |    }
+                     |    .links a:hover {
+                     |      background: #26a69a;
+                     |      color: white;
+                     |      transform: translateY(-2px);
+                     |      box-shadow: 0 4px 12px rgba(38, 166, 154, 0.3);
+                     |    }
+                     |    @media (max-width: 600px) {
+                     |      .container {
+                     |        padding: 30px 20px;
+                     |      }
+                     |      .links {
+                     |        grid-template-columns: 1fr;
+                     |      }
+                     |    }
+                     |  </style>
+                     |</head>
+                     |<body>
+                     |  <div class="container">
+                     |    <h1>OBP OIDC Provider</h1>
+                     |    <p class="subtitle">OpenID Connect Authentication Server</p>
+                     |    <div class="mode-indicator $modeClass">$modeStatus</div>
+                     |    <div class="links">
+                     |      <a href="/info">Server Info</a>
+                     |      <a href="/health">Health Check</a>
+                     |    </div>
+                     |    <div class="version">
+                     |      <strong>Version:</strong> v${readVersion()} (${readGitCommit()})
+                     |    </div>
+                     |  </div>
+                     |</body>
+                     |</html>""".stripMargin)
+                    .map(
+                      _.withContentType(
+                        org.http4s.headers.`Content-Type`(MediaType.text.html)
+                      )
+                    )
+
+                // Info page - detailed server information
+                case GET -> Root / "info" if config.localDevelopmentMode =>
                   for {
                     clientsResult <- authService.listClients()
                     appsSection = clientsResult match {
@@ -223,40 +388,142 @@ object OidcServer extends IOApp {
                     response <- Ok(s"""<!DOCTYPE html>
                        |<html>
                        |<head>
-                       |  <title>OBP OIDC Provider</title>
+                       |  <title>OBP OIDC Provider - Server Info</title>
+                       |  <meta name="viewport" content="width=device-width, initial-scale=1.0">
                        |  <style>
-                       |    body { font-family: Arial, sans-serif; margin: 40px; }
-                       |    h1 { color: #333; }
-                       |    h2 { color: #555; margin-top: 30px; }
-                       |    h4 { color: #666; margin-bottom: 5px; }
+                       |    * { margin: 0; padding: 0; box-sizing: border-box; }
+                       |    body {
+                       |      font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                       |      background: #f8f9fa;
+                       |      color: #2c3e50;
+                       |      line-height: 1.6;
+                       |      padding: 20px;
+                       |    }
+                       |    .container {
+                       |      max-width: 1200px;
+                       |      margin: 0 auto;
+                       |      background: white;
+                       |      border-radius: 8px;
+                       |      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                       |      padding: 40px;
+                       |    }
+                       |    h1 {
+                       |      color: #1a1a1a;
+                       |      font-size: 2.5rem;
+                       |      font-weight: 700;
+                       |      margin-bottom: 10px;
+                       |      letter-spacing: -0.02em;
+                       |    }
+                       |    .subtitle {
+                       |      color: #666;
+                       |      font-size: 1.1rem;
+                       |      margin-bottom: 30px;
+                       |    }
+                       |    h2 {
+                       |      color: #2c3e50;
+                       |      font-size: 1.5rem;
+                       |      font-weight: 600;
+                       |      margin-top: 40px;
+                       |      margin-bottom: 20px;
+                       |      padding-bottom: 10px;
+                       |      border-bottom: 2px solid #e9ecef;
+                       |    }
+                       |    .info-grid {
+                       |      display: grid;
+                       |      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                       |      gap: 20px;
+                       |      margin-bottom: 20px;
+                       |    }
+                       |    .info-card {
+                       |      background: #f8f9fa;
+                       |      padding: 20px;
+                       |      border-radius: 6px;
+                       |      border-left: 4px solid #26a69a;
+                       |    }
+                       |    .info-card strong {
+                       |      display: block;
+                       |      color: #2c3e50;
+                       |      margin-bottom: 5px;
+                       |      font-weight: 600;
+                       |    }
+                       |    ul {
+                       |      list-style: none;
+                       |      padding: 0;
+                       |    }
+                       |    li {
+                       |      padding: 12px 0;
+                       |      border-bottom: 1px solid #e9ecef;
+                       |    }
+                       |    li:last-child { border-bottom: none; }
+                       |    li strong {
+                       |      color: #2c3e50;
+                       |      font-weight: 600;
+                       |    }
+                       |    code {
+                       |      background: #f1f3f5;
+                       |      padding: 2px 8px;
+                       |      border-radius: 4px;
+                       |      font-family: 'Monaco', 'Courier New', monospace;
+                       |      font-size: 0.9em;
+                       |      color: #c7254e;
+                       |    }
+                       |    a {
+                       |      color: #26a69a;
+                       |      text-decoration: none;
+                       |      font-weight: 500;
+                       |    }
+                       |    a:hover {
+                       |      text-decoration: underline;
+                       |      color: #1f8a7e;
+                       |    }
                        |    .apps-section { margin: 20px 0; }
                        |    .app {
-                       |      margin: 5px 0;
+                       |      background: #f8f9fa;
+                       |      padding: 15px;
+                       |      margin: 10px 0;
+                       |      border-radius: 6px;
+                       |      border-left: 4px solid #26a69a;
                        |      word-break: break-all;
                        |    }
-                       |    ul { margin: 10px 0; }
-                       |    a { color: #0066cc; text-decoration: none; }
-                       |    a:hover { text-decoration: underline; }
+                       |    .version-badge {
+                       |      display: inline-block;
+                       |      background: #26a69a;
+                       |      color: white;
+                       |      padding: 6px 12px;
+                       |      border-radius: 20px;
+                       |      font-size: 0.9rem;
+                       |      font-weight: 600;
+                       |      margin-bottom: 20px;
+                       |    }
                        |  </style>
                        |</head>
                        |<body>
+                       |<div class="container">
                        |<h1>OBP OIDC Provider</h1>
-                       |<p>OpenID Connect provider is running</p>
-                       |<p><strong>Version:</strong> v${readVersion()} (${readGitCommit()})</p>
-                       |<p><em>Debug mode enabled - Enhanced logging for azp claim troubleshooting</em></p>
-                       |<h2>Configuration:</h2>
-                       |<ul>
-                       |<li><strong>Access Token Lifetime:</strong> ${config.tokenExpirationSeconds} seconds (${config.tokenExpirationSeconds / 60} minutes)</li>
-                       |<li><strong>Authorization Code Lifetime:</strong> ${config.codeExpirationSeconds} seconds (${config.codeExpirationSeconds / 60} minutes)</li>
-                       |<li><strong>Refresh Token Lifetime:</strong> ${config.tokenExpirationSeconds * 720} seconds (~${config.tokenExpirationSeconds * 720 / 86400} days)</li>
-                       |</ul>
-                       |<h2>SQL Views:</h2>
+                       |<p class="subtitle">OpenID Connect Authentication Server</p>
+                       |<div class="version-badge">Version: v${readVersion()} (${readGitCommit()})</div>
+                       |<h2>Configuration</h2>
+                       |<div class="info-grid">
+                       |  <div class="info-card">
+                       |    <strong>Access Token Lifetime</strong>
+                       |    ${config.tokenExpirationSeconds} seconds (${config.tokenExpirationSeconds / 60} minutes)
+                       |  </div>
+                       |  <div class="info-card">
+                       |    <strong>Authorization Code Lifetime</strong>
+                       |    ${config.codeExpirationSeconds} seconds (${config.codeExpirationSeconds / 60} minutes)
+                       |  </div>
+                       |  <div class="info-card">
+                       |    <strong>Refresh Token Lifetime</strong>
+                       |    ${config.tokenExpirationSeconds * 720} seconds (~${config.tokenExpirationSeconds * 720 / 86400} days)
+                       |  </div>
+                       |</div>
+                       |<h2>SQL Views</h2>
                        |<ul>
                        |<li><code>v_oidc_users</code> - User authentication (read-only) - connected to by <strong>${config.database.username}</strong></li>
                        |<li><code>v_oidc_clients</code> - Client validation (read-only) - connected to by <strong>${config.database.username}</strong></li>
                        |<li><code>v_oidc_admin_clients</code> - Client management (read-write) - connected to by <strong>${config.adminDatabase.username}</strong></li>
                        |</ul>
-                       |<h2>OIDC Endpoints:</h2>
+                       |<h2>OIDC Endpoints</h2>
                        |<ul>
                        |<li><a href="/obp-oidc/.well-known/openid-configuration">Discovery Configuration</a> - OpenID Connect metadata</li>
                        |<li><strong>/obp-oidc/auth</strong> - Authorization endpoint (OAuth 2.0 authorization code flow)</li>
@@ -264,18 +531,20 @@ object OidcServer extends IOApp {
                        |<li><strong>/obp-oidc/userinfo</strong> - UserInfo endpoint (get user profile with access token)</li>
                        |<li><a href="/obp-oidc/jwks">JWKS</a> - JSON Web Key Set (for token verification)</li>
                        |</ul>
-                       |<h2>Admin Endpoints:</h2>
+                       |<h2>Admin Endpoints</h2>
                        |<ul>
+                       |<li><a href="/info">Server Info</a> - This page</li>
                        |<li><a href="/clients">OIDC Clients</a> - View registered clients</li>
                        |<li><a href="/stats">Statistics</a> - Real-time usage statistics</li>
                        |<li><a href="/health">Health Check</a> - Service status</li>
                        |</ul>
-                       |<h2>Supported Grant Types:</h2>
+                       |<h2>Supported Grant Types</h2>
                        |<ul>
                        |<li><code>authorization_code</code> - Standard OIDC flow for web applications</li>
                        |<li><code>refresh_token</code> - Refresh access tokens without re-authentication</li>
                        |</ul>
                        |$appsSection
+                       |</div>
                        |</body>
                        |</html>""".stripMargin)
                       .map(
@@ -361,45 +630,54 @@ object OidcServer extends IOApp {
                                         s"👤 UserInfoEndpoint did not handle request, trying ClientsEndpoint"
                                       )
                                     ) *>
-                                      clientsEndpoint.routes
-                                        .run(req)
-                                        .value
-                                        .flatMap {
-                                          case Some(resp) =>
-                                            IO(
-                                              println(
-                                                s"📋 Request handled by ClientsEndpoint"
-                                              )
-                                            ) *>
-                                              IO.pure(resp)
-                                          case None =>
-                                            IO(
-                                              println(
-                                                s"📋 ClientsEndpoint did not handle request, trying StatsEndpoint"
-                                              )
-                                            ) *>
-                                              statsEndpoint.routes
-                                                .run(req)
-                                                .value
-                                                .flatMap {
-                                                  case Some(resp) =>
-                                                    IO(
-                                                      println(
-                                                        s"📊 Request handled by StatsEndpoint"
-                                                      )
-                                                    ) *>
-                                                      IO.pure(resp)
-                                                  case None =>
-                                                    IO(
-                                                      println(
-                                                        s"❌ No endpoint handled the request: ${req.method} ${req.uri}"
-                                                      )
-                                                    ) *>
-                                                      NotFound(
-                                                        "Endpoint not found"
-                                                      )
-                                                }
-                                        }
+                                      (if (config.localDevelopmentMode) {
+                                         clientsEndpoint.routes
+                                           .run(req)
+                                           .value
+                                           .flatMap {
+                                             case Some(resp) =>
+                                               IO(
+                                                 println(
+                                                   s"Request handled by ClientsEndpoint"
+                                                 )
+                                               ) *>
+                                                 IO.pure(resp)
+                                             case None =>
+                                               IO(
+                                                 println(
+                                                   s"ClientsEndpoint did not handle request, trying StatsEndpoint"
+                                                 )
+                                               ) *>
+                                                 statsEndpoint.routes
+                                                   .run(req)
+                                                   .value
+                                                   .flatMap {
+                                                     case Some(resp) =>
+                                                       IO(
+                                                         println(
+                                                           s"Request handled by StatsEndpoint"
+                                                         )
+                                                       ) *>
+                                                         IO.pure(resp)
+                                                     case None =>
+                                                       IO(
+                                                         println(
+                                                           s"No endpoint handled the request: ${req.method} ${req.uri}"
+                                                         )
+                                                       ) *>
+                                                         NotFound(
+                                                           "Endpoint not enabled"
+                                                         )
+                                                   }
+                                           }
+                                       } else {
+                                         IO(
+                                           println(
+                                             s"No endpoint handled the request: ${req.method} ${req.uri}"
+                                           )
+                                         ) *>
+                                           NotFound("Endpoint not enabled")
+                                       })
                                 }
                           }
                     }
@@ -439,6 +717,12 @@ object OidcServer extends IOApp {
                   .fold(IO.unit)(url => IO(println(s"  OBP-API: $url"))) *>
                 printOBPConfiguration(baseUriString, authService) *>
                 IO(println(s"OIDC Provider started at ${server.baseUri}")) *>
+                IO(
+                  println(
+                    s"Local Development Mode: ${if (config.localDevelopmentMode) "ENABLED"
+                      else "DISABLED"}"
+                  )
+                ) *>
                 IO.never
             }
         } yield ExitCode.Success

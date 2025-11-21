@@ -60,14 +60,8 @@ class ClientsEndpoint(authService: DatabaseAuthService) {
                   |<html>
                   |<head>
                   |    <title>Clients - Error</title>
-                  |    <style>
-                  |        body { font-family: Arial, sans-serif; margin: 40px; background-color: #f5f5f5; }
-                  |        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-                  |        .error { color: #d32f2f; background-color: #ffebee; padding: 15px; border-radius: 4px; margin: 20px 0; }
-                  |        .nav { margin-bottom: 30px; }
-                  |        .nav a { text-decoration: none; color: #1976d2; margin-right: 20px; }
-                  |        .nav a:hover { text-decoration: underline; }
-                  |    </style>
+                  |    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                  |    <link rel="stylesheet" href="/static/css/main.css">
                   |</head>
                   |<body>
                   |    <div class="container">
@@ -75,7 +69,7 @@ class ClientsEndpoint(authService: DatabaseAuthService) {
                   |            <a href="/">Back to Home</a>
                   |        </nav>
                   |        <h1>OIDC Clients - Error</h1>
-                  |        <div class="error">
+                  |        <div class="alert alert-error">
                   |            <strong>Error:</strong> $error
                   |        </div>
                   |    </div>
@@ -105,61 +99,15 @@ class ClientsEndpoint(authService: DatabaseAuthService) {
        |<html>
        |<head>
        |    <title>OIDC Clients</title>
+       |    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+       |    <link rel="stylesheet" href="/static/css/main.css">
        |    <style>
-       |        body {
-       |            font-family: Arial, sans-serif;
-       |            margin: 40px;
-       |            background-color: #f5f5f5;
-       |        }
        |        .container {
        |            max-width: 1400px;
-       |            margin: 0 auto;
-       |            background: white;
-       |            padding: 20px;
-       |            border-radius: 8px;
-       |            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-       |        }
-       |        .header {
-       |            display: flex;
-       |            justify-content: space-between;
-       |            align-items: center;
-       |            margin-bottom: 30px;
-       |        }
-       |        .nav a {
-       |            text-decoration: none;
-       |            color: #1976d2;
-       |            margin-right: 20px;
-       |        }
-       |        .nav a:hover {
-       |            text-decoration: underline;
-       |        }
-       |        .stats {
-       |            background: #e3f2fd;
-       |            padding: 15px;
-       |            border-radius: 4px;
-       |            margin-bottom: 20px;
-       |        }
-       |        table {
-       |            width: 100%;
-       |            border-collapse: collapse;
-       |            margin-top: 20px;
-       |        }
-       |        th, td {
-       |            padding: 12px;
-       |            text-align: left;
-       |            border-bottom: 1px solid #ddd;
-       |        }
-       |        th {
-       |            background-color: #f8f9fa;
-       |            font-weight: bold;
-       |            color: #495057;
-       |        }
-       |        tr:hover {
-       |            background-color: #f8f9fa;
        |        }
        |        .client-name {
        |            font-weight: bold;
-       |            color: #1976d2;
+       |            color: #26a69a;
        |        }
        |        .client-id {
        |            font-family: monospace;
@@ -200,35 +148,23 @@ class ClientsEndpoint(authService: DatabaseAuthService) {
        |            font-size: 0.9em;
        |            color: #666;
        |        }
-       |        .empty-state {
-       |            text-align: center;
-       |            padding: 60px;
-       |            color: #666;
-       |        }
-       |        .masked-note {
-       |            background: #fff3e0;
-       |            padding: 10px;
-       |            border-radius: 4px;
-       |            margin-bottom: 20px;
-       |            border-left: 4px solid #ff9800;
-       |        }
        |    </style>
        |</head>
        |<body>
        |    <div class="container">
        |        <div class="header">
+       |            <h1>OIDC Clients</h1>
        |            <div class="nav">
        |                <a href="/">Back to Home</a>
        |            </div>
-       |            <h1>OIDC Clients</h1>
        |        </div>
        |
-       |        <div class="stats">
+       |        <div class="alert alert-info">
        |            <strong>Total Clients:</strong> ${clients.length}
        |        </div>
        |
-       |        <div class="masked-note">
-       <strong>Security Note:</strong> Client secrets are masked for security. Only the first and last 4 characters are shown.
+       |        <div class="alert alert-warning">
+       |            <strong>Security Note:</strong> Client secrets are masked for security. Only the first and last 4 characters are shown.
        |        </div>
        |
        |        ${if (clients.isEmpty) {
