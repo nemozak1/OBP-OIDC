@@ -531,9 +531,69 @@ class DatabaseAuthService(
   /** Validate client and redirect URI
     */
   def validateClient(clientId: String, redirectUri: String): IO[Boolean] = {
-    findClientById(clientId).map {
-      case Some(client) => client.redirect_uris.contains(redirectUri)
-      case None         => false
+    findClientById(clientId).flatMap {
+      case Some(client) =>
+        val isValid = client.redirect_uris.contains(redirectUri)
+        IO(
+          logger.info(
+            s"🔍 Validating redirect_uri for client: $clientId"
+          )
+        ) *>
+          IO(
+            logger.info(
+              s"   📥 Requested redirect_uri: $redirectUri"
+            )
+          ) *>
+          IO(
+            logger.info(
+              s"   📋 Allowed redirect_uris (${client.redirect_uris.size}): [${client.redirect_uris.mkString(", ")}]"
+            )
+          ) *>
+          IO(
+            println(
+              s"🔍 Validating redirect_uri for client: $clientId"
+            )
+          ) *>
+          IO(
+            println(
+              s"   📥 Requested redirect_uri: $redirectUri"
+            )
+          ) *>
+          IO(
+            println(
+              s"   📋 Allowed redirect_uris (${client.redirect_uris.size}): [${client.redirect_uris.mkString(", ")}]"
+            )
+          ) *>
+          IO(
+            if (isValid) {
+              logger.info(
+                s"   ✅ Redirect URI validation PASSED: requested URI found in allowed list"
+              )
+              println(
+                s"   ✅ Redirect URI validation PASSED: requested URI found in allowed list"
+              )
+            } else {
+              logger.warn(
+                s"   ❌ Redirect URI validation FAILED: requested URI NOT found in allowed list"
+              )
+              println(
+                s"   ❌ Redirect URI validation FAILED: requested URI NOT found in allowed list"
+              )
+            }
+          ) *>
+          IO.pure(isValid)
+      case None =>
+        IO(
+          logger.warn(
+            s"❌ Client validation FAILED: client not found with clientId: $clientId"
+          )
+        ) *>
+          IO(
+            println(
+              s"❌ Client validation FAILED: client not found with clientId: $clientId"
+            )
+          ) *>
+          IO.pure(false)
     }
   }
 
