@@ -109,11 +109,15 @@ class ClientsEndpoint(authService: DatabaseAuthService) {
        |            font-weight: bold;
        |            color: #26a69a;
        |        }
+       |        .consumer-id {
+       |            font-family: monospace;
+       |            color: #1565c0;
+       |            font-size: 0.9em;
+       |            font-weight: 500;
+       |        }
        |        .client-id {
        |            font-family: monospace;
-       |            background: #f5f5f5;
-       |            padding: 2px 6px;
-       |            border-radius: 3px;
+       |            color: #555;
        |            font-size: 0.9em;
        |        }
        |        .client-secret {
@@ -176,9 +180,9 @@ class ClientsEndpoint(authService: DatabaseAuthService) {
         s"""<table>
                 |    <thead>
                 |        <tr>
+                |            <th>Consumer ID</th>
                 |            <th>Client Name</th>
                 |            <th>Client ID / Consumer Key</th>
-                |            <th>Consumer ID</th>
                 |            <th>Client Secret</th>
                 |            <th>Redirect URIs</th>
                 |            <th>Scopes</th>
@@ -215,9 +219,9 @@ class ClientsEndpoint(authService: DatabaseAuthService) {
     }
 
     s"""<tr>
+       |    <td><span class="consumer-id">${client.consumer_id}</span></td>
        |    <td><span class="client-name">${client.client_name}</span></td>
        |    <td><span class="client-id">${client.client_id}</span></td>
-       |    <td><span class="client-id">${client.consumer_id}</span></td>
        |    <td>$clientSecretDisplay</td>
        |    <td class="redirect-uris">$redirectUrisList</td>
        |    <td class="scopes">$scopesList</td>
