@@ -69,8 +69,8 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
     ),
     ClientDefinition(
       name = "obp-explorer-ii-client",
-      redirect_uris =
-        "http://localhost:3001/callback,http://localhost:3001/oauth/callback"
+      redirect_uris = "http://localhost:5173/api/oauth2/callback"
+      //  "http://localhost:3001/callback,http://localhost:3001/oauth/callback,http://localhost:3001/callback,http://localhost:3001/oauth/callback,http://localhost:5173/api/oauth2/callback"
     ),
     ClientDefinition(
       name = "obp-opey-ii-client",
@@ -80,6 +80,26 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
     ClientDefinition(
       name = "obp-api-manager-ii",
       redirect_uris = "http://localhost:3003/login/obp/callback"
+    ),
+    ClientDefinition(
+      name = "obp-stripe",
+      redirect_uris = "http://localhost:4242/callback"
+    ),
+    ClientDefinition(
+      name = "other-app-1",
+      redirect_uris = "http://localhost:5175/login/obp/callback"
+    ),
+    ClientDefinition(
+      name = "other-app-2",
+      redirect_uris = "http://localhost:5176/login/obp/callback"
+    ),
+    ClientDefinition(
+      name = "other-app-3",
+      redirect_uris = "http://localhost:5177/login/obp/callback"
+    ),
+    ClientDefinition(
+      name = "other-app-4",
+      redirect_uris = "http://localhost:5178/login/obp/callback"
     )
   )
 

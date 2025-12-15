@@ -163,6 +163,134 @@ The script will:
 
 ### Server Configuration
 
+#### Local Development Mode
+
+By default, the server only exposes OIDC endpoints under `/obp-oidc/*` for security. Administrative and debugging pages are disabled in production.
+
+To enable additional pages for local development and testing, set `LOCAL_DEVELOPMENT_MODE=true`:
+
+```bash
+# Enable local development mode (shows /, /health, /stats, /clients pages)
+export LOCAL_DEVELOPMENT_MODE=true
+mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
+```
+
+**When `LOCAL_DEVELOPMENT_MODE=false` (default/production):**
+
+- ✅ `/obp-oidc/auth` (authorization endpoint) - **ENABLED**
+- ✅ `/obp-oidc/token` (token endpoint) - **ENABLED**
+- ✅ `/obp-oidc/userinfo` (user info endpoint) - **ENABLED**
+- ✅ `/obp-oidc/jwks` (JSON Web Key Set) - **ENABLED**
+- ✅ `/obp-oidc/.well-known/openid-configuration` (discovery) - **ENABLED**
+- ✅ `/` (root landing page with links) - **ENABLED**
+- ✅ `/health` (health check) - **ENABLED**
+- ❌ `/obp-oidc/test-login` (standalone test form) - **DISABLED**
+- ❌ `/info` (detailed server info) - **DISABLED**
+- ❌ `/stats` (statistics dashboard) - **DISABLED**
+- ❌ `/clients` (client list) - **DISABLED**
+
+**When `LOCAL_DEVELOPMENT_MODE=true` (development/testing):**
+
+- ✅ All `/obp-oidc/*` endpoints - **ENABLED**
+- ✅ `/obp-oidc/test-login` (standalone test form) - **ENABLED**
+- ✅ `/` (root landing page with links to /info and /health) - **ENABLED**
+- ✅ `/info` (detailed server information and configuration) - **ENABLED**
+- ✅ `/health` (health check) - **ENABLED**
+- ✅ `/stats` (statistics dashboard) - **ENABLED**
+- ✅ `/clients` (client list) - **ENABLED**
+
+**⚠️ Security Note:** Never set `LOCAL_DEVELOPMENT_MODE=true` in production environments, as it exposes:
+
+- Server information page (`/info`) showing configuration and database details
+- The `/obp-oidc/test-login` endpoint which bypasses normal OAuth flow
+- Statistics and debugging information (`/stats`)
+- Client configuration details (`/clients`)
+
+#### Authentication Provider Dropdown
+
+The login form intelligently handles the authentication provider selection:
+
+**Production Mode (`LOCAL_DEVELOPMENT_MODE=false`):**
+
+- **Single Provider**: Dropdown is hidden, value submitted via hidden field (cleaner UX)
+- **Multiple Providers**: Dropdown is visible for user selection
+
+**Development Mode (`LOCAL_DEVELOPMENT_MODE=true`):**
+
+- **Always shows** the provider dropdown (even with single provider) for testing/debugging
+
+This provides a clean, professional login experience in production while maintaining flexibility for development.
+
+#### Logo Configuration
+
+The login page displays the **Open Bank Project logo by default**. You can customize it with your own logo by setting these environment variables:
+
+```bash
+# Set custom logo URL (displays at top of login page)
+export LOGO_URL="https://example.com/logo.png"
+
+# Set logo alt text for accessibility
+export LOGO_ALT_TEXT="Company Logo"
+
+# Set custom forgot password URL (optional)
+# Defaults to calling application's URL + /forgot-password
+export FORGOT_PASSWORD_URL="https://portal.example.com/reset-password"
+```
+
+**Default Logo:**
+
+- URL: `https://static.openbankproject.com/images/OBP/OBP_Horizontal_2025.png`
+- Alt Text: "Open Bank Project"
+
+**Logo Display:**
+
+- Maximum width: 200px (150px on mobile)
+- Maximum height: 80px (60px on mobile)
+- Image automatically scales to fit while maintaining aspect ratio
+- Appears at the top of the login form, above the "Sign In" heading
+- **Clickable** - Links back to the origin domain of the calling application
+
+**Logo Interaction:**
+
+The logo is clickable and links to the origin (domain) of the `redirect_uri` parameter. This provides users an intuitive way to cancel authentication and return to the calling application.
+
+Examples:
+
+- `http://localhost:5174/login/callback` → Logo links to `http://localhost:5174`
+- `https://portal.example.com/oauth/callback` → Logo links to `https://portal.example.com`
+- `https://api.bank.com:8080/auth/callback` → Logo links to `https://api.bank.com:8080`
+
+**Forgot Password Link:**
+
+The login page includes a "Forgot password?" link that helps users reset their passwords. The link automatically points to the calling application:
+
+- **Default behavior**: Links to `{calling_app_url}/forgot-password`
+  - Example: If redirect_uri is `http://localhost:5174/login/callback`, the forgot password link will be `http://localhost:5174/forgot-password`
+- **Custom URL**: Set `FORGOT_PASSWORD_URL` to override with a specific URL
+  - Example: `export FORGOT_PASSWORD_URL="https://portal.example.com/user/reset-password"`
+
+**Example (Using Default OBP Logo):**
+
+```bash
+# Default logo displays automatically - no configuration needed
+mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
+```
+
+**Example (Custom Logo):**
+
+```bash
+export LOGO_URL="https://mybank.com/logo.png"
+export LOGO_ALT_TEXT="My Bank"
+mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
+```
+
+**To remove the logo entirely**, set `LOGO_URL` to an empty string:
+
+```bash
+export LOGO_URL=""
+mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
+```
+
 #### Port Configuration
 
 The server runs on port **9000** by default. You can change this by setting the `OIDC_PORT` environment variable:

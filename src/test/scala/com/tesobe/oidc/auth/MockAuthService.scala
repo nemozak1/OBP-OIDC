@@ -30,32 +30,32 @@ class MockAuthService extends AuthService[IO] {
 
   // Test users for testing only
   private val users = Map(
-    "alice" -> User(
-      sub = "alice",
-      username = "alice",
-      password = "secret123",
+    "alice123" -> User(
+      sub = "alice123",
+      username = "alice123",
+      password = "secret123456",
       name = Some("Alice Smith"),
       email = Some("alice@example.com"),
       email_verified = Some(true),
-      provider = Some("obp")
+      provider = Some("obp-test")
     ),
-    "bob" -> User(
-      sub = "bob",
-      username = "bob",
-      password = "password456",
+    "bob12345" -> User(
+      sub = "bob12345",
+      username = "bob12345",
+      password = "password456789",
       name = Some("Bob Jones"),
       email = Some("bob@example.com"),
       email_verified = Some(true),
-      provider = Some("obp")
+      provider = Some("obp-test")
     ),
-    "charlie" -> User(
-      sub = "charlie",
-      username = "charlie",
-      password = "test789",
+    "charlie1" -> User(
+      sub = "charlie1",
+      username = "charlie1",
+      password = "test789012",
       name = Some("Charlie Brown"),
       email = Some("charlie@example.com"),
       email_verified = Some(true),
-      provider = Some("obp")
+      provider = Some("obp-test")
     )
   )
 
@@ -82,7 +82,7 @@ class MockAuthService extends AuthService[IO] {
   }
 
   def getAvailableProviders(): IO[List[String]] = IO {
-    List("obp", "test")
+    List("obp-test", "test-provider")
   }
 
   def validateClient(clientId: String, redirectUri: String): IO[Boolean] = IO {

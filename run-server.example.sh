@@ -34,6 +34,15 @@ export OIDC_KEY_ID=oidc-key-1
 export OIDC_TOKEN_EXPIRATION=3600
 export OIDC_CODE_EXPIRATION=600
 
+# UI Customization (optional)
+# Logo displayed on login page
+# export LOGO_URL="https://example.com/logo.png"
+# export LOGO_ALT_TEXT="Company Logo"
+
+# Forgot Password Link (optional)
+# Defaults to calling application's URL + /forgot-password
+# export FORGOT_PASSWORD_URL="https://portal.example.com/reset-password"
+
 # OBP-API Configuration
 export OBP_API_HOST=localhost:8080
 export OBP_API_URL=http://localhost:8080
@@ -78,6 +87,26 @@ export OIDC_CLIENT_OPEY_ID=obp-opey-ii-client
 export OIDC_CLIENT_OPEY_SECRET=CHANGE_THIS_TO_OPEY_SECRET_2024
 export OIDC_CLIENT_OPEY_REDIRECTS=http://localhost:3002/callback,http://localhost:3002/oauth/callback
 
+export OIDC_CLIENT_STRIPE_ID=obp-stripe
+export OIDC_CLIENT_STRIPE_SECRET=CHANGE_THIS_TO_STRIPE_SECRET_2024
+export OIDC_CLIENT_STRIPE_REDIRECTS=http://localhost:4242/callback
+
+export OIDC_CLIENT_OTHER_APP_1_ID=other_app_1
+export OIDC_CLIENT_OTHER_APP_1_SECRET=CHANGE_THIS_TO_OTHER_APP_1_SECRET_2024
+export OIDC_CLIENT_OTHER_APP_1_REDIRECTS=http://localhost:5175/login/obp/callback
+
+export OIDC_CLIENT_OTHER_APP_2_ID=other_app_2
+export OIDC_CLIENT_OTHER_APP_2_SECRET=CHANGE_THIS_TO_OTHER_APP_2_SECRET_2024
+export OIDC_CLIENT_OTHER_APP_2_REDIRECTS=http://localhost:5176/login/obp/callback
+
+export OIDC_CLIENT_OTHER_APP_3_ID=other_app_3
+export OIDC_CLIENT_OTHER_APP_3_SECRET=CHANGE_THIS_TO_OTHER_APP_3_SECRET_2024
+export OIDC_CLIENT_OTHER_APP_3_REDIRECTS=http://localhost:5177/login/obp/callback
+
+export OIDC_CLIENT_OTHER_APP_4_ID=other_app_4
+export OIDC_CLIENT_OTHER_APP_4_SECRET=CHANGE_THIS_TO_OTHER_APP_4_SECRET_2024
+export OIDC_CLIENT_OTHER_APP_4_REDIRECTS=http://localhost:5178/login/obp/callback
+
 echo "📋 Configuration:"
 echo "  Server: $OIDC_HOST:$OIDC_PORT"
 echo "  Issuer: obp-oidc (hardcoded)"
@@ -89,6 +118,11 @@ echo "  OBP-API: $OIDC_CLIENT_OBP_API_ID"
 echo "  Portal: $OIDC_CLIENT_PORTAL_ID"
 echo "  Explorer II: $OIDC_CLIENT_EXPLORER_ID"
 echo "  Opey II: $OIDC_CLIENT_OPEY_ID"
+echo "  Stripe: $OIDC_CLIENT_STRIPE_ID"
+echo "  Other App 1: $OIDC_CLIENT_OTHER_APP_1_ID"
+echo "  Other App 2: $OIDC_CLIENT_OTHER_APP_2_ID"
+echo "  Other App 3: $OIDC_CLIENT_OTHER_APP_3_ID"
+echo "  Other App 4: $OIDC_CLIENT_OTHER_APP_4_ID"
 echo ""
 
 # Logging Configuration

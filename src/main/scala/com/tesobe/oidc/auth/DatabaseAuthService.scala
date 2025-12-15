@@ -59,6 +59,9 @@ class DatabaseAuthService(
   def getAvailableProviders(): IO[List[String]] = {
     logger.debug("🔍 Fetching available providers from database")
 
+    val excludedProviders =
+      List("google", "yahoo", "azure", "auth0", "keycloak", "hydra", "mitreid")
+
     val query = sql"""
       SELECT DISTINCT provider
       FROM v_oidc_users
@@ -66,13 +69,26 @@ class DatabaseAuthService(
       ORDER BY provider
     """.query[String]
 
-    query.to[List].transact(transactor).handleErrorWith { error =>
-      logger.error("🚨 Database error while fetching providers", error)
-      println(
-        s"🚨 Database error while fetching providers: ${error.getMessage}"
-      )
-      IO.pure(List.empty[String])
-    }
+    query
+      .to[List]
+      .transact(transactor)
+      .map { providers =>
+        logger.info(
+          s"🔍 Filtering out excluded providers: ${excludedProviders.mkString(", ")}"
+        )
+        providers.filterNot { provider =>
+          excludedProviders.exists(excluded =>
+            provider.toLowerCase.contains(excluded.toLowerCase)
+          )
+        }
+      }
+      .handleErrorWith { error =>
+        logger.error("🚨 Database error while fetching providers", error)
+        println(
+          s"🚨 Database error while fetching providers: ${error.getMessage}"
+        )
+        IO.pure(List.empty[String])
+      }
   }
 
   /** Authenticate a user by username, password, and provider Returns the user
@@ -515,9 +531,69 @@ class DatabaseAuthService(
   /** Validate client and redirect URI
     */
   def validateClient(clientId: String, redirectUri: String): IO[Boolean] = {
-    findClientById(clientId).map {
-      case Some(client) => client.redirect_uris.contains(redirectUri)
-      case None         => false
+    findClientById(clientId).flatMap {
+      case Some(client) =>
+        val isValid = client.redirect_uris.contains(redirectUri)
+        IO(
+          logger.info(
+            s"🔍 Validating redirect_uri for client: $clientId"
+          )
+        ) *>
+          IO(
+            logger.info(
+              s"   📥 Requested redirect_uri: $redirectUri"
+            )
+          ) *>
+          IO(
+            logger.info(
+              s"   📋 Allowed redirect_uris (${client.redirect_uris.size}): [${client.redirect_uris.mkString(", ")}]"
+            )
+          ) *>
+          IO(
+            println(
+              s"🔍 Validating redirect_uri for client: $clientId"
+            )
+          ) *>
+          IO(
+            println(
+              s"   📥 Requested redirect_uri: $redirectUri"
+            )
+          ) *>
+          IO(
+            println(
+              s"   📋 Allowed redirect_uris (${client.redirect_uris.size}): [${client.redirect_uris.mkString(", ")}]"
+            )
+          ) *>
+          IO(
+            if (isValid) {
+              logger.info(
+                s"   ✅ Redirect URI validation PASSED: requested URI found in allowed list"
+              )
+              println(
+                s"   ✅ Redirect URI validation PASSED: requested URI found in allowed list"
+              )
+            } else {
+              logger.warn(
+                s"   ❌ Redirect URI validation FAILED: requested URI NOT found in allowed list"
+              )
+              println(
+                s"   ❌ Redirect URI validation FAILED: requested URI NOT found in allowed list"
+              )
+            }
+          ) *>
+          IO.pure(isValid)
+      case None =>
+        IO(
+          logger.warn(
+            s"❌ Client validation FAILED: client not found with clientId: $clientId"
+          )
+        ) *>
+          IO(
+            println(
+              s"❌ Client validation FAILED: client not found with clientId: $clientId"
+            )
+          ) *>
+          IO.pure(false)
     }
   }
 
@@ -809,7 +885,7 @@ class DatabaseAuthService(
       SELECT client_id, client_secret, client_name, consumer_id, redirect_uris,
              grant_types, response_types, scopes, token_endpoint_auth_method, created_at
       FROM v_oidc_clients
-      ORDER BY created_at DESC
+      ORDER BY client_name ASC
     """.query[DatabaseClient]
 
     println("🔄 DEBUG: Executing SELECT query on v_oidc_clients")
