@@ -168,7 +168,7 @@ class ClientsEndpoint(authService: DatabaseAuthService) {
        |        </div>
        |
        |        <div class="alert alert-warning">
-       |            <strong>Security Note:</strong> Client secrets are masked for security. Only the first and last 4 characters are shown.
+       |            <strong>Note:</strong> Client secrets are masked for security.
        |        </div>
        |
        |        ${if (clients.isEmpty) {
