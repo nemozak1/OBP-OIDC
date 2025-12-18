@@ -74,11 +74,9 @@ class StatsEndpoint(statsService: StatsService[IO], config: OidcConfig) {
           }
           val tokenClass =
             if (token.tokenType == "access") "token-access" else "token-refresh"
-          val tokenDisplay =
-            s"${token.tokenId.take(2)}...${token.tokenId.takeRight(2)}"
           s"""
            |<tr class="$tokenClass">
-           |  <td><code>$tokenDisplay</code></td>
+           |  <td><code>${token.tokenId}</code></td>
            |  <td>${token.clientName}</td>
            |  <td>${token.username}</td>
            |  <td><span class="badge badge-${token.tokenType}">${token.tokenType}</span></td>
