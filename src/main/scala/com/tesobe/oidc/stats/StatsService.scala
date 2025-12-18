@@ -44,7 +44,23 @@ case class OidcStats(
     serverStartTime: Instant = Instant.now(),
 
     // Recent activity (last 10 events)
-    recentEvents: List[StatsEvent] = List.empty
+    recentEvents: List[StatsEvent] = List.empty,
+
+    // Active tokens tracking
+    activeTokens: List[ActiveToken] = List.empty
+)
+
+/** Represents an active token issued to a client
+  */
+case class ActiveToken(
+    tokenId: String, // First 8 chars of token for identification
+    clientId: String,
+    clientName: String,
+    username: String,
+    issuedAt: Instant,
+    expiresAt: Instant,
+    tokenType: String, // "access" or "refresh"
+    scope: String
 )
 
 /** Single statistics event
@@ -70,6 +86,16 @@ trait StatsService[F[_]] {
   def incrementLoginFailure(username: String, error: String): F[Unit]
   def incrementTotalRequests: F[Unit]
   def reset: F[Unit]
+  def recordTokenIssued(
+      tokenId: String,
+      clientId: String,
+      clientName: String,
+      username: String,
+      expiresAt: Instant,
+      tokenType: String,
+      scope: String
+  ): F[Unit]
+  def getActiveTokens: F[List[ActiveToken]]
 }
 
 class StatsServiceImpl(statsRef: Ref[IO, OidcStats]) extends StatsService[IO] {
@@ -175,6 +201,41 @@ class StatsServiceImpl(statsRef: Ref[IO, OidcStats]) extends StatsService[IO] {
 
   def reset: IO[Unit] = {
     updateStats(_ => OidcStats())
+  }
+
+  def recordTokenIssued(
+      tokenId: String,
+      clientId: String,
+      clientName: String,
+      username: String,
+      expiresAt: Instant,
+      tokenType: String,
+      scope: String
+  ): IO[Unit] = {
+    val token = ActiveToken(
+      tokenId = tokenId,
+      clientId = clientId,
+      clientName = clientName,
+      username = username,
+      issuedAt = Instant.now(),
+      expiresAt = expiresAt,
+      tokenType = tokenType,
+      scope = scope
+    )
+    updateStats(stats =>
+      stats.copy(
+        activeTokens =
+          (token :: stats.activeTokens).take(100) // Keep last 100 tokens
+      )
+    )
+  }
+
+  def getActiveTokens: IO[List[ActiveToken]] = {
+    val now = Instant.now()
+    statsRef.get.map { stats =>
+      // Filter out expired tokens
+      stats.activeTokens.filter(_.expiresAt.isAfter(now))
+    }
   }
 
   private def updateStats(f: OidcStats => OidcStats): IO[Unit] = {

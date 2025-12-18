@@ -137,12 +137,13 @@ class TokenEndpoint(
     grantType match {
       case Some("authorization_code") =>
         // Build optional credentials tuple for validation when provided
-        val credentialsOpt: Option[(String, String)] = basicCredentialsOpt.orElse {
-          (clientIdFromForm, clientSecretFromForm) match {
-            case (Some(id), Some(secret)) => Some((id, secret))
-            case _                        => None
+        val credentialsOpt: Option[(String, String)] =
+          basicCredentialsOpt.orElse {
+            (clientIdFromForm, clientSecretFromForm) match {
+              case (Some(id), Some(secret)) => Some((id, secret))
+              case _                        => None
+            }
           }
-        }
 
         (code, redirectUri, resolvedClientId) match {
           case (Some(authCode), Some(redirectUriValue), Some(clientIdValue)) =>
@@ -154,27 +155,38 @@ class TokenEndpoint(
             credentialsOpt match {
               case Some((id, secret)) =>
                 if (id != clientIdValue) {
-                  logger.warn("❌ Client ID in credentials does not match resolved client_id")
+                  logger.warn(
+                    "❌ Client ID in credentials does not match resolved client_id"
+                  )
                   BadRequest(
-                    OidcError("invalid_client", Some("Client ID mismatch")).asJson
+                    OidcError(
+                      "invalid_client",
+                      Some("Client ID mismatch")
+                    ).asJson
                   )
                 } else {
                   authService.authenticateClient(id, secret).flatMap {
                     case Right(_) =>
-                      logger.trace(s"About to call processAuthorizationCodeGrant (basic auth validated)")
+                      logger.trace(
+                        s"About to call processAuthorizationCodeGrant (basic auth validated)"
+                      )
                       processAuthorizationCodeGrant(
                         authCode,
                         redirectUriValue,
                         clientIdValue
                       )
                     case Left(error) =>
-                      logger.warn(s"❌ Client authentication failed for authorization_code: ${error.error}")
+                      logger.warn(
+                        s"❌ Client authentication failed for authorization_code: ${error.error}"
+                      )
                       BadRequest(error.asJson)
                   }
                 }
               case None =>
                 // Public client (no secret) or legacy behavior
-                logger.trace(s"About to call processAuthorizationCodeGrant (no client secret provided)")
+                logger.trace(
+                  s"About to call processAuthorizationCodeGrant (no client secret provided)"
+                )
                 processAuthorizationCodeGrant(
                   authCode,
                   redirectUriValue,
@@ -349,6 +361,38 @@ class TokenEndpoint(
               refreshTokenJwt <- jwtService
                 .generateRefreshToken(user, clientId, authCode.scope)
 
+              // Get client details for tracking
+              clientOpt <- authService.findClientById(clientId)
+              clientName = clientOpt.map(_.client_name).getOrElse(clientId)
+
+              // Record issued tokens in stats
+              accessTokenExpiry = java.time.Instant
+                .now()
+                .plusSeconds(config.tokenExpirationSeconds)
+              refreshTokenExpiry = java.time.Instant
+                .now()
+                .plusSeconds(config.tokenExpirationSeconds * 720)
+
+              _ <- statsService.recordTokenIssued(
+                tokenId = accessToken.take(8),
+                clientId = clientId,
+                clientName = clientName,
+                username = user.username,
+                expiresAt = accessTokenExpiry,
+                tokenType = "access",
+                scope = authCode.scope
+              )
+
+              _ <- statsService.recordTokenIssued(
+                tokenId = refreshTokenJwt.take(8),
+                clientId = clientId,
+                clientName = clientName,
+                username = user.username,
+                expiresAt = refreshTokenExpiry,
+                tokenType = "refresh",
+                scope = authCode.scope
+              )
+
               // Create token response
               tokenResponse = TokenResponse(
                 access_token = accessToken,
@@ -442,6 +486,38 @@ class TokenEndpoint(
                 // Generate new refresh token (token rotation)
                 newRefreshTokenJwt <- jwtService
                   .generateRefreshToken(user, clientId, tokenClaims.scope)
+
+                // Get client details for tracking
+                clientOpt <- authService.findClientById(clientId)
+                clientName = clientOpt.map(_.client_name).getOrElse(clientId)
+
+                // Record issued tokens in stats
+                accessTokenExpiry = java.time.Instant
+                  .now()
+                  .plusSeconds(config.tokenExpirationSeconds)
+                refreshTokenExpiry = java.time.Instant
+                  .now()
+                  .plusSeconds(config.tokenExpirationSeconds * 720)
+
+                _ <- statsService.recordTokenIssued(
+                  tokenId = newAccessToken.take(8),
+                  clientId = clientId,
+                  clientName = clientName,
+                  username = user.username,
+                  expiresAt = accessTokenExpiry,
+                  tokenType = "access",
+                  scope = tokenClaims.scope
+                )
+
+                _ <- statsService.recordTokenIssued(
+                  tokenId = newRefreshTokenJwt.take(8),
+                  clientId = clientId,
+                  clientName = clientName,
+                  username = user.username,
+                  expiresAt = refreshTokenExpiry,
+                  tokenType = "refresh",
+                  scope = tokenClaims.scope
+                )
 
                 // Create token response (no ID token for refresh grant)
                 tokenResponse = TokenResponse(
