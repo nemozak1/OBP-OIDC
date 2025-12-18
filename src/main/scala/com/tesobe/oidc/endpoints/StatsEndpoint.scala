@@ -317,7 +317,7 @@ class StatsEndpoint(statsService: StatsService[IO], config: OidcConfig) {
        |            <table class="tokens-table">
        |                <thead>
        |                    <tr>
-       |                        <th>Token ID</th>
+       |                        <th>Token Hash Fragment</th>
        |                        <th>Client</th>
        |                        <th>User</th>
        |                        <th>Type</th>
