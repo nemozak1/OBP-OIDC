@@ -63,7 +63,7 @@ mvn clean
 
 echo ""
 echo "Step 2: Building project and creating executable JAR..."
-mvn package -DskipTests
+MAVEN_OPTS="-Xmx3G -Xss2m" mvn package -DskipTests
 
 # Check if build was successful
 if [ $? -eq 0 ]; then

@@ -34,6 +34,15 @@ export OIDC_KEY_ID=oidc-key-1
 export OIDC_TOKEN_EXPIRATION=3600
 export OIDC_CODE_EXPIRATION=600
 
+# UI Customization (optional)
+# Logo displayed on login page
+# export LOGO_URL="https://example.com/logo.png"
+# export LOGO_ALT_TEXT="Company Logo"
+
+# Forgot Password Link (optional)
+# Defaults to calling application's URL + /forgot-password
+# export FORGOT_PASSWORD_URL="https://portal.example.com/reset-password"
+
 # OBP-API Configuration
 export OBP_API_HOST=localhost:8080
 export OBP_API_URL=http://localhost:8080

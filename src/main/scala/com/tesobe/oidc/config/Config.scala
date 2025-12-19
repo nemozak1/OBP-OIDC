@@ -48,7 +48,8 @@ case class OidcConfig(
     logoUrl: Option[String] = Some(
       "https://static.openbankproject.com/images/OBP/OBP_Horizontal_2025.png"
     ),
-    logoAltText: String = "Open Bank Project"
+    logoAltText: String = "Open Bank Project",
+    forgotPasswordUrl: Option[String] = None
 )
 
 object Config {
@@ -116,7 +117,8 @@ object Config {
             "https://static.openbankproject.com/images/OBP/OBP_Horizontal_2025.png"
           )
         ),
-      logoAltText = sys.env.getOrElse("LOGO_ALT_TEXT", "Open Bank Project")
+      logoAltText = sys.env.getOrElse("LOGO_ALT_TEXT", "Open Bank Project"),
+      forgotPasswordUrl = sys.env.get("FORGOT_PASSWORD_URL")
     )
   }
 }

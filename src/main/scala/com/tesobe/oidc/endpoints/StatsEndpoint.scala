@@ -54,6 +54,43 @@ class StatsEndpoint(statsService: StatsService[IO], config: OidcConfig) {
     val startTime =
       com.tesobe.oidc.stats.StatsService.formatTimestamp(stats.serverStartTime)
 
+    // Filter active (non-expired) tokens
+    val now = java.time.Instant.now()
+    val activeTokens = stats.activeTokens.filter(_.expiresAt.isAfter(now))
+
+    val activeTokensHtml = if (activeTokens.nonEmpty) {
+      activeTokens
+        .sortBy(_.expiresAt.getEpochSecond)
+        .map { token =>
+          val issuedAt =
+            com.tesobe.oidc.stats.StatsService.formatTimestamp(token.issuedAt)
+          val expiresAt =
+            com.tesobe.oidc.stats.StatsService.formatTimestamp(token.expiresAt)
+          val timeLeft = {
+            val duration = java.time.Duration.between(now, token.expiresAt)
+            val hours = duration.toHours
+            val minutes = duration.toMinutes % 60
+            if (hours > 0) s"${hours}h ${minutes}m" else s"${minutes}m"
+          }
+          val tokenClass =
+            if (token.tokenType == "access") "token-access" else "token-refresh"
+          s"""
+           |<tr class="$tokenClass">
+           |  <td><code>${token.tokenId}</code></td>
+           |  <td>${token.clientName}</td>
+           |  <td>${token.username}</td>
+           |  <td><span class="badge badge-${token.tokenType}">${token.tokenType}</span></td>
+           |  <td>${token.scope}</td>
+           |  <td>$issuedAt</td>
+           |  <td>$expiresAt</td>
+           |  <td><span class="time-left">$timeLeft</span></td>
+           |</tr>""".stripMargin
+        }
+        .mkString("")
+    } else {
+      """<tr><td colspan="8"><em>No active tokens</em></td></tr>"""
+    }
+
     val recentEventsHtml = if (stats.recentEvents.nonEmpty) {
       stats.recentEvents
         .map { event =>
@@ -154,6 +191,65 @@ class StatsEndpoint(statsService: StatsService[IO], config: OidcConfig) {
        |        .nav a {
        |            color: #26a69a;
        |        }
+       |        .tokens-section {
+       |            margin: 40px 0 20px 0;
+       |        }
+       |        .tokens-table {
+       |            width: 100%;
+       |            border-collapse: collapse;
+       |            background: white;
+       |            border-radius: 8px;
+       |            overflow: hidden;
+       |            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+       |        }
+       |        .tokens-table th {
+       |            background: #f3f4f6;
+       |            padding: 12px;
+       |            text-align: left;
+       |            font-weight: 600;
+       |            color: #374151;
+       |            border-bottom: 2px solid #e5e7eb;
+       |        }
+       |        .tokens-table td {
+       |            padding: 12px;
+       |            border-bottom: 1px solid #f3f4f6;
+       |        }
+       |        .tokens-table tr:hover {
+       |            background: #f9fafb;
+       |        }
+       |        .tokens-table code {
+       |            background: #f3f4f6;
+       |            padding: 2px 6px;
+       |            border-radius: 4px;
+       |            font-family: 'Courier New', monospace;
+       |            font-size: 0.9em;
+       |        }
+       |        .badge {
+       |            display: inline-block;
+       |            padding: 4px 8px;
+       |            border-radius: 12px;
+       |            font-size: 0.85em;
+       |            font-weight: 600;
+       |            text-transform: uppercase;
+       |        }
+       |        .badge-access {
+       |            background: #dbeafe;
+       |            color: #1e40af;
+       |        }
+       |        .badge-refresh {
+       |            background: #d1fae5;
+       |            color: #065f46;
+       |        }
+       |        .time-left {
+       |            font-weight: 600;
+       |            color: #059669;
+       |        }
+       |        .token-access {
+       |            border-left: 3px solid #3b82f6;
+       |        }
+       |        .token-refresh {
+       |            border-left: 3px solid #10b981;
+       |        }
        |    </style>
        |</head>
        |<body>
@@ -214,6 +310,27 @@ class StatsEndpoint(statsService: StatsService[IO], config: OidcConfig) {
        |                <p class="stat-label">Server Uptime</p>
        |                <p class="stat-description">Started: $startTime UTC</p>
        |            </div>
+       |        </div>
+       |
+       |        <div class="tokens-section">
+       |            <h2 class="section-title">Active Tokens (${activeTokens.size})</h2>
+       |            <table class="tokens-table">
+       |                <thead>
+       |                    <tr>
+       |                        <th>Token Hash Fragment</th>
+       |                        <th>Client</th>
+       |                        <th>User</th>
+       |                        <th>Type</th>
+       |                        <th>Scope</th>
+       |                        <th>Issued At (UTC)</th>
+       |                        <th>Expires At (UTC)</th>
+       |                        <th>Time Left</th>
+       |                    </tr>
+       |                </thead>
+       |                <tbody>
+       |                    $activeTokensHtml
+       |                </tbody>
+       |            </table>
        |        </div>
        |
        |        <div class="events-section">

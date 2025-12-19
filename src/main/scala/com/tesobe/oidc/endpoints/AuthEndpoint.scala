@@ -414,6 +414,11 @@ class AuthEndpoint(
               redirectUri // Fallback to full redirect_uri if parsing fails
           }
 
+        // Determine forgot password URL: use config setting or default to calling app + /forgot-password
+        forgotPasswordLink = config.forgotPasswordUrl.getOrElse(
+          s"$logoLinkUrl/forgot-password"
+        )
+
         logoHtml = config.logoUrl match {
           case Some(url) =>
             s"""<div class="login-logo">
@@ -459,6 +464,9 @@ class AuthEndpoint(
             <div class="form-group">
               <label for="password">Password</label>
               <input type="password" id="password" name="password" required autocomplete="current-password">
+              <div style="text-align: right; margin-top: 0.5rem;">
+                <a href="$forgotPasswordLink" style="font-size: 0.9rem; color: #0066cc; text-decoration: none;">Forgot password?</a>
+              </div>
             </div>
 
             ${
@@ -524,6 +532,11 @@ class AuthEndpoint(
         }
         .mkString("\n            ")
 
+      // For test login, use configured forgot password URL or default to localhost
+      forgotPasswordLink = config.forgotPasswordUrl.getOrElse(
+        "http://localhost:5174/forgot-password"
+      )
+
       html = s"""
       <!DOCTYPE html>
       <html>
@@ -577,6 +590,9 @@ class AuthEndpoint(
           <div class=\"form-group\">
             <label for=\"password\">Password</label>
             <input type=\"password\" id=\"password\" name=\"password\" required>
+            <div style=\"text-align: right; margin-top: 0.5rem;\">
+              <a href=\"$forgotPasswordLink\" style=\"font-size: 0.9rem; color: #0066cc; text-decoration: none;\">Forgot password?</a>
+            </div>
           </div>
 
           <div class=\"form-group\">

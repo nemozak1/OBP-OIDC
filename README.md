@@ -231,6 +231,10 @@ export LOGO_URL="https://example.com/logo.png"
 
 # Set logo alt text for accessibility
 export LOGO_ALT_TEXT="Company Logo"
+
+# Set custom forgot password URL (optional)
+# Defaults to calling application's URL + /forgot-password
+export FORGOT_PASSWORD_URL="https://portal.example.com/reset-password"
 ```
 
 **Default Logo:**
@@ -255,6 +259,15 @@ Examples:
 - `http://localhost:5174/login/callback` → Logo links to `http://localhost:5174`
 - `https://portal.example.com/oauth/callback` → Logo links to `https://portal.example.com`
 - `https://api.bank.com:8080/auth/callback` → Logo links to `https://api.bank.com:8080`
+
+**Forgot Password Link:**
+
+The login page includes a "Forgot password?" link that helps users reset their passwords. The link automatically points to the calling application:
+
+- **Default behavior**: Links to `{calling_app_url}/forgot-password`
+  - Example: If redirect_uri is `http://localhost:5174/login/callback`, the forgot password link will be `http://localhost:5174/forgot-password`
+- **Custom URL**: Set `FORGOT_PASSWORD_URL` to override with a specific URL
+  - Example: `export FORGOT_PASSWORD_URL="https://portal.example.com/user/reset-password"`
 
 **Example (Using Default OBP Logo):**
 
