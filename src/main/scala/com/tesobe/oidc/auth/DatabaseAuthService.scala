@@ -756,13 +756,15 @@ class DatabaseAuthService(
         val insertQuery = sql"""
           INSERT INTO v_oidc_admin_clients (
             name, apptype, description, developeremail, sub,
-            secret, azp, aud, iss, redirecturl, company, key_c, consumerid, isactive
+            secret, azp, aud, iss, redirecturl, company, key_c, consumerid, isactive,
+            createdat, updatedat
           ) VALUES (
             ${adminClient.name}, ${adminClient.apptype}, ${adminClient.description},
             ${adminClient.developeremail}, ${adminClient.sub},
             ${adminClient.secret}, ${adminClient.azp}, ${adminClient.aud},
             ${adminClient.iss}, ${adminClient.redirecturl}, ${adminClient.company},
-            ${adminClient.key_c}, ${adminClient.consumerid}, ${adminClient.isactive}
+            ${adminClient.key_c}, ${adminClient.consumerid}, ${adminClient.isactive},
+            ${adminClient.createdat}, ${adminClient.updatedat}
           )
         """.update
 
@@ -1218,8 +1220,8 @@ case class AdminDatabaseClient(
     developeremail: Option[String], // developer email
     sub: Option[String], // subject (not used for client_id)
     consumerid: Option[String], // auto-generated ID
-    createdat: Option[String], // created timestamp
-    updatedat: Option[String], // updated timestamp
+    createdat: Option[Instant], // created timestamp
+    updatedat: Option[Instant], // updated timestamp
     secret: Option[String], // client_secret
     azp: Option[String], // authorized party
     aud: Option[String], // audience
@@ -1246,7 +1248,7 @@ case class AdminDatabaseClient(
     response_types = List("code"),
     scopes = List("openid", "profile", "email"),
     token_endpoint_auth_method = "client_secret_basic",
-    created_at = createdat
+    created_at = createdat.map(_.toString)
   )
 
   private def parseSimpleString(str: String): List[String] = {
@@ -1269,8 +1271,8 @@ object AdminDatabaseClient {
     developeremail = Some("admin@tesobe.com"), // Default email
     sub = Some(client.client_name), // Use client name as sub
     consumerid = Some(client.client_id),
-    createdat = None, // Let database set this
-    updatedat = None, // Let database set this
+    createdat = Some(Instant.now()), // Set creation timestamp
+    updatedat = Some(Instant.now()), // Set update timestamp
     secret = client.client_secret,
     azp = Some(client.client_id),
     aud = Some("obp-api"),
@@ -1486,8 +1488,8 @@ object DatabaseUserInstances {
           Option[String],
           Option[String],
           Option[String],
-          Option[String],
-          Option[String],
+          Option[Instant],
+          Option[Instant],
           Option[String],
           Option[String],
           Option[String],

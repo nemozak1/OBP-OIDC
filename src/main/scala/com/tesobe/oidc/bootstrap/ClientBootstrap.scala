@@ -415,7 +415,8 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
         logger.info(s"""
 INSERT INTO v_oidc_admin_clients (
   name, apptype, description, developeremail, sub,
-  secret, azp, aud, iss, redirecturl, company, consumerid, isactive
+  secret, azp, aud, iss, redirecturl, company, consumerid, isactive,
+  createdat, updatedat
 ) VALUES (
   '${client.client_name}',
   'WEB',
@@ -429,7 +430,9 @@ INSERT INTO v_oidc_admin_clients (
   '${client.redirect_uris.mkString(",")}',
   'TESOBE',
   '${client.client_id}',
-  true
+  true,
+  NOW(),
+  NOW()
 );""")
       }
 
