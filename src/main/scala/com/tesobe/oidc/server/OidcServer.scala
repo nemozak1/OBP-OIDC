@@ -855,7 +855,7 @@ object OidcServer extends IOApp {
         for {
           _ <- IO(println(s"CLIENT_NAME: ${c.client_name}"))
           _ <- IO(println(s"CONSUMER_ID: ${c.consumer_id}"))
-          _ <- IO(println(s"CLIENT_ID: ${c.client_id}"))
+          _ <- IO(println(s"CLIENT_ID (KEY): ${c.client_id}"))
           _ <- IO(
             println(s"CLIENT_SECRET: ${c.client_secret.getOrElse("NOT_SET")}")
           )
