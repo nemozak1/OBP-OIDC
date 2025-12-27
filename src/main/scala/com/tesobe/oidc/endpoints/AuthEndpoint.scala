@@ -365,7 +365,7 @@ class AuthEndpoint(
       IO(println(s"🔍 showLoginForm called for clientId: $clientId")) *>
       (for {
         providers <- authService.getAvailableProviders()
-        clientOpt <- authService.findClientById(clientId)
+        clientOpt <- authService.findClientByClientIdThatIsKey(clientId)
 
         stateParam = state
           .map(s => s"""<input type="hidden" name="state" value="$s">""")

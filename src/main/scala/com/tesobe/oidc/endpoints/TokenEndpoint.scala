@@ -363,7 +363,7 @@ class TokenEndpoint(
                 .generateRefreshToken(user, clientId, authCode.scope)
 
               // Get client details for tracking
-              clientOpt <- authService.findClientById(clientId)
+              clientOpt <- authService.findClientByClientIdThatIsKey(clientId)
               clientName = clientOpt.map(_.client_name).getOrElse(clientId)
 
               // Record issued tokens in stats
@@ -503,7 +503,7 @@ class TokenEndpoint(
                   .generateRefreshToken(user, clientId, tokenClaims.scope)
 
                 // Get client details for tracking
-                clientOpt <- authService.findClientById(clientId)
+                clientOpt <- authService.findClientByClientIdThatIsKey(clientId)
                 clientName = clientOpt.map(_.client_name).getOrElse(clientId)
 
                 // Record issued tokens in stats

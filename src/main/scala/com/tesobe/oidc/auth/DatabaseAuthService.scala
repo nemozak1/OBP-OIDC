@@ -483,10 +483,14 @@ class DatabaseAuthService(
       }
   }
 
-  /** Find OIDC client by client_id
+  /** Find OIDC client by client_id (which maps to key_c in database)
     */
-  def findClientById(clientId: String): IO[Option[OidcClient]] = {
-    println(s"🔍 DEBUG: findClientById() called for clientId: $clientId")
+  def findClientByClientIdThatIsKey(
+      clientId: String
+  ): IO[Option[OidcClient]] = {
+    println(
+      s"🔍 DEBUG: findClientByClientIdThatIsKey() called for clientId: $clientId"
+    )
     println(s"   Looking in v_oidc_clients view with column 'client_id'")
     val query = sql"""
       SELECT client_id, client_secret, client_name, consumer_id, redirect_uris,
@@ -531,7 +535,7 @@ class DatabaseAuthService(
   /** Validate client and redirect URI
     */
   def validateClient(clientId: String, redirectUri: String): IO[Boolean] = {
-    findClientById(clientId).flatMap {
+    findClientByClientIdThatIsKey(clientId).flatMap {
       case Some(client) =>
         val isValid = client.redirect_uris.contains(redirectUri)
         IO(
@@ -603,7 +607,7 @@ class DatabaseAuthService(
       clientId: String,
       clientSecret: String
   ): IO[Either[OidcError, OidcClient]] = {
-    findClientById(clientId).map {
+    findClientByClientIdThatIsKey(clientId).map {
       case Some(client) =>
         client.client_secret match {
           case Some(secret) if secret == clientSecret =>
@@ -929,11 +933,18 @@ class DatabaseAuthService(
       }
   }
 
-  /** Find client by ID from admin view for configuration printing
+  /** Find client by ID from admin view for configuration printing (searches by
+    * key_c)
     */
-  def findAdminClientById(clientId: String): IO[Option[OidcClient]] = {
-    println(s"🔍 DEBUG: findAdminClientById() called for clientId: $clientId")
-    println(s"   Looking in v_oidc_admin_clients view with column 'consumerid'")
+  def findAdminClientByClientIdThatIsKey(
+      clientId: String
+  ): IO[Option[OidcClient]] = {
+    println(
+      s"🔍 DEBUG: findAdminClientByClientIdThatIsKey() called for clientId: $clientId"
+    )
+    println(
+      s"   Looking in v_oidc_admin_clients view with column 'key_c' (client_id)"
+    )
     adminTransactor match {
       case Some(adminTx) =>
         val query = sql"""
@@ -941,7 +952,7 @@ class DatabaseAuthService(
                  createdat, updatedat, secret, azp, aud, iss, redirecturl,
                  logourl, userauthenticationurl, clientcertificate, company, key_c, consumerid, isactive
           FROM v_oidc_admin_clients
-          WHERE consumerid = $clientId
+          WHERE key_c = $clientId
         """.query[AdminDatabaseClient]
 
         query.option
@@ -951,7 +962,7 @@ class DatabaseAuthService(
               else "NOT FOUND"}")
             result.map { client =>
               println(
-                s"   ✅ DEBUG: Found client: ${client.name.getOrElse("No Name")} with consumerid: ${client.consumerid
+                s"   ✅ DEBUG: Found client: ${client.name.getOrElse("No Name")} with key_c (client_id): ${client.key_c
                     .getOrElse("No Key")}"
               )
               println(
