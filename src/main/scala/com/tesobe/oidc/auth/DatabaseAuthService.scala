@@ -1231,14 +1231,17 @@ case class AdminDatabaseClient(
     userauthenticationurl: Option[String], // user auth URL
     clientcertificate: Option[String], // client certificate
     company: Option[String], // company name
-    key_c: Option[String], // OAuth1 consumer key (UUID)
+    key_c: Option[
+      String
+    ], // OAuth1/OAuth2 client identifier (maps to client_id in views)
     isactive: Option[Boolean] // is active
 ) {
   def toOidcClient: OidcClient = OidcClient(
-    client_id = consumerid.getOrElse(""),
+    client_id = key_c.getOrElse(""), // Use key_c as the OAuth2 identifier
     client_secret = secret,
     client_name = name.getOrElse(""),
-    consumer_id = consumerid.getOrElse(""),
+    consumer_id =
+      consumerid.getOrElse(""), // Use consumerid as internal tracking
     redirect_uris = parseSimpleString(redirecturl.getOrElse("")),
     grant_types = List(
       "authorization_code",
@@ -1270,7 +1273,9 @@ object AdminDatabaseClient {
     description = Some(s"OIDC client for ${client.client_name}"),
     developeremail = Some("admin@tesobe.com"), // Default email
     sub = Some(client.client_name), // Use client name as sub
-    consumerid = Some(client.client_id),
+    consumerid = Some(
+      client.consumer_id
+    ), // Use consumer_id for internal tracking (primary key)
     createdat = Some(Instant.now()), // Set creation timestamp
     updatedat = Some(Instant.now()), // Set update timestamp
     secret = client.client_secret,
@@ -1282,7 +1287,9 @@ object AdminDatabaseClient {
     userauthenticationurl = None,
     clientcertificate = None,
     company = Some("TESOBE"),
-    key_c = Some(UUID.randomUUID().toString), // OAuth1 consumer key UUID
+    key_c = Some(
+      client.client_id
+    ), // Use client_id as the OAuth2 identifier (maps to key_c in database)
     isactive = Some(true)
   )
 }
