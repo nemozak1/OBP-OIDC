@@ -805,6 +805,31 @@ object OidcServer extends IOApp {
       _ <- IO(println("🚀 OBP clients from the database"))
       _ <- IO(println("=" * 100))
       _ <- IO(println())
+      _ <- IO(println("📊 Database Field Mapping (v_oidc_clients view):"))
+      _ <- IO(println("=" * 100))
+      _ <- IO(println("| Database Column | View Alias(es)      | Purpose"))
+      _ <- IO(
+        println(
+          "|-----------------|---------------------|--------------------------------------------"
+        )
+      )
+      _ <- IO(
+        println(
+          "| consumerid      | consumer_id         | Internal database ID (auto-generated)"
+        )
+      )
+      _ <- IO(
+        println(
+          "| key_c           | key, client_id      | OAuth1/OAuth2 identifier (what apps use)"
+        )
+      )
+      _ <- IO(
+        println(
+          "| secret          | secret, client_secret| Authentication secret"
+        )
+      )
+      _ <- IO(println("=" * 100))
+      _ <- IO(println())
 
       clientsResult <- authService.listClients()
       _ <- clientsResult match {
