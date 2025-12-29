@@ -90,24 +90,27 @@ class MockAuthService extends AuthService[IO] {
     true
   }
 
-  def findClientById(clientId: String): IO[Option[OidcClient]] = IO {
-    // Mock implementation for testing
-    Some(
-      OidcClient(
-        client_id = clientId,
-        client_secret = Some("test-secret"),
-        client_name = "Test Client",
-        consumer_id = "test-consumer",
-        redirect_uris = List("https://example.com/callback"),
-        grant_types = List("authorization_code"),
-        response_types = List("code"),
-        scopes = List("openid", "profile", "email")
+  def findClientByClientIdThatIsKey(clientId: String): IO[Option[OidcClient]] =
+    IO {
+      // Mock implementation for testing
+      Some(
+        OidcClient(
+          client_id = clientId,
+          client_secret = Some("test-secret"),
+          client_name = "Test Client",
+          consumer_id = "test-consumer",
+          redirect_uris = List("https://example.com/callback"),
+          grant_types = List("authorization_code"),
+          response_types = List("code"),
+          scopes = List("openid", "profile", "email")
+        )
       )
-    )
-  }
+    }
 
-  def findAdminClientById(clientId: String): IO[Option[OidcClient]] =
-    findClientById(clientId)
+  def findAdminClientByClientIdThatIsKey(
+      clientId: String
+  ): IO[Option[OidcClient]] =
+    findClientByClientIdThatIsKey(clientId)
 
   def authenticateClient(
       clientId: String,

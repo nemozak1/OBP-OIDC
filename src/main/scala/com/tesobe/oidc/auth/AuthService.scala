@@ -55,13 +55,16 @@ trait AuthService[F[_]] {
       clientSecret: String
   ): F[Either[OidcError, OidcClient]]
 
-  /** Find a client by client ID
+  /** Find a client by client ID (which maps to key_c in database)
     */
-  def findClientById(clientId: String): F[Option[OidcClient]]
+  def findClientByClientIdThatIsKey(clientId: String): F[Option[OidcClient]]
 
-  /** Find an admin client by client ID (with write access)
+  /** Find an admin client by client ID (which maps to key_c in database, with
+    * write access)
     */
-  def findAdminClientById(clientId: String): F[Option[OidcClient]]
+  def findAdminClientByClientIdThatIsKey(
+      clientId: String
+  ): F[Option[OidcClient]]
 
   /** List all registered clients
     */

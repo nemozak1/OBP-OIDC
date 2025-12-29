@@ -483,10 +483,14 @@ class DatabaseAuthService(
       }
   }
 
-  /** Find OIDC client by client_id
+  /** Find OIDC client by client_id (which maps to key_c in database)
     */
-  def findClientById(clientId: String): IO[Option[OidcClient]] = {
-    println(s"🔍 DEBUG: findClientById() called for clientId: $clientId")
+  def findClientByClientIdThatIsKey(
+      clientId: String
+  ): IO[Option[OidcClient]] = {
+    println(
+      s"🔍 DEBUG: findClientByClientIdThatIsKey() called for clientId: $clientId"
+    )
     println(s"   Looking in v_oidc_clients view with column 'client_id'")
     val query = sql"""
       SELECT client_id, client_secret, client_name, consumer_id, redirect_uris,
@@ -531,7 +535,7 @@ class DatabaseAuthService(
   /** Validate client and redirect URI
     */
   def validateClient(clientId: String, redirectUri: String): IO[Boolean] = {
-    findClientById(clientId).flatMap {
+    findClientByClientIdThatIsKey(clientId).flatMap {
       case Some(client) =>
         val isValid = client.redirect_uris.contains(redirectUri)
         IO(
@@ -603,7 +607,7 @@ class DatabaseAuthService(
       clientId: String,
       clientSecret: String
   ): IO[Either[OidcError, OidcClient]] = {
-    findClientById(clientId).map {
+    findClientByClientIdThatIsKey(clientId).map {
       case Some(client) =>
         client.client_secret match {
           case Some(secret) if secret == clientSecret =>
@@ -756,13 +760,15 @@ class DatabaseAuthService(
         val insertQuery = sql"""
           INSERT INTO v_oidc_admin_clients (
             name, apptype, description, developeremail, sub,
-            secret, azp, aud, iss, redirecturl, company, key_c, consumerid, isactive
+            secret, azp, aud, iss, redirecturl, company, key_c, consumerid, isactive,
+            createdat, updatedat
           ) VALUES (
             ${adminClient.name}, ${adminClient.apptype}, ${adminClient.description},
             ${adminClient.developeremail}, ${adminClient.sub},
             ${adminClient.secret}, ${adminClient.azp}, ${adminClient.aud},
             ${adminClient.iss}, ${adminClient.redirecturl}, ${adminClient.company},
-            ${adminClient.key_c}, ${adminClient.consumerid}, ${adminClient.isactive}
+            ${adminClient.key_c}, ${adminClient.consumerid}, ${adminClient.isactive},
+            ${adminClient.createdat}, ${adminClient.updatedat}
           )
         """.update
 
@@ -927,11 +933,18 @@ class DatabaseAuthService(
       }
   }
 
-  /** Find client by ID from admin view for configuration printing
+  /** Find client by ID from admin view for configuration printing (searches by
+    * key_c)
     */
-  def findAdminClientById(clientId: String): IO[Option[OidcClient]] = {
-    println(s"🔍 DEBUG: findAdminClientById() called for clientId: $clientId")
-    println(s"   Looking in v_oidc_admin_clients view with column 'consumerid'")
+  def findAdminClientByClientIdThatIsKey(
+      clientId: String
+  ): IO[Option[OidcClient]] = {
+    println(
+      s"🔍 DEBUG: findAdminClientByClientIdThatIsKey() called for clientId: $clientId"
+    )
+    println(
+      s"   Looking in v_oidc_admin_clients view with column 'key_c' (client_id)"
+    )
     adminTransactor match {
       case Some(adminTx) =>
         val query = sql"""
@@ -939,7 +952,7 @@ class DatabaseAuthService(
                  createdat, updatedat, secret, azp, aud, iss, redirecturl,
                  logourl, userauthenticationurl, clientcertificate, company, key_c, consumerid, isactive
           FROM v_oidc_admin_clients
-          WHERE consumerid = $clientId
+          WHERE key_c = $clientId
         """.query[AdminDatabaseClient]
 
         query.option
@@ -949,7 +962,7 @@ class DatabaseAuthService(
               else "NOT FOUND"}")
             result.map { client =>
               println(
-                s"   ✅ DEBUG: Found client: ${client.name.getOrElse("No Name")} with consumerid: ${client.consumerid
+                s"   ✅ DEBUG: Found client: ${client.name.getOrElse("No Name")} with key_c (client_id): ${client.key_c
                     .getOrElse("No Key")}"
               )
               println(
@@ -1218,8 +1231,8 @@ case class AdminDatabaseClient(
     developeremail: Option[String], // developer email
     sub: Option[String], // subject (not used for client_id)
     consumerid: Option[String], // auto-generated ID
-    createdat: Option[String], // created timestamp
-    updatedat: Option[String], // updated timestamp
+    createdat: Option[Instant], // created timestamp
+    updatedat: Option[Instant], // updated timestamp
     secret: Option[String], // client_secret
     azp: Option[String], // authorized party
     aud: Option[String], // audience
@@ -1229,14 +1242,17 @@ case class AdminDatabaseClient(
     userauthenticationurl: Option[String], // user auth URL
     clientcertificate: Option[String], // client certificate
     company: Option[String], // company name
-    key_c: Option[String], // OAuth1 consumer key (UUID)
+    key_c: Option[
+      String
+    ], // OAuth1/OAuth2 client identifier (maps to client_id in views)
     isactive: Option[Boolean] // is active
 ) {
   def toOidcClient: OidcClient = OidcClient(
-    client_id = consumerid.getOrElse(""),
+    client_id = key_c.getOrElse(""), // Use key_c as the OAuth2 identifier
     client_secret = secret,
     client_name = name.getOrElse(""),
-    consumer_id = consumerid.getOrElse(""),
+    consumer_id =
+      consumerid.getOrElse(""), // Use consumerid as internal tracking
     redirect_uris = parseSimpleString(redirecturl.getOrElse("")),
     grant_types = List(
       "authorization_code",
@@ -1246,7 +1262,7 @@ case class AdminDatabaseClient(
     response_types = List("code"),
     scopes = List("openid", "profile", "email"),
     token_endpoint_auth_method = "client_secret_basic",
-    created_at = createdat
+    created_at = createdat.map(_.toString)
   )
 
   private def parseSimpleString(str: String): List[String] = {
@@ -1268,9 +1284,17 @@ object AdminDatabaseClient {
     description = Some(s"OIDC client for ${client.client_name}"),
     developeremail = Some("admin@tesobe.com"), // Default email
     sub = Some(client.client_name), // Use client name as sub
+<<<<<<< HEAD
     consumerid = Some(client.consumer_id),
     createdat = None, // Let database set this
     updatedat = None, // Let database set this
+=======
+    consumerid = Some(
+      client.consumer_id
+    ), // Use consumer_id for internal tracking (primary key)
+    createdat = Some(Instant.now()), // Set creation timestamp
+    updatedat = Some(Instant.now()), // Set update timestamp
+>>>>>>> 1fbcbdd001dd3a27622cc4145c8fb2187c4743b5
     secret = client.client_secret,
     azp = Some(client.client_id),
     aud = Some("obp-api"),
@@ -1280,7 +1304,9 @@ object AdminDatabaseClient {
     userauthenticationurl = None,
     clientcertificate = None,
     company = Some("TESOBE"),
-    key_c = Some(UUID.randomUUID().toString), // OAuth1 consumer key UUID
+    key_c = Some(
+      client.client_id
+    ), // Use client_id as the OAuth2 identifier (maps to key_c in database)
     isactive = Some(true)
   )
 }
@@ -1486,8 +1512,8 @@ object DatabaseUserInstances {
           Option[String],
           Option[String],
           Option[String],
-          Option[String],
-          Option[String],
+          Option[Instant],
+          Option[Instant],
           Option[String],
           Option[String],
           Option[String],
