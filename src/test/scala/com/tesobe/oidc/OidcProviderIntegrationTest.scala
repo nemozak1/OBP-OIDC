@@ -116,6 +116,28 @@ class OidcProviderIntegrationTest extends AnyFlatSpec with Matchers {
     test.unsafeRunSync()
   }
 
+  "OIDC Discovery Endpoint" should "support HEAD requests" in {
+    val test = for {
+      app <- createTestApp
+      request = Request[IO](
+        Method.HEAD,
+        uri"/obp-oidc/.well-known/openid-configuration"
+      )
+      response <- app(request)
+      body <- response.as[String]
+    } yield {
+      response.status should be(Status.Ok)
+      response.contentType.map(_.mediaType) should be(
+        Some(MediaType.application.json)
+      )
+      // HEAD request should have Content-Length header but empty body
+      response.headers.get[headers.`Content-Length`] should not be None
+      body should be(empty)
+    }
+
+    test.unsafeRunSync()
+  }
+
   "JWKS Endpoint" should "return valid JSON Web Key Set" in {
     val test = for {
       app <- createTestApp
@@ -140,6 +162,25 @@ class OidcProviderIntegrationTest extends AnyFlatSpec with Matchers {
       jwk.kid should be(testConfig.keyId)
       jwk.n should not be empty
       jwk.e should not be empty
+    }
+
+    test.unsafeRunSync()
+  }
+
+  "JWKS Endpoint" should "support HEAD requests" in {
+    val test = for {
+      app <- createTestApp
+      request = Request[IO](Method.HEAD, uri"/obp-oidc/jwks")
+      response <- app(request)
+      body <- response.as[String]
+    } yield {
+      response.status should be(Status.Ok)
+      response.contentType.map(_.mediaType) should be(
+        Some(MediaType.application.json)
+      )
+      // HEAD request should have Content-Length header but empty body
+      response.headers.get[headers.`Content-Length`] should not be None
+      body should be(empty)
     }
 
     test.unsafeRunSync()

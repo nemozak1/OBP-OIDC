@@ -571,12 +571,42 @@ object OidcServer extends IOApp {
                       case None => NotFound("Discovery endpoint not found")
                     }
 
+                case HEAD -> Root / "obp-oidc" / ".well-known" / "openid-configuration" =>
+                  discoveryEndpoint.routes
+                    .run(
+                      org.http4s.Request[IO](
+                        org.http4s.Method.HEAD,
+                        org.http4s.Uri.unsafeFromString(
+                          "/obp-oidc/.well-known/openid-configuration"
+                        )
+                      )
+                    )
+                    .value
+                    .flatMap {
+                      case Some(resp) => IO.pure(resp)
+                      case None => NotFound("Discovery endpoint not found")
+                    }
+
                 // JWKS
                 case GET -> Root / "obp-oidc" / "jwks" =>
                   jwksEndpoint.routes
                     .run(
                       org.http4s.Request[IO](
                         org.http4s.Method.GET,
+                        org.http4s.Uri.unsafeFromString("/obp-oidc/jwks")
+                      )
+                    )
+                    .value
+                    .flatMap {
+                      case Some(resp) => IO.pure(resp)
+                      case None       => NotFound("JWKS endpoint not found")
+                    }
+
+                case HEAD -> Root / "obp-oidc" / "jwks" =>
+                  jwksEndpoint.routes
+                    .run(
+                      org.http4s.Request[IO](
+                        org.http4s.Method.HEAD,
                         org.http4s.Uri.unsafeFromString("/obp-oidc/jwks")
                       )
                     )

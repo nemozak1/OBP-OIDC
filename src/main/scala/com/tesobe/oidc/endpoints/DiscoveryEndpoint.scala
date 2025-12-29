@@ -33,6 +33,8 @@ class DiscoveryEndpoint(config: OidcConfig) {
   val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
     case GET -> Root / "obp-oidc" / ".well-known" / "openid-configuration" =>
       getConfiguration
+    case HEAD -> Root / "obp-oidc" / ".well-known" / "openid-configuration" =>
+      getConfigurationHead
   }
 
   private def getConfiguration: IO[Response[IO]] = {
@@ -54,6 +56,28 @@ class DiscoveryEndpoint(config: OidcConfig) {
     )
 
     Ok(configuration.asJson)
+  }
+
+  private def getConfigurationHead: IO[Response[IO]] = {
+    val configuration = OidcConfiguration(
+      issuer = config.issuer,
+      authorization_endpoint = s"${config.issuer}/auth",
+      token_endpoint = s"${config.issuer}/token",
+      userinfo_endpoint = s"${config.issuer}/userinfo",
+      jwks_uri = s"${config.issuer}/jwks",
+      response_types_supported = List("code"),
+      subject_types_supported = List("public"),
+      id_token_signing_alg_values_supported = List("RS256"),
+      scopes_supported = List("openid", "profile", "email"),
+      token_endpoint_auth_methods_supported =
+        List("client_secret_post", "client_secret_basic", "none"),
+      claims_supported = List("sub", "name", "email", "email_verified"),
+      grant_types_supported =
+        List("authorization_code", "refresh_token", "client_credentials")
+    )
+
+    // For HEAD requests, return OK with proper headers but no body
+    Ok(configuration.asJson).map(_.withBodyStream(fs2.Stream.empty))
   }
 }
 

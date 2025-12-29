@@ -33,6 +33,8 @@ class JwksEndpoint(jwtService: JwtService[IO]) {
   val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
     case GET -> Root / "obp-oidc" / "jwks" =>
       getJwks
+    case HEAD -> Root / "obp-oidc" / "jwks" =>
+      getJwksHead
   }
 
   private def getJwks: IO[Response[IO]] = {
@@ -42,8 +44,19 @@ class JwksEndpoint(jwtService: JwtService[IO]) {
       response <- Ok(jwks.asJson)
     } yield response
   }
+
+  private def getJwksHead: IO[Response[IO]] = {
+    for {
+      jwk <- jwtService.getJsonWebKey
+      jwks = JsonWebKeySet(List(jwk))
+      // For HEAD requests, return OK with proper headers but no body
+      response <- Ok(jwks.asJson).map(_.withBodyStream(fs2.Stream.empty))
+    } yield response
+  }
 }
 
 object JwksEndpoint {
-  def apply(jwtService: JwtService[IO]): JwksEndpoint = new JwksEndpoint(jwtService)
+  def apply(jwtService: JwtService[IO]): JwksEndpoint = new JwksEndpoint(
+    jwtService
+  )
 }
