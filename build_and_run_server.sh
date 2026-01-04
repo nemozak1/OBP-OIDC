@@ -36,23 +36,24 @@ if [ ! -f "pom.xml" ]; then
     exit 1
 fi
 
-# Check if run-server.sh exists, if not create it from example
-if [ ! -f "run-server.sh" ]; then
-    if [ -f "run-server.example.sh" ]; then
-        echo "run-server.sh not found. Creating it from run-server.example.sh..."
-        cp run-server.example.sh run-server.sh
+# Check if .env exists, if not create it from example
+if [ ! -f ".env" ]; then
+    if [ -f ".env.example" ]; then
+        echo ".env file not found. Creating it from .env.example..."
+        cp .env.example .env
         echo ""
-        echo "⚠️  IMPORTANT: Please edit run-server.sh with your database credentials before running!"
+        echo "⚠️  IMPORTANT: Please edit .env with your configuration before running!"
         echo "   The example file has been copied, but you need to update:"
-        echo "   - DB_HOST, DB_PORT, DB_NAME"
-        echo "   - DB_USER, DB_PASSWORD, DB_ADMIN_PASSWORD"
-        echo "   - And other configuration as needed"
+        echo "   - OIDC_USER_PASSWORD, OIDC_ADMIN_PASSWORD (database credentials)"
+        echo "   - DB_HOST, DB_PORT, DB_NAME (if different from defaults)"
+        echo ""
+        echo "   Note: OIDC client credentials are auto-generated on first startup"
         echo ""
         echo "Press Enter to continue once you've updated the configuration, or Ctrl+C to exit..."
         read -r
     else
-        echo "Error: Neither run-server.sh nor run-server.example.sh found."
-        echo "Please ensure the example run script exists in the project."
+        echo "Error: .env.example not found."
+        echo "Please ensure .env.example exists in the project."
         exit 1
     fi
 fi
