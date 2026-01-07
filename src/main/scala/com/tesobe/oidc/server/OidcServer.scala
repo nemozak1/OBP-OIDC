@@ -524,8 +524,12 @@ object OidcServer extends IOApp {
                        |<li><code>v_oidc_admin_clients</code> - Client management (read-write) - connected to by <strong>${config.adminDatabase.username}</strong></li>
                        |</ul>
                        |<h2>OIDC Endpoints</h2>
+                       |<div style="background: #e8f5e9; padding: 15px; border-radius: 6px; border-left: 4px solid #4caf50; margin-bottom: 15px;">
+                       |  <strong>Well Known Endpoint for Discovery (Start Here):</strong><br>
+                       |  <a href="/obp-oidc/.well-known/openid-configuration" style="font-size: 1.1em;">${config.issuer}/.well-known/openid-configuration</a><br>
+                       |  <span style="font-size: 0.9em; color: #666;">This endpoint describes all other OIDC endpoints and capabilities</span>
+                       |</div>
                        |<ul>
-                       |<li><a href="/obp-oidc/.well-known/openid-configuration">Discovery Configuration</a> - OpenID Connect metadata</li>
                        |<li><strong>/obp-oidc/auth</strong> - Authorization endpoint (OAuth 2.0 authorization code flow)</li>
                        |<li><strong>/obp-oidc/token</strong> - Token endpoint (supports <code>authorization_code</code> and <code>refresh_token</code> grants)</li>
                        |<li><strong>/obp-oidc/userinfo</strong> - UserInfo endpoint (get user profile with access token)</li>
