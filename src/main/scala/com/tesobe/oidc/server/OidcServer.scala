@@ -32,6 +32,7 @@ import com.tesobe.oidc.endpoints._
 import com.tesobe.oidc.tokens.JwtService
 import com.tesobe.oidc.stats.StatsService
 import com.tesobe.oidc.ratelimit.{RateLimitConfig, InMemoryRateLimitService}
+import com.tesobe.oidc.revocation.InMemoryTokenRevocationService
 import org.http4s._
 import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.implicits._
@@ -146,12 +147,18 @@ object OidcServer extends IOApp {
           statsService <- StatsService()
           rateLimitConfig = RateLimitConfig.fromEnv
           rateLimitService <- InMemoryRateLimitService(rateLimitConfig)
+          revocationService <- InMemoryTokenRevocationService(
+            maxTokenLifetimeSeconds =
+              config.tokenExpirationSeconds * 720, // Match refresh token lifetime
+            cleanupIntervalMinutes = 60 // Cleanup every hour
+          )
 
           _ <- IO(
             println(
               s"Rate limiting enabled: ${rateLimitConfig.maxAttemptsPerIP} attempts per IP, ${rateLimitConfig.maxAttemptsPerUsername} attempts per username"
             )
           )
+          _ <- IO(println("Token revocation service initialized"))
 
           // Initialize endpoints
           discoveryEndpoint = DiscoveryEndpoint(config)
@@ -171,6 +178,11 @@ object OidcServer extends IOApp {
             statsService
           )
           userInfoEndpoint = UserInfoEndpoint(authService, jwtService)
+          revocationEndpoint = RevocationEndpoint(
+            authService,
+            revocationService,
+            config
+          )
           clientsEndpoint = ClientsEndpoint(authService)
           statsEndpoint = StatsEndpoint(statsService, config)
           staticFilesEndpoint = StaticFilesEndpoint()
@@ -533,6 +545,7 @@ object OidcServer extends IOApp {
                        |<li><strong>/obp-oidc/auth</strong> - Authorization endpoint (OAuth 2.0 authorization code flow)</li>
                        |<li><strong>/obp-oidc/token</strong> - Token endpoint (supports <code>authorization_code</code> and <code>refresh_token</code> grants)</li>
                        |<li><strong>/obp-oidc/userinfo</strong> - UserInfo endpoint (get user profile with access token)</li>
+                       |<li><strong>/obp-oidc/revoke</strong> - Revocation endpoint (RFC 7009 - revoke access/refresh tokens)</li>
                        |<li><a href="/obp-oidc/jwks">JWKS</a> - JSON Web Key Set (for token verification)</li>
                        |</ul>
                        |<h2>Admin Endpoints</h2>
@@ -619,6 +632,13 @@ object OidcServer extends IOApp {
                       case Some(resp) => IO.pure(resp)
                       case None       => NotFound("JWKS endpoint not found")
                     }
+
+                // Revocation endpoint
+                case req @ POST -> Root / "obp-oidc" / "revoke" =>
+                  revocationEndpoint.routes.run(req).value.flatMap {
+                    case Some(resp) => IO.pure(resp)
+                    case None       => NotFound("Revocation endpoint not found")
+                  }
 
                 // Delegate other requests to endpoints
                 case req =>
@@ -744,6 +764,7 @@ object OidcServer extends IOApp {
                 IO(println(s"  Authorization: $baseUriString/obp-oidc/auth")) *>
                 IO(println(s"  Token: $baseUriString/obp-oidc/token")) *>
                 IO(println(s"  UserInfo: $baseUriString/obp-oidc/userinfo")) *>
+                IO(println(s"  Revocation: $baseUriString/obp-oidc/revoke")) *>
                 IO(println(s"  JWKS: $baseUriString/obp-oidc/jwks")) *>
                 IO(println(s"  Clients: $baseUriString/obp-oidc/clients")) *>
                 IO(println(s"  Health Check: $baseUriString/health")) *>

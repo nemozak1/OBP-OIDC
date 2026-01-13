@@ -29,13 +29,15 @@ case class OidcConfiguration(
     token_endpoint: String,
     userinfo_endpoint: String,
     jwks_uri: String,
+    revocation_endpoint: String,
     response_types_supported: List[String],
     subject_types_supported: List[String],
     id_token_signing_alg_values_supported: List[String],
     scopes_supported: List[String],
     token_endpoint_auth_methods_supported: List[String],
     claims_supported: List[String],
-    grant_types_supported: List[String]
+    grant_types_supported: List[String],
+    revocation_endpoint_auth_methods_supported: List[String]
 )
 
 object OidcConfiguration {
@@ -259,4 +261,15 @@ case class LoginForm(
 object LoginForm {
   implicit val encoder: Encoder[LoginForm] = deriveEncoder
   implicit val decoder: Decoder[LoginForm] = deriveDecoder
+}
+
+// Token revocation request (RFC 7009)
+case class RevocationRequest(
+    token: String,
+    token_type_hint: Option[String] = None // "access_token" or "refresh_token"
+)
+
+object RevocationRequest {
+  implicit val encoder: Encoder[RevocationRequest] = deriveEncoder
+  implicit val decoder: Decoder[RevocationRequest] = deriveDecoder
 }
