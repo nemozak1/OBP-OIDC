@@ -174,6 +174,18 @@ object OidcServer extends IOApp {
           clientsEndpoint = ClientsEndpoint(authService)
           statsEndpoint = StatsEndpoint(statsService, config)
           staticFilesEndpoint = StaticFilesEndpoint()
+          registrationEndpoint = if (config.enableDynamicClientRegistration) {
+            Some(RegistrationEndpoint(
+              authService,
+              rateLimitService,
+              config
+            ))
+          } else None
+
+          _ <- if (config.enableDynamicClientRegistration) 
+                 IO(println("Dynamic Client Registration endpoint initialized (enabled)"))
+               else 
+                 IO(println("Dynamic Client Registration endpoint disabled"))
 
           // Create all routes in a single HttpRoutes definition
           routes = {
@@ -585,6 +597,41 @@ object OidcServer extends IOApp {
                       case Some(resp) => IO.pure(resp)
                       case None       => NotFound("JWKS endpoint not found")
                     }
+
+                case HEAD -> Root / "obp-oidc" / "jwks" =>
+                  jwksEndpoint.routes
+                    .run(
+                      org.http4s.Request[IO](
+                        org.http4s.Method.HEAD,
+                        org.http4s.Uri.unsafeFromString("/obp-oidc/jwks")
+                      )
+                    )
+                    .value
+                    .flatMap {
+                      case Some(resp) => IO.pure(resp)
+                      case None       => NotFound("JWKS endpoint not found")
+                    }
+
+                // Revocation endpoint
+                case req @ POST -> Root / "obp-oidc" / "revoke" =>
+                  revocationEndpoint.routes.run(req).value.flatMap {
+                    case Some(resp) => IO.pure(resp)
+                    case None       => NotFound("Revocation endpoint not found")
+                  }
+
+                // Dynamic Client Registration endpoint (RFC 7591)
+                case req @ POST -> Root / "obp-oidc" / "connect" / "register" =>
+                  registrationEndpoint match {
+                    case Some(endpoint) =>
+                      IO(println("📝 Dynamic Client Registration request received")) *>
+                        endpoint.routes.run(req).value.flatMap {
+                          case Some(resp) => IO.pure(resp)
+                          case None       => NotFound("Registration endpoint not found")
+                        }
+                    case None =>
+                      IO(println("📝 Dynamic Client Registration request received but DCR is disabled")) *>
+                        Forbidden("Dynamic Client Registration is disabled on this server")
+                  }
 
                 // Delegate other requests to endpoints
                 case req =>
