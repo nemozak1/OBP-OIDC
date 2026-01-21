@@ -149,9 +149,6 @@ scoverage-report/
 logs/
 *.log.*
 
-# Local run scripts (allow customization)
-run-server.sh
-
 # Don't upload generated files
 .cursor
 .cursorindexingignore

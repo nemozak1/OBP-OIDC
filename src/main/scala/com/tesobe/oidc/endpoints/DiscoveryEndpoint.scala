@@ -33,6 +33,8 @@ class DiscoveryEndpoint(config: OidcConfig) {
   val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
     case GET -> Root / "obp-oidc" / ".well-known" / "openid-configuration" =>
       getConfiguration
+    case HEAD -> Root / "obp-oidc" / ".well-known" / "openid-configuration" =>
+      getConfigurationHead
   }
 
   private def getConfiguration: IO[Response[IO]] = {
@@ -52,7 +54,9 @@ class DiscoveryEndpoint(config: OidcConfig) {
         List("client_secret_post", "client_secret_basic", "none"),
       claims_supported = List("sub", "name", "email", "email_verified"),
       grant_types_supported =
-        List("authorization_code", "refresh_token", "client_credentials")
+        List("authorization_code", "refresh_token", "client_credentials"),
+      revocation_endpoint_auth_methods_supported =
+        List("client_secret_post", "client_secret_basic")
     )
 
     Ok(configuration.asJson)

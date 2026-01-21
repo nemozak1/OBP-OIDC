@@ -54,32 +54,35 @@ or from with in psql thus
 
 ### Step 2: Make sure your passwords are good.
 
-# Copy the example run server script
+# Configure Environment Variables
 
-#
+Copy the example environment file and edit it with your configuration:
 
 ```bash
-
-cp ./run-server.example.sh ./run-server.sh
-
+cp .env.example .env
 ```
 
-Maybe this involves an export
+Edit `.env` and update the following important values:
 
 ```bash
-# Export the generated environment variables
-export OIDC_USER_PASSWORD=YourGeneratedPassword123!
-export OIDC_ADMIN_PASSWORD=YourGeneratedAdminPass456#
-# ... (other exports from generated config)
+# Database passwords (CHANGE THESE!)
+OIDC_USER_PASSWORD=YourGeneratedPassword123!
+OIDC_ADMIN_PASSWORD=YourGeneratedAdminPass456#
 
+# Database connection (verify these match your setup)
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=sandbox
 ```
 
-Now you can try and run the server
+**Note:** The `.env` file is ignored by git and contains sensitive data. Never commit it to version control!
+
+**Client Configuration:** OIDC client IDs and secrets are automatically generated on first startup. After starting the server, copy the printed client configurations to your client applications (OBP-API Props, Portal env, etc.).
+
+Now you can run the server:
 
 ```bash
-
 ./run-server.sh
-
 ```
 
 NOTE: you should make sure the OBP-API well known url returns the OBP-OIDC address.

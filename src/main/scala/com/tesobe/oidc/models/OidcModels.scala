@@ -37,7 +37,8 @@ case class OidcConfiguration(
     scopes_supported: List[String],
     token_endpoint_auth_methods_supported: List[String],
     claims_supported: List[String],
-    grant_types_supported: List[String]
+    grant_types_supported: List[String],
+    revocation_endpoint_auth_methods_supported: List[String]
 )
 
 object OidcConfiguration {

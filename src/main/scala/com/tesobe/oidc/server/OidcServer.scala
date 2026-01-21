@@ -32,6 +32,7 @@ import com.tesobe.oidc.endpoints._
 import com.tesobe.oidc.tokens.JwtService
 import com.tesobe.oidc.stats.StatsService
 import com.tesobe.oidc.ratelimit.{RateLimitConfig, InMemoryRateLimitService}
+import com.tesobe.oidc.revocation.InMemoryTokenRevocationService
 import org.http4s._
 import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.implicits._
@@ -146,12 +147,18 @@ object OidcServer extends IOApp {
           statsService <- StatsService()
           rateLimitConfig = RateLimitConfig.fromEnv
           rateLimitService <- InMemoryRateLimitService(rateLimitConfig)
+          revocationService <- InMemoryTokenRevocationService(
+            maxTokenLifetimeSeconds =
+              config.tokenExpirationSeconds * 720, // Match refresh token lifetime
+            cleanupIntervalMinutes = 60 // Cleanup every hour
+          )
 
           _ <- IO(
             println(
               s"Rate limiting enabled: ${rateLimitConfig.maxAttemptsPerIP} attempts per IP, ${rateLimitConfig.maxAttemptsPerUsername} attempts per username"
             )
           )
+          _ <- IO(println("Token revocation service initialized"))
 
           // Initialize endpoints
           discoveryEndpoint = DiscoveryEndpoint(config)
@@ -171,6 +178,11 @@ object OidcServer extends IOApp {
             statsService
           )
           userInfoEndpoint = UserInfoEndpoint(authService, jwtService)
+          revocationEndpoint = RevocationEndpoint(
+            authService,
+            revocationService,
+            config
+          )
           clientsEndpoint = ClientsEndpoint(authService)
           statsEndpoint = StatsEndpoint(statsService, config)
           staticFilesEndpoint = StaticFilesEndpoint()
@@ -536,11 +548,16 @@ object OidcServer extends IOApp {
                        |<li><code>v_oidc_admin_clients</code> - Client management (read-write) - connected to by <strong>${config.adminDatabase.username}</strong></li>
                        |</ul>
                        |<h2>OIDC Endpoints</h2>
+                       |<div style="background: #e8f5e9; padding: 15px; border-radius: 6px; border-left: 4px solid #4caf50; margin-bottom: 15px;">
+                       |  <strong>Well Known Endpoint for Discovery (Start Here):</strong><br>
+                       |  <a href="/obp-oidc/.well-known/openid-configuration" style="font-size: 1.1em;">${config.issuer}/.well-known/openid-configuration</a><br>
+                       |  <span style="font-size: 0.9em; color: #666;">This endpoint describes all other OIDC endpoints and capabilities</span>
+                       |</div>
                        |<ul>
-                       |<li><a href="/obp-oidc/.well-known/openid-configuration">Discovery Configuration</a> - OpenID Connect metadata</li>
                        |<li><strong>/obp-oidc/auth</strong> - Authorization endpoint (OAuth 2.0 authorization code flow)</li>
                        |<li><strong>/obp-oidc/token</strong> - Token endpoint (supports <code>authorization_code</code> and <code>refresh_token</code> grants)</li>
                        |<li><strong>/obp-oidc/userinfo</strong> - UserInfo endpoint (get user profile with access token)</li>
+                       |<li><strong>/obp-oidc/revoke</strong> - Revocation endpoint (RFC 7009 - revoke access/refresh tokens)</li>
                        |<li><a href="/obp-oidc/jwks">JWKS</a> - JSON Web Key Set (for token verification)</li>
                        |</ul>
                        |<h2>Admin Endpoints</h2>
@@ -572,6 +589,22 @@ object OidcServer extends IOApp {
                     .run(
                       org.http4s.Request[IO](
                         org.http4s.Method.GET,
+                        org.http4s.Uri.unsafeFromString(
+                          "/obp-oidc/.well-known/openid-configuration"
+                        )
+                      )
+                    )
+                    .value
+                    .flatMap {
+                      case Some(resp) => IO.pure(resp)
+                      case None => NotFound("Discovery endpoint not found")
+                    }
+
+                case HEAD -> Root / "obp-oidc" / ".well-known" / "openid-configuration" =>
+                  discoveryEndpoint.routes
+                    .run(
+                      org.http4s.Request[IO](
+                        org.http4s.Method.HEAD,
                         org.http4s.Uri.unsafeFromString(
                           "/obp-oidc/.well-known/openid-configuration"
                         )
@@ -757,6 +790,7 @@ object OidcServer extends IOApp {
                 IO(println(s"  Authorization: $baseUriString/obp-oidc/auth")) *>
                 IO(println(s"  Token: $baseUriString/obp-oidc/token")) *>
                 IO(println(s"  UserInfo: $baseUriString/obp-oidc/userinfo")) *>
+                IO(println(s"  Revocation: $baseUriString/obp-oidc/revoke")) *>
                 IO(println(s"  JWKS: $baseUriString/obp-oidc/jwks")) *>
                 IO(println(s"  Clients: $baseUriString/obp-oidc/clients")) *>
                 IO(println(s"  Health Check: $baseUriString/health")) *>
