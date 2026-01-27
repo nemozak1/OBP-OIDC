@@ -612,7 +612,13 @@ class DatabaseAuthService(
         client.client_secret match {
           case Some(secret) if secret == clientSecret =>
             Right(client)
-          case Some(_) =>
+          case Some(storedSecret) =>
+            val mask = (s: String) =>
+              if (s.length <= 4) "****"
+              else s.take(2) + "*" * (s.length - 4) + s.takeRight(2)
+            logger.warn(
+              s"Client secret mismatch for client $clientId: Expected ${mask(storedSecret)} Got ${mask(clientSecret)}"
+            )
             Left(
               OidcError("invalid_client", Some("Invalid client credentials"))
             )
