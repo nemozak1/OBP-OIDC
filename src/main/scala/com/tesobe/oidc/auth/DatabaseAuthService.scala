@@ -21,7 +21,7 @@ package com.tesobe.oidc.auth
 
 import cats.effect.{IO, Resource}
 import cats.implicits._
-import com.tesobe.oidc.config.{DatabaseConfig, OidcConfig}
+import com.tesobe.oidc.config.{DatabaseConfig, OidcConfig, ValidateCredentialsMethod}
 import com.tesobe.oidc.models.{User, UserInfo, OidcError, OidcClient}
 import doobie._
 import doobie.hikari.HikariTransactor
@@ -41,11 +41,16 @@ import java.util.UUID
   * the authuser table via the read-only view created by the OIDC setup script.
   *
   * Password verification uses BCrypt to match the OBP-API implementation.
+  *
+  * Alternatively, when validate_credentials_method is set to
+  * "validate_credentials_endpoint", credentials are verified via the OBP API
+  * endpoint POST /obp/v6.0.0/users/verify-credentials
   */
 class DatabaseAuthService(
     transactor: Transactor[IO],
     adminTransactor: Option[Transactor[IO]] = None,
-    config: OidcConfig
+    config: OidcConfig,
+    obpApiCredentialsService: Option[ObpApiCredentialsService] = None
 ) extends AuthService[IO] {
 
   private val logger = LoggerFactory.getLogger(getClass)
@@ -93,6 +98,11 @@ class DatabaseAuthService(
 
   /** Authenticate a user by username, password, and provider Returns the user
     * information if authentication succeeds
+    *
+    * Uses either:
+    * - v_oidc_users database view (default)
+    * - OBP API endpoint POST /obp/v6.0.0/users/verify-credentials
+    *   (when VALIDATE_CREDENTIALS_METHOD=validate_credentials_endpoint)
     */
   def authenticate(
       username: String,
@@ -112,6 +122,52 @@ class DatabaseAuthService(
       s"🔐 Authentication request details - username length: ${username.length}, password length: ${password.length}, provider: '$provider'"
     )
 
+    // Check which credential validation method to use
+    config.validateCredentialsMethod match {
+      case ValidateCredentialsMethod.ViaApiEndpoint =>
+        logger.info(
+          s"🌐 Using OBP API endpoint for credential verification (validate_credentials_endpoint)"
+        )
+        println(
+          s"🌐 Using OBP API endpoint for credential verification (validate_credentials_endpoint)"
+        )
+        obpApiCredentialsService match {
+          case Some(service) =>
+            service.verifyCredentials(username, password, provider)
+          case None =>
+            logger.error(
+              "OBP API Credentials Service not initialized but validate_credentials_endpoint is configured"
+            )
+            IO.pure(
+              Left(
+                OidcError(
+                  "server_error",
+                  Some(
+                    "Credential verification service not properly configured"
+                  )
+                )
+              )
+            )
+        }
+
+      case ValidateCredentialsMethod.ViaOidcUsersView =>
+        logger.info(
+          s"🗄️ Using v_oidc_users database view for credential verification (v_oidc_users)"
+        )
+        println(
+          s"🗄️ Using v_oidc_users database view for credential verification (v_oidc_users)"
+        )
+        authenticateViaDatabase(username, password, provider)
+    }
+  }
+
+  /** Authenticate a user via the v_oidc_users database view
+    */
+  private def authenticateViaDatabase(
+      username: String,
+      password: String,
+      provider: String
+  ): IO[Either[OidcError, User]] = {
     findUserByUsernameAndProvider(username, provider).flatMap {
       case None =>
         logger.warn(
@@ -1316,6 +1372,9 @@ object DatabaseAuthService {
   private val logger = LoggerFactory.getLogger(getClass)
 
   /** Create a DatabaseAuthService with HikariCP connection pooling
+    *
+    * When validate_credentials_method is set to "validate_credentials_endpoint",
+    * an ObpApiCredentialsService is also created for API-based credential verification.
     */
   def create(config: OidcConfig): Resource[IO, DatabaseAuthService] = {
     for {
@@ -1340,6 +1399,13 @@ object DatabaseAuthService {
           )
         )
       )
+      _ <- Resource.eval(
+        IO(
+          logger.info(
+            s"   Credential validation method: ${config.validateCredentialsMethod}"
+          )
+        )
+      )
       readTransactor <- createTransactor(config.database)
       _ <- Resource.eval(
         IO(logger.info("✅ Read transactor created successfully"))
@@ -1348,10 +1414,32 @@ object DatabaseAuthService {
       _ <- Resource.eval(
         IO(logger.info("✅ Admin transactor created successfully"))
       )
+      // Create OBP API credentials service if using API endpoint method
+      obpApiService <- config.validateCredentialsMethod match {
+        case ValidateCredentialsMethod.ViaApiEndpoint =>
+          Resource.eval(
+            IO(
+              logger.info(
+                "🌐 Creating ObpApiCredentialsService for API-based credential verification"
+              )
+            )
+          ) *>
+            ObpApiCredentialsService.create(config).map(Some(_))
+        case ValidateCredentialsMethod.ViaOidcUsersView =>
+          Resource.eval(
+            IO(
+              logger.info(
+                "🗄️ Using database view (v_oidc_users) for credential verification"
+              )
+            )
+          ) *>
+            Resource.pure[IO, Option[ObpApiCredentialsService]](None)
+      }
       service = new DatabaseAuthService(
         readTransactor,
         Some(adminTransactor),
-        config
+        config,
+        obpApiService
       )
       _ <- Resource.eval(
         IO(logger.info("✅ DatabaseAuthService created with admin capabilities"))

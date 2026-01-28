@@ -35,6 +35,18 @@ case class DatabaseConfig(
     maxConnections: Int = 10
 )
 
+/** Credential validation method options */
+sealed trait ValidateCredentialsMethod
+object ValidateCredentialsMethod {
+  case object ViaOidcUsersView extends ValidateCredentialsMethod
+  case object ViaApiEndpoint extends ValidateCredentialsMethod
+
+  def fromString(s: String): ValidateCredentialsMethod = s.toLowerCase match {
+    case "validate_credentials_endpoint" => ViaApiEndpoint
+    case _                               => ViaOidcUsersView // default
+  }
+}
+
 case class OidcConfig(
     issuer: String,
     server: ServerConfig,
@@ -49,7 +61,12 @@ case class OidcConfig(
       "https://static.openbankproject.com/images/OBP/OBP_Horizontal_2025.png"
     ),
     logoAltText: String = "Open Bank Project",
-    forgotPasswordUrl: Option[String] = None
+    forgotPasswordUrl: Option[String] = None,
+    validateCredentialsMethod: ValidateCredentialsMethod =
+      ValidateCredentialsMethod.ViaOidcUsersView,
+    obpApiUsername: Option[String] = None,
+    obpApiPassword: Option[String] = None,
+    obpApiConsumerKey: Option[String] = None
 )
 
 object Config {
@@ -118,7 +135,13 @@ object Config {
           )
         ),
       logoAltText = sys.env.getOrElse("LOGO_ALT_TEXT", "Open Bank Project"),
-      forgotPasswordUrl = sys.env.get("FORGOT_PASSWORD_URL")
+      forgotPasswordUrl = sys.env.get("FORGOT_PASSWORD_URL"),
+      validateCredentialsMethod = ValidateCredentialsMethod.fromString(
+        sys.env.getOrElse("VALIDATE_CREDENTIALS_METHOD", "v_oidc_users")
+      ),
+      obpApiUsername = sys.env.get("OBP_API_USERNAME"),
+      obpApiPassword = sys.env.get("OBP_API_PASSWORD"),
+      obpApiConsumerKey = sys.env.get("OBP_API_CONSUMER_KEY")
     )
   }
 }
