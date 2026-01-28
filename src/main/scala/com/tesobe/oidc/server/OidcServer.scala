@@ -66,13 +66,20 @@ object OidcServer extends IOApp {
       )
       _ <- IO(println(s"Issuer: ${config.issuer}"))
 
-      // Test database connections
-      _ <- DatabaseAuthService.testConnection(config).flatMap {
-        case Right(msg) => IO(println(msg))
-        case Left(error) =>
-          IO.raiseError(
-            new RuntimeException(s"User database connection failed: $error")
-          )
+      // Test database connections based on credential validation method
+      _ <- config.validateCredentialsMethod match {
+        case ValidateCredentialsMethod.ViaOidcUsersView =>
+          // v_oidc_users view is required for database-based authentication
+          DatabaseAuthService.testConnection(config).flatMap {
+            case Right(msg) => IO(println(msg))
+            case Left(error) =>
+              IO.raiseError(
+                new RuntimeException(s"User database connection failed: $error")
+              )
+          }
+        case ValidateCredentialsMethod.ViaApiEndpoint =>
+          // v_oidc_users view is not required when using OBP API for authentication
+          IO(println("Skipping v_oidc_users view test (using OBP API for credential validation)"))
       }
 
       _ <- DatabaseAuthService.testClientConnection(config).flatMap {
