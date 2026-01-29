@@ -35,15 +35,27 @@ case class DatabaseConfig(
     maxConnections: Int = 10
 )
 
-/** Credential validation method options */
-sealed trait ValidateCredentialsMethod
-object ValidateCredentialsMethod {
-  case object ViaOidcUsersView extends ValidateCredentialsMethod
-  case object ViaApiEndpoint extends ValidateCredentialsMethod
+/** Credential verification method options */
+sealed trait VerifyCredentialsMethod
+object VerifyCredentialsMethod {
+  case object ViaOidcUsersView extends VerifyCredentialsMethod
+  case object ViaApiEndpoint extends VerifyCredentialsMethod
 
-  def fromString(s: String): ValidateCredentialsMethod = s.toLowerCase match {
-    case "validate_credentials_endpoint" => ViaApiEndpoint
-    case _                               => ViaOidcUsersView // default
+  def fromString(s: String): VerifyCredentialsMethod = s.toLowerCase match {
+    case "verify_credentials_endpoint" => ViaApiEndpoint
+    case _                             => ViaOidcUsersView // default
+  }
+}
+
+/** Client verification method options */
+sealed trait VerifyClientMethod
+object VerifyClientMethod {
+  case object ViaDatabase extends VerifyClientMethod
+  case object ViaApiEndpoint extends VerifyClientMethod
+
+  def fromString(s: String): VerifyClientMethod = s.toLowerCase match {
+    case "verify_client_endpoint" => ViaApiEndpoint
+    case _                        => ViaDatabase // default
   }
 }
 
@@ -62,8 +74,10 @@ case class OidcConfig(
     ),
     logoAltText: String = "Open Bank Project",
     forgotPasswordUrl: Option[String] = None,
-    validateCredentialsMethod: ValidateCredentialsMethod =
-      ValidateCredentialsMethod.ViaOidcUsersView,
+    verifyCredentialsMethod: VerifyCredentialsMethod =
+      VerifyCredentialsMethod.ViaOidcUsersView,
+    verifyClientMethod: VerifyClientMethod =
+      VerifyClientMethod.ViaDatabase,
     obpApiUsername: Option[String] = None,
     obpApiPassword: Option[String] = None,
     obpApiConsumerKey: Option[String] = None
@@ -136,8 +150,11 @@ object Config {
         ),
       logoAltText = sys.env.getOrElse("LOGO_ALT_TEXT", "Open Bank Project"),
       forgotPasswordUrl = sys.env.get("FORGOT_PASSWORD_URL"),
-      validateCredentialsMethod = ValidateCredentialsMethod.fromString(
-        sys.env.getOrElse("VALIDATE_CREDENTIALS_METHOD", "v_oidc_users")
+      verifyCredentialsMethod = VerifyCredentialsMethod.fromString(
+        sys.env.getOrElse("VERIFY_CREDENTIALS_METHOD", "v_oidc_users")
+      ),
+      verifyClientMethod = VerifyClientMethod.fromString(
+        sys.env.getOrElse("VERIFY_CLIENT_METHOD", "database")
       ),
       obpApiUsername = sys.env.get("OBP_API_USERNAME"),
       obpApiPassword = sys.env.get("OBP_API_PASSWORD"),
