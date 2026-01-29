@@ -541,14 +541,39 @@ class DatabaseAuthService(
   }
 
   /** Find OIDC client by client_id (which maps to key_c in database)
+    *
+    * Uses either:
+    * - v_oidc_clients database view (default)
+    * - OBP API endpoint GET /obp/v6.0.0/oidc/clients/CLIENT_ID
+    *   (when VERIFY_CLIENT_METHOD=verify_client_endpoint)
     */
   def findClientByClientIdThatIsKey(
       clientId: String
   ): IO[Option[OidcClient]] = {
-    println(
-      s"🔍 DEBUG: findClientByClientIdThatIsKey() called for clientId: $clientId"
-    )
-    println(s"   Looking in v_oidc_clients view with column 'client_id'")
+    config.verifyClientMethod match {
+      case VerifyClientMethod.ViaApiEndpoint =>
+        logger.info(s"Looking up client via OBP API for client_id: $clientId")
+        obpApiClientService match {
+          case Some(service) =>
+            service.findClient(clientId)
+          case None =>
+            logger.error(
+              "OBP API Client Service not initialized but verify_client_endpoint is configured"
+            )
+            IO.pure(None)
+        }
+
+      case VerifyClientMethod.ViaDatabase =>
+        findClientByClientIdViaDatabase(clientId)
+    }
+  }
+
+  /** Find OIDC client by client_id via the v_oidc_clients database view
+    */
+  private def findClientByClientIdViaDatabase(
+      clientId: String
+  ): IO[Option[OidcClient]] = {
+    logger.debug(s"Looking up client via database for client_id: $clientId")
     val query = sql"""
       SELECT client_id, client_secret, client_name, consumer_id, redirect_uris,
              grant_types, response_types, scopes, token_endpoint_auth_method, created_at
@@ -559,19 +584,13 @@ class DatabaseAuthService(
     query.option
       .transact(transactor)
       .map { result =>
-        println(s"   📊 DEBUG: Query result: ${if (result.isDefined) "FOUND"
-          else "NOT FOUND"}")
         result.map { client =>
-          println(
-            s"   ✅ DEBUG: Found client: ${client.client_name} with id: ${client.client_id}"
-          )
+          logger.debug(s"Found client: ${client.client_name} with id: ${client.client_id}")
           client.toOidcClient
         }
       }
       .handleErrorWith { error =>
-        println(
-          s"   ❌ DEBUG: Query error: ${error.getClass.getSimpleName}: ${error.getMessage}"
-        )
+        logger.error(s"Database error looking up client: ${error.getMessage}")
         IO.pure(None)
       }
   }

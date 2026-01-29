@@ -60,6 +60,20 @@ object VerifyClientResponse {
   implicit val decoder: Decoder[VerifyClientResponse] = deriveDecoder
 }
 
+/** Response from GET /obp/v6.0.0/oidc/clients/CLIENT_ID
+  */
+case class GetClientResponse(
+    client_id: String,
+    client_name: String,
+    consumer_id: String,
+    redirect_uris: List[String],
+    enabled: Boolean
+)
+
+object GetClientResponse {
+  implicit val decoder: Decoder[GetClientResponse] = deriveDecoder
+}
+
 /** Service for verifying OIDC clients via OBP API endpoint
   *
   * This service calls POST /obp/v6.0.0/oidc/clients/verify to verify
@@ -442,17 +456,89 @@ class ObpApiClientService(
 
   /** Find client by client_id (without verifying secret)
     * Used for authorization endpoint to check redirect_uri
+    * Calls GET /obp/v6.0.0/oidc/clients/CLIENT_ID
     */
   def findClient(clientId: String): IO[Option[OidcClient]] = {
-    // For finding a client without secret verification, we still need to call the API
-    // but we can pass an empty secret - the API should return valid=false but still include
-    // the redirect_uris if the client exists
-    //
-    // Note: This is a limitation - the current API design requires client_secret.
-    // For a metadata-only lookup, the API would need to support that mode.
-    // For now, we'll return None and fall back to database lookup if needed.
-    logger.warn(s"findClient via API not fully supported - client_id: $clientId")
-    IO.pure(None)
+    config.obpApiUrl match {
+      case None =>
+        logger.error("OBP_API_URL is not configured")
+        IO.pure(None)
+
+      case Some(baseUrl) =>
+        getValidToken().flatMap {
+          case Left(error) =>
+            logger.error(s"Failed to get token for client lookup: ${error.error}")
+            IO.pure(None)
+          case Right(token) =>
+            val endpoint = s"${baseUrl.stripSuffix("/")}/obp/v6.0.0/oidc/clients/$clientId"
+            logger.info(s"Looking up client via OBP API: $endpoint")
+
+            val request = Request[IO](
+              method = Method.GET,
+              uri = Uri.unsafeFromString(endpoint)
+            ).putHeaders(
+              Header.Raw(ci"DirectLogin", s"token=$token")
+            )
+
+            client
+              .run(request)
+              .use { response =>
+                response.status match {
+                  case Status.Ok =>
+                    response.as[Json].flatMap { json =>
+                      json.as[GetClientResponse] match {
+                        case Right(clientResponse) =>
+                          logger.info(s"Client found via OBP API: ${clientResponse.client_name}")
+                          val oidcClient = OidcClient(
+                            client_id = clientResponse.client_id,
+                            client_secret = None, // Not returned by GET endpoint
+                            consumer_id = clientResponse.consumer_id,
+                            client_name = clientResponse.client_name,
+                            redirect_uris = clientResponse.redirect_uris,
+                            grant_types = List("authorization_code", "refresh_token"),
+                            response_types = List("code"),
+                            scopes = List("openid", "profile", "email"),
+                            token_endpoint_auth_method = "client_secret_basic",
+                            created_at = None
+                          )
+                          IO.pure(Some(oidcClient))
+                        case Left(error) =>
+                          logger.error(s"Failed to parse client response: ${error.getMessage}")
+                          IO.pure(None)
+                      }
+                    }
+
+                  case Status.NotFound =>
+                    logger.warn(s"Client not found via OBP API: $clientId")
+                    IO.pure(None)
+
+                  case Status.Unauthorized =>
+                    // Token might have expired
+                    response.as[String].flatMap { body =>
+                      if (body.contains("token") || body.contains("Token")) {
+                        tokenRef.set(None).map { _ =>
+                          logger.warn("Token expired during client lookup")
+                          None
+                        }
+                      } else {
+                        logger.warn(s"Unauthorized for client lookup: $clientId")
+                        IO.pure(None)
+                      }
+                    }
+
+                  case status =>
+                    response.as[String].flatMap { body =>
+                      logger.error(s"Unexpected response from OBP API: status=$status, body=$body")
+                      IO.pure(None)
+                    }
+                }
+              }
+              .handleErrorWith { error =>
+                logger.error(s"Error looking up client via OBP API: ${error.getMessage}", error)
+                IO.pure(None)
+              }
+        }
+    }
   }
 }
 
