@@ -24,10 +24,10 @@ import scala.io.Source
 import cats.effect.{ExitCode, IO, IOApp}
 import cats.syntax.all._
 import com.comcast.ip4s.{Host, Port}
-import com.tesobe.oidc.auth.{CodeService, DatabaseAuthService, DatabaseClient}
+import com.tesobe.oidc.auth.{CodeService, DatabaseAuthService, DatabaseClient, ObpApiCredentialsService, ObpApiClientService}
 import com.tesobe.oidc.models.OidcClient
 import com.tesobe.oidc.bootstrap.ClientBootstrap
-import com.tesobe.oidc.config.Config
+import com.tesobe.oidc.config.{Config, VerifyCredentialsMethod, VerifyClientMethod}
 import com.tesobe.oidc.endpoints._
 import com.tesobe.oidc.tokens.JwtService
 import com.tesobe.oidc.stats.StatsService
@@ -66,13 +66,20 @@ object OidcServer extends IOApp {
       )
       _ <- IO(println(s"Issuer: ${config.issuer}"))
 
-      // Test database connections
-      _ <- DatabaseAuthService.testConnection(config).flatMap {
-        case Right(msg) => IO(println(msg))
-        case Left(error) =>
-          IO.raiseError(
-            new RuntimeException(s"User database connection failed: $error")
-          )
+      // Test database connections based on credential validation method
+      _ <- config.verifyCredentialsMethod match {
+        case VerifyCredentialsMethod.ViaOidcUsersView =>
+          // v_oidc_users view is required for database-based authentication
+          DatabaseAuthService.testConnection(config).flatMap {
+            case Right(msg) => IO(println(msg))
+            case Left(error) =>
+              IO.raiseError(
+                new RuntimeException(s"User database connection failed: $error")
+              )
+          }
+        case VerifyCredentialsMethod.ViaApiEndpoint =>
+          // v_oidc_users view is not required when using OBP API for authentication
+          IO(println("Skipping v_oidc_users view test (using OBP API for credential validation)"))
       }
 
       _ <- DatabaseAuthService.testClientConnection(config).flatMap {
@@ -91,6 +98,40 @@ object OidcServer extends IOApp {
               s"Admin database warning: $error (client management features disabled)"
             )
           )
+      }
+
+      // Test OBP API connection if using verify_credentials_endpoint method
+      _ <- config.verifyCredentialsMethod match {
+        case VerifyCredentialsMethod.ViaApiEndpoint =>
+          ObpApiCredentialsService.testConnection(config).flatMap {
+            case Right(msg) => IO(println(msg))
+            case Left(error) =>
+              IO.raiseError(
+                new RuntimeException(
+                  s"OBP API credential verification test failed: $error. " +
+                    "Check OBP_API_URL, OBP_API_USERNAME, OBP_API_PASSWORD, and OBP_API_CONSUMER_KEY"
+                )
+              )
+          }
+        case VerifyCredentialsMethod.ViaOidcUsersView =>
+          IO.unit // Database connection already tested above
+      }
+
+      // Test OBP API connection if using verify_client_endpoint method
+      _ <- config.verifyClientMethod match {
+        case VerifyClientMethod.ViaApiEndpoint =>
+          ObpApiClientService.testConnection(config).flatMap {
+            case Right(msg) => IO(println(msg))
+            case Left(error) =>
+              IO.raiseError(
+                new RuntimeException(
+                  s"OBP API client verification test failed: $error. " +
+                    "Check OBP_API_URL, OBP_API_USERNAME, OBP_API_PASSWORD, and OBP_API_CONSUMER_KEY"
+                )
+              )
+          }
+        case VerifyClientMethod.ViaDatabase =>
+          IO.unit // Database connection already tested above
       }
 
       exitCode <- DatabaseAuthService.create(config).use { authService =>
@@ -363,6 +404,54 @@ object OidcServer extends IOApp {
                 case GET -> Root / "info" if config.localDevelopmentMode =>
                   for {
                     clientsResult <- authService.listClients()
+                    // Check credential validation method and role status
+                    credentialValidationInfo <- config.verifyCredentialsMethod match {
+                      case VerifyCredentialsMethod.ViaApiEndpoint =>
+                        ObpApiCredentialsService.testConnection(config).map {
+                          case Right(msg) =>
+                            val hasRole = msg.contains("User has CanVerifyUserCredentials role")
+                            val username = config.obpApiUsername.getOrElse("unknown")
+                            val roleStatus = if (hasRole) {
+                              """<span style="color: #4caf50; font-weight: 600;">Yes</span>"""
+                            } else {
+                              """<span style="color: #f44336; font-weight: 600;">No</span>"""
+                            }
+                            s"""
+                              |<div class="info-card" style="border-left-color: #2196f3;">
+                              |  <strong>Credential Verification Method</strong>
+                              |  verify_credentials_endpoint (OBP API)
+                              |</div>
+                              |<div class="info-card" style="border-left-color: #2196f3;">
+                              |  <strong>OBP API Username</strong>
+                              |  $username
+                              |</div>
+                              |<div class="info-card" style="border-left-color: #2196f3;">
+                              |  <strong>Has CanVerifyUserCredentials Role</strong>
+                              |  $roleStatus
+                              |</div>""".stripMargin
+                          case Left(_) =>
+                            val username = config.obpApiUsername.getOrElse("unknown")
+                            s"""
+                              |<div class="info-card" style="border-left-color: #f44336;">
+                              |  <strong>Credential Verification Method</strong>
+                              |  verify_credentials_endpoint (OBP API)
+                              |</div>
+                              |<div class="info-card" style="border-left-color: #f44336;">
+                              |  <strong>OBP API Username</strong>
+                              |  $username
+                              |</div>
+                              |<div class="info-card" style="border-left-color: #f44336;">
+                              |  <strong>OBP API Connection</strong>
+                              |  <span style="color: #f44336; font-weight: 600;">Failed</span>
+                              |</div>""".stripMargin
+                        }
+                      case VerifyCredentialsMethod.ViaOidcUsersView =>
+                        IO.pure(s"""
+                          |<div class="info-card">
+                          |  <strong>Credential Verification Method</strong>
+                          |  v_oidc_users (database view)
+                          |</div>""".stripMargin)
+                    }
                     appsSection = clientsResult match {
                       case Right(clients) if clients.nonEmpty =>
                         val clientsWithRedirects =
@@ -540,6 +629,7 @@ object OidcServer extends IOApp {
                        |    <strong>Refresh Token Lifetime</strong>
                        |    ${config.tokenExpirationSeconds * 720} seconds (~${config.tokenExpirationSeconds * 720 / 86400} days)
                        |  </div>
+                       |  $credentialValidationInfo
                        |</div>
                        |<h2>SQL Views</h2>
                        |<ul>
@@ -804,6 +894,44 @@ object OidcServer extends IOApp {
                       else "DISABLED"}"
                   )
                 ) *>
+                (config.verifyCredentialsMethod match {
+                  case VerifyCredentialsMethod.ViaOidcUsersView =>
+                    IO(println("Credential Verification Method: v_oidc_users (database view)"))
+                  case VerifyCredentialsMethod.ViaApiEndpoint =>
+                    val username = config.obpApiUsername.getOrElse("unknown")
+                    IO(println("Credential Verification Method: verify_credentials_endpoint (OBP API)")) *>
+                    IO(println(s"  OBP API Username: $username")) *>
+                    ObpApiCredentialsService.testConnection(config).flatMap {
+                      case Right(msg) =>
+                        val hasRole = msg.contains("User has CanVerifyUserCredentials role")
+                        if (hasRole) {
+                          IO(println("  Has CanVerifyUserCredentials Role: Yes"))
+                        } else {
+                          IO(println("  Has CanVerifyUserCredentials Role: No (WARNING)"))
+                        }
+                      case Left(_) =>
+                        IO(println("  Has CanVerifyUserCredentials Role: Unknown (connection failed)"))
+                    }
+                }) *>
+                (config.verifyClientMethod match {
+                  case VerifyClientMethod.ViaDatabase =>
+                    IO(println("Client Verification Method: v_oidc_clients (database view)"))
+                  case VerifyClientMethod.ViaApiEndpoint =>
+                    val username = config.obpApiUsername.getOrElse("unknown")
+                    IO(println("Client Verification Method: verify_client_endpoint (OBP API)")) *>
+                    IO(println(s"  OBP API Username: $username")) *>
+                    ObpApiClientService.testConnection(config).flatMap {
+                      case Right(msg) =>
+                        val hasRole = msg.contains("User has CanVerifyOidcClient role")
+                        if (hasRole) {
+                          IO(println("  Has CanVerifyOidcClient Role: Yes"))
+                        } else {
+                          IO(println("  Has CanVerifyOidcClient Role: No (WARNING)"))
+                        }
+                      case Left(_) =>
+                        IO(println("  Has CanVerifyOidcClient Role: Unknown (connection failed)"))
+                    }
+                }) *>
                 IO.never
             }
         } yield ExitCode.Success

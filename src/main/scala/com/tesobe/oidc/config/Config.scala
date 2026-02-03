@@ -35,6 +35,30 @@ case class DatabaseConfig(
     maxConnections: Int = 10
 )
 
+/** Credential verification method options */
+sealed trait VerifyCredentialsMethod
+object VerifyCredentialsMethod {
+  case object ViaOidcUsersView extends VerifyCredentialsMethod
+  case object ViaApiEndpoint extends VerifyCredentialsMethod
+
+  def fromString(s: String): VerifyCredentialsMethod = s.toLowerCase match {
+    case "verify_credentials_endpoint" => ViaApiEndpoint
+    case _                             => ViaOidcUsersView // default
+  }
+}
+
+/** Client verification method options */
+sealed trait VerifyClientMethod
+object VerifyClientMethod {
+  case object ViaDatabase extends VerifyClientMethod
+  case object ViaApiEndpoint extends VerifyClientMethod
+
+  def fromString(s: String): VerifyClientMethod = s.toLowerCase match {
+    case "verify_client_endpoint" => ViaApiEndpoint
+    case _                        => ViaDatabase // default
+  }
+}
+
 case class OidcConfig(
     issuer: String,
     server: ServerConfig,
@@ -50,7 +74,14 @@ case class OidcConfig(
     ),
     logoAltText: String = "Open Bank Project",
     forgotPasswordUrl: Option[String] = None,
-    enableDynamicClientRegistration: Boolean = false
+    enableDynamicClientRegistration: Boolean = false,
+    verifyCredentialsMethod: VerifyCredentialsMethod =
+      VerifyCredentialsMethod.ViaOidcUsersView,
+    verifyClientMethod: VerifyClientMethod =
+      VerifyClientMethod.ViaDatabase,
+    obpApiUsername: Option[String] = None,
+    obpApiPassword: Option[String] = None,
+    obpApiConsumerKey: Option[String] = None
 )
 
 object Config {
@@ -119,9 +150,18 @@ object Config {
           )
         ),
       logoAltText = sys.env.getOrElse("LOGO_ALT_TEXT", "Open Bank Project"),
-      forgotPasswordUrl = sys.env.get("FORGOT_PASSWORD_URL"),
       enableDynamicClientRegistration =
         sys.env.getOrElse("ENABLE_DYNAMIC_CLIENT_REGISTRATION", "false").toBoolean
+      forgotPasswordUrl = sys.env.get("FORGOT_PASSWORD_URL"),
+      verifyCredentialsMethod = VerifyCredentialsMethod.fromString(
+        sys.env.getOrElse("VERIFY_CREDENTIALS_METHOD", "v_oidc_users")
+      ),
+      verifyClientMethod = VerifyClientMethod.fromString(
+        sys.env.getOrElse("VERIFY_CLIENT_METHOD", "database")
+      ),
+      obpApiUsername = sys.env.get("OBP_API_USERNAME"),
+      obpApiPassword = sys.env.get("OBP_API_PASSWORD"),
+      obpApiConsumerKey = sys.env.get("OBP_API_CONSUMER_KEY")
     )
   }
 }

@@ -209,6 +209,60 @@ mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
 - Statistics and debugging information (`/stats`)
 - Client configuration details (`/clients`)
 
+#### Credential Validation Method
+
+OBP-OIDC supports two methods for validating user credentials:
+
+**1. Database View (Default):** `v_oidc_users`
+- Validates credentials directly against the PostgreSQL `v_oidc_users` view
+- Requires database access to the OBP user tables
+- This is the default and recommended method for most deployments
+
+**2. OBP API Endpoint:** `validate_credentials_endpoint`
+- Validates credentials via the OBP API endpoint `POST /obp/v6.0.0/users/verify-credentials`
+- Useful when you don't want to grant direct database access to OBP-OIDC
+- Requires a user with the `CanVerifyUserCredentials` role
+
+**Configuration:**
+
+```bash
+# Default: Use database view (no configuration needed)
+VALIDATE_CREDENTIALS_METHOD=v_oidc_users
+
+# Alternative: Use OBP API endpoint
+VALIDATE_CREDENTIALS_METHOD=validate_credentials_endpoint
+OBP_API_URL=http://localhost:8080
+OBP_API_USERNAME=admin_user          # User with CanVerifyUserCredentials role
+OBP_API_PASSWORD=admin_password
+OBP_API_CONSUMER_KEY=your_consumer_key
+```
+
+**Startup Output:**
+
+When using `v_oidc_users`:
+```
+Database connection successful. Found X validated users in v_oidc_users view.
+...
+Credential Validation Method: v_oidc_users (database view)
+```
+
+When using `validate_credentials_endpoint`:
+```
+Skipping v_oidc_users view test (using OBP API for credential validation)
+...
+OBP API credential verification connection successful. Connected to http://localhost:8080 as admin_user. User has CanVerifyUserCredentials role
+...
+Credential Validation Method: validate_credentials_endpoint (OBP API)
+  OBP API Username: admin_user
+  Has CanVerifyUserCredentials Role: Yes
+```
+
+**Note:** When using `validate_credentials_endpoint`, the server will fail to start if:
+- The OBP API is unreachable
+- The username/password/consumer_key is invalid
+
+The `/info` page (available in Local Development Mode) also displays the current credential validation method, username, and role status.
+
 #### Authentication Provider Dropdown
 
 The login form intelligently handles the authentication provider selection:

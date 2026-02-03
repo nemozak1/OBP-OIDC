@@ -21,7 +21,7 @@ package com.tesobe.oidc.auth
 
 import cats.effect.{IO, Resource}
 import cats.implicits._
-import com.tesobe.oidc.config.{DatabaseConfig, OidcConfig}
+import com.tesobe.oidc.config.{DatabaseConfig, OidcConfig, VerifyCredentialsMethod, VerifyClientMethod}
 import com.tesobe.oidc.models.{User, UserInfo, OidcError, OidcClient}
 import doobie._
 import doobie.hikari.HikariTransactor
@@ -41,11 +41,17 @@ import java.util.UUID
   * the authuser table via the read-only view created by the OIDC setup script.
   *
   * Password verification uses BCrypt to match the OBP-API implementation.
+  *
+  * Alternatively, when verify_credentials_method is set to
+  * "verify_credentials_endpoint", credentials are verified via the OBP API
+  * endpoint POST /obp/v6.0.0/users/verify-credentials
   */
 class DatabaseAuthService(
     transactor: Transactor[IO],
     adminTransactor: Option[Transactor[IO]] = None,
-    config: OidcConfig
+    config: OidcConfig,
+    obpApiCredentialsService: Option[ObpApiCredentialsService] = None,
+    obpApiClientService: Option[ObpApiClientService] = None
 ) extends AuthService[IO] {
 
   private val logger = LoggerFactory.getLogger(getClass)
@@ -93,6 +99,11 @@ class DatabaseAuthService(
 
   /** Authenticate a user by username, password, and provider Returns the user
     * information if authentication succeeds
+    *
+    * Uses either:
+    * - v_oidc_users database view (default)
+    * - OBP API endpoint POST /obp/v6.0.0/users/verify-credentials
+    *   (when VERIFY_CREDENTIALS_METHOD=verify_credentials_endpoint)
     */
   def authenticate(
       username: String,
@@ -112,6 +123,52 @@ class DatabaseAuthService(
       s"🔐 Authentication request details - username length: ${username.length}, password length: ${password.length}, provider: '$provider'"
     )
 
+    // Check which credential validation method to use
+    config.verifyCredentialsMethod match {
+      case VerifyCredentialsMethod.ViaApiEndpoint =>
+        logger.info(
+          s"🌐 Using OBP API endpoint for credential verification (verify_credentials_endpoint)"
+        )
+        println(
+          s"🌐 Using OBP API endpoint for credential verification (verify_credentials_endpoint)"
+        )
+        obpApiCredentialsService match {
+          case Some(service) =>
+            service.verifyCredentials(username, password, provider)
+          case None =>
+            logger.error(
+              "OBP API Credentials Service not initialized but verify_credentials_endpoint is configured"
+            )
+            IO.pure(
+              Left(
+                OidcError(
+                  "server_error",
+                  Some(
+                    "Credential verification service not properly configured"
+                  )
+                )
+              )
+            )
+        }
+
+      case VerifyCredentialsMethod.ViaOidcUsersView =>
+        logger.info(
+          s"🗄️ Using v_oidc_users database view for credential verification (v_oidc_users)"
+        )
+        println(
+          s"🗄️ Using v_oidc_users database view for credential verification (v_oidc_users)"
+        )
+        authenticateViaDatabase(username, password, provider)
+    }
+  }
+
+  /** Authenticate a user via the v_oidc_users database view
+    */
+  private def authenticateViaDatabase(
+      username: String,
+      password: String,
+      provider: String
+  ): IO[Either[OidcError, User]] = {
     findUserByUsernameAndProvider(username, provider).flatMap {
       case None =>
         logger.warn(
@@ -484,14 +541,39 @@ class DatabaseAuthService(
   }
 
   /** Find OIDC client by client_id (which maps to key_c in database)
+    *
+    * Uses either:
+    * - v_oidc_clients database view (default)
+    * - OBP API endpoint GET /obp/v6.0.0/oidc/clients/CLIENT_ID
+    *   (when VERIFY_CLIENT_METHOD=verify_client_endpoint)
     */
   def findClientByClientIdThatIsKey(
       clientId: String
   ): IO[Option[OidcClient]] = {
-    println(
-      s"🔍 DEBUG: findClientByClientIdThatIsKey() called for clientId: $clientId"
-    )
-    println(s"   Looking in v_oidc_clients view with column 'client_id'")
+    config.verifyClientMethod match {
+      case VerifyClientMethod.ViaApiEndpoint =>
+        logger.info(s"Looking up client via OBP API for client_id: $clientId")
+        obpApiClientService match {
+          case Some(service) =>
+            service.findClient(clientId)
+          case None =>
+            logger.error(
+              "OBP API Client Service not initialized but verify_client_endpoint is configured"
+            )
+            IO.pure(None)
+        }
+
+      case VerifyClientMethod.ViaDatabase =>
+        findClientByClientIdViaDatabase(clientId)
+    }
+  }
+
+  /** Find OIDC client by client_id via the v_oidc_clients database view
+    */
+  private def findClientByClientIdViaDatabase(
+      clientId: String
+  ): IO[Option[OidcClient]] = {
+    logger.debug(s"Looking up client via database for client_id: $clientId")
     val query = sql"""
       SELECT client_id, client_secret, client_name, consumer_id, redirect_uris,
              grant_types, response_types, scopes, token_endpoint_auth_method, created_at
@@ -502,19 +584,13 @@ class DatabaseAuthService(
     query.option
       .transact(transactor)
       .map { result =>
-        println(s"   📊 DEBUG: Query result: ${if (result.isDefined) "FOUND"
-          else "NOT FOUND"}")
         result.map { client =>
-          println(
-            s"   ✅ DEBUG: Found client: ${client.client_name} with id: ${client.client_id}"
-          )
+          logger.debug(s"Found client: ${client.client_name} with id: ${client.client_id}")
           client.toOidcClient
         }
       }
       .handleErrorWith { error =>
-        println(
-          s"   ❌ DEBUG: Query error: ${error.getClass.getSimpleName}: ${error.getMessage}"
-        )
+        logger.error(s"Database error looking up client: ${error.getMessage}")
         IO.pure(None)
       }
   }
@@ -602,8 +678,49 @@ class DatabaseAuthService(
   }
 
   /** Authenticate a client by client_id and client_secret
+    *
+    * Uses either:
+    * - v_oidc_clients database view (default)
+    * - OBP API endpoint POST /obp/v6.0.0/oidc/clients/verify
+    *   (when VERIFY_CLIENT_METHOD=verify_client_endpoint)
     */
   def authenticateClient(
+      clientId: String,
+      clientSecret: String
+  ): IO[Either[OidcError, OidcClient]] = {
+    config.verifyClientMethod match {
+      case VerifyClientMethod.ViaApiEndpoint =>
+        logger.info(
+          s"Using OBP API endpoint for client verification (verify_client_endpoint) for client_id: $clientId"
+        )
+        obpApiClientService match {
+          case Some(service) =>
+            service.verifyClient(clientId, clientSecret)
+          case None =>
+            logger.error(
+              "OBP API Client Service not initialized but verify_client_endpoint is configured"
+            )
+            IO.pure(
+              Left(
+                OidcError(
+                  "server_error",
+                  Some("Client verification service not properly configured")
+                )
+              )
+            )
+        }
+
+      case VerifyClientMethod.ViaDatabase =>
+        logger.info(
+          s"Using v_oidc_clients database view for client verification for client_id: $clientId"
+        )
+        authenticateClientViaDatabase(clientId, clientSecret)
+    }
+  }
+
+  /** Authenticate a client via the v_oidc_clients database view
+    */
+  private def authenticateClientViaDatabase(
       clientId: String,
       clientSecret: String
   ): IO[Either[OidcError, OidcClient]] = {
@@ -612,7 +729,13 @@ class DatabaseAuthService(
         client.client_secret match {
           case Some(secret) if secret == clientSecret =>
             Right(client)
-          case Some(_) =>
+          case Some(storedSecret) =>
+            val mask = (s: String) =>
+              if (s.length <= 4) "****"
+              else s.take(2) + "*" * (s.length - 4) + s.takeRight(2)
+            logger.warn(
+              s"Client secret mismatch for client $clientId: Expected ${mask(storedSecret)} Got ${mask(clientSecret)}"
+            )
             Left(
               OidcError("invalid_client", Some("Invalid client credentials"))
             )
@@ -1308,6 +1431,9 @@ object DatabaseAuthService {
   private val logger = LoggerFactory.getLogger(getClass)
 
   /** Create a DatabaseAuthService with HikariCP connection pooling
+    *
+    * When verify_credentials_method is set to "verify_credentials_endpoint",
+    * an ObpApiCredentialsService is also created for API-based credential verification.
     */
   def create(config: OidcConfig): Resource[IO, DatabaseAuthService] = {
     for {
@@ -1332,6 +1458,20 @@ object DatabaseAuthService {
           )
         )
       )
+      _ <- Resource.eval(
+        IO(
+          logger.info(
+            s"   Credential verification method: ${config.verifyCredentialsMethod}"
+          )
+        )
+      )
+      _ <- Resource.eval(
+        IO(
+          logger.info(
+            s"   Client verification method: ${config.verifyClientMethod}"
+          )
+        )
+      )
       readTransactor <- createTransactor(config.database)
       _ <- Resource.eval(
         IO(logger.info("✅ Read transactor created successfully"))
@@ -1340,10 +1480,54 @@ object DatabaseAuthService {
       _ <- Resource.eval(
         IO(logger.info("✅ Admin transactor created successfully"))
       )
+      // Create OBP API credentials service if using API endpoint method
+      obpApiService <- config.verifyCredentialsMethod match {
+        case VerifyCredentialsMethod.ViaApiEndpoint =>
+          Resource.eval(
+            IO(
+              logger.info(
+                "🌐 Creating ObpApiCredentialsService for API-based credential verification"
+              )
+            )
+          ) *>
+            ObpApiCredentialsService.create(config).map(Some(_))
+        case VerifyCredentialsMethod.ViaOidcUsersView =>
+          Resource.eval(
+            IO(
+              logger.info(
+                "🗄️ Using database view (v_oidc_users) for credential verification"
+              )
+            )
+          ) *>
+            Resource.pure[IO, Option[ObpApiCredentialsService]](None)
+      }
+      // Create OBP API client service if using API endpoint method for client verification
+      obpApiClientService <- config.verifyClientMethod match {
+        case VerifyClientMethod.ViaApiEndpoint =>
+          Resource.eval(
+            IO(
+              logger.info(
+                "🌐 Creating ObpApiClientService for API-based client verification"
+              )
+            )
+          ) *>
+            ObpApiClientService.create(config).map(Some(_))
+        case VerifyClientMethod.ViaDatabase =>
+          Resource.eval(
+            IO(
+              logger.info(
+                "🗄️ Using database view (v_oidc_clients) for client verification"
+              )
+            )
+          ) *>
+            Resource.pure[IO, Option[ObpApiClientService]](None)
+      }
       service = new DatabaseAuthService(
         readTransactor,
         Some(adminTransactor),
-        config
+        config,
+        obpApiService,
+        obpApiClientService
       )
       _ <- Resource.eval(
         IO(logger.info("✅ DatabaseAuthService created with admin capabilities"))
@@ -1442,6 +1626,17 @@ object DatabaseAuthService {
           logger.error(message, error)
           IO.pure(Left(message))
         }
+    }
+  }
+
+  /** Test OBP API client verification connection
+    */
+  def testOBPApiClientConnection(config: OidcConfig): IO[Either[String, String]] = {
+    config.verifyClientMethod match {
+      case VerifyClientMethod.ViaApiEndpoint =>
+        ObpApiClientService.testConnection(config)
+      case VerifyClientMethod.ViaDatabase =>
+        IO.pure(Right("Client verification using database (VERIFY_CLIENT_METHOD not set to verify_client_endpoint)"))
     }
   }
 }
