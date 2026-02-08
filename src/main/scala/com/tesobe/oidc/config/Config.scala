@@ -80,7 +80,9 @@ case class OidcConfig(
       VerifyClientMethod.ViaDatabase,
     obpApiUsername: Option[String] = None,
     obpApiPassword: Option[String] = None,
-    obpApiConsumerKey: Option[String] = None
+    obpApiConsumerKey: Option[String] = None,
+    obpApiRetryMaxAttempts: Int = 60,
+    obpApiRetryDelaySeconds: Int = 30
 )
 
 object Config {
@@ -158,7 +160,9 @@ object Config {
       ),
       obpApiUsername = sys.env.get("OBP_API_USERNAME"),
       obpApiPassword = sys.env.get("OBP_API_PASSWORD"),
-      obpApiConsumerKey = sys.env.get("OBP_API_CONSUMER_KEY")
+      obpApiConsumerKey = sys.env.get("OBP_API_CONSUMER_KEY"),
+      obpApiRetryMaxAttempts = sys.env.getOrElse("OBP_API_RETRY_MAX_ATTEMPTS", "60").toInt,
+      obpApiRetryDelaySeconds = sys.env.getOrElse("OBP_API_RETRY_DELAY_SECONDS", "30").toInt
     )
   }
 }
