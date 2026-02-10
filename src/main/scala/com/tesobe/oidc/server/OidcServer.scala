@@ -42,6 +42,46 @@ import scala.concurrent.duration._
 
 object OidcServer extends IOApp {
 
+  private def retryWithBackoff(
+      action: IO[Either[String, String]],
+      description: String,
+      maxAttempts: Int,
+      delay: FiniteDuration
+  ): IO[String] = {
+    def attempt(n: Int, lastError: String): IO[String] = {
+      if (n > maxAttempts) {
+        IO.raiseError(
+          new RuntimeException(
+            s"OBP API ($description) not available after $maxAttempts attempts. Last error: $lastError"
+          )
+        )
+      } else {
+        action
+          .handleErrorWith { ex =>
+            IO.pure(Left(s"${ex.getClass.getSimpleName}: ${ex.getMessage}"))
+          }
+          .flatMap {
+            case Right(msg) => IO.pure(msg)
+            case Left(error) =>
+              if (n < maxAttempts) {
+                IO(
+                  println(
+                    s"Waiting for OBP API ($description): $error. Retrying in ${delay.toSeconds}s (attempt $n/$maxAttempts)..."
+                  )
+                ) *> IO.sleep(delay) *> attempt(n + 1, error)
+              } else {
+                IO.raiseError(
+                  new RuntimeException(
+                    s"OBP API ($description) not available after $maxAttempts attempts. Last error: $error"
+                  )
+                )
+              }
+          }
+      }
+    }
+    attempt(1, "no attempts made")
+  }
+
   def run(args: List[String]): IO[ExitCode] = {
     // Check for developer helper commands
     args.headOption match {
@@ -103,16 +143,12 @@ object OidcServer extends IOApp {
       // Test OBP API connection if using verify_credentials_endpoint method
       _ <- config.verifyCredentialsMethod match {
         case VerifyCredentialsMethod.ViaApiEndpoint =>
-          ObpApiCredentialsService.testConnection(config).flatMap {
-            case Right(msg) => IO(println(msg))
-            case Left(error) =>
-              IO.raiseError(
-                new RuntimeException(
-                  s"OBP API credential verification test failed: $error. " +
-                    "Check OBP_API_URL, OBP_API_USERNAME, OBP_API_PASSWORD, and OBP_API_CONSUMER_KEY"
-                )
-              )
-          }
+          retryWithBackoff(
+            ObpApiCredentialsService.testConnection(config),
+            "credential verification",
+            config.obpApiRetryMaxAttempts,
+            config.obpApiRetryDelaySeconds.seconds
+          ).flatMap(msg => IO(println(msg)))
         case VerifyCredentialsMethod.ViaOidcUsersView =>
           IO.unit // Database connection already tested above
       }
@@ -120,16 +156,12 @@ object OidcServer extends IOApp {
       // Test OBP API connection if using verify_client_endpoint method
       _ <- config.verifyClientMethod match {
         case VerifyClientMethod.ViaApiEndpoint =>
-          ObpApiClientService.testConnection(config).flatMap {
-            case Right(msg) => IO(println(msg))
-            case Left(error) =>
-              IO.raiseError(
-                new RuntimeException(
-                  s"OBP API client verification test failed: $error. " +
-                    "Check OBP_API_URL, OBP_API_USERNAME, OBP_API_PASSWORD, and OBP_API_CONSUMER_KEY"
-                )
-              )
-          }
+          retryWithBackoff(
+            ObpApiClientService.testConnection(config),
+            "client verification",
+            config.obpApiRetryMaxAttempts,
+            config.obpApiRetryDelaySeconds.seconds
+          ).flatMap(msg => IO(println(msg)))
         case VerifyClientMethod.ViaDatabase =>
           IO.unit // Database connection already tested above
       }
