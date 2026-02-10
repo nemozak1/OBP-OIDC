@@ -74,6 +74,7 @@ case class OidcConfig(
     ),
     logoAltText: String = "Open Bank Project",
     forgotPasswordUrl: Option[String] = None,
+    enableDynamicClientRegistration: Boolean = false,
     verifyCredentialsMethod: VerifyCredentialsMethod =
       VerifyCredentialsMethod.ViaOidcUsersView,
     verifyClientMethod: VerifyClientMethod =
@@ -151,6 +152,8 @@ object Config {
           )
         ),
       logoAltText = sys.env.getOrElse("LOGO_ALT_TEXT", "Open Bank Project"),
+      enableDynamicClientRegistration =
+        sys.env.getOrElse("ENABLE_DYNAMIC_CLIENT_REGISTRATION", "false").toBoolean
       forgotPasswordUrl = sys.env.get("FORGOT_PASSWORD_URL"),
       verifyCredentialsMethod = VerifyCredentialsMethod.fromString(
         sys.env.getOrElse("VERIFY_CREDENTIALS_METHOD", "v_oidc_users")
