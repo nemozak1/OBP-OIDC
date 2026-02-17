@@ -21,7 +21,7 @@ package com.tesobe.oidc.auth
 
 import cats.effect.{IO, Resource}
 import cats.implicits._
-import com.tesobe.oidc.config.{DatabaseConfig, OidcConfig, VerifyCredentialsMethod, VerifyClientMethod}
+import com.tesobe.oidc.config.{DatabaseConfig, DbVendor, OidcConfig, VerifyCredentialsMethod, VerifyClientMethod}
 import com.tesobe.oidc.models.{User, UserInfo, OidcError, OidcClient}
 import doobie._
 import doobie.hikari.HikariTransactor
@@ -1474,11 +1474,11 @@ object DatabaseAuthService {
           )
         )
       )
-      readTransactor <- createTransactor(config.database)
+      readTransactor <- createTransactor(config.database, config.dbVendor)
       _ <- Resource.eval(
         IO(logger.info("✅ Read transactor created successfully"))
       )
-      adminTransactor <- createTransactor(config.adminDatabase)
+      adminTransactor <- createTransactor(config.adminDatabase, config.dbVendor)
       _ <- Resource.eval(
         IO(logger.info("✅ Admin transactor created successfully"))
       )
@@ -1540,12 +1540,13 @@ object DatabaseAuthService {
   /** Create HikariCP transactor for database connections
     */
   private def createTransactor(
-      dbConfig: DatabaseConfig
+      dbConfig: DatabaseConfig,
+      dbVendor: DbVendor
   ): Resource[IO, HikariTransactor[IO]] = {
     val hikariConfig = new HikariConfig()
-    hikariConfig.setDriverClassName("org.postgresql.Driver")
+    hikariConfig.setDriverClassName(dbVendor.driverClassName)
     hikariConfig.setJdbcUrl(
-      s"jdbc:postgresql://${dbConfig.host}:${dbConfig.port}/${dbConfig.database}"
+      dbVendor.jdbcUrl(dbConfig.host, dbConfig.port, dbConfig.database)
     )
     hikariConfig.setUsername(dbConfig.username)
     hikariConfig.setPassword(dbConfig.password)
@@ -1556,9 +1557,12 @@ object DatabaseAuthService {
     hikariConfig.setMaxLifetime(1800000) // 30 minutes
     hikariConfig.setLeakDetectionThreshold(60000) // 1 minute
 
-    // Security settings
-    hikariConfig.addDataSourceProperty("sslmode", "prefer")
-    hikariConfig.addDataSourceProperty("tcpKeepAlive", "true")
+    dbVendor match {
+      case DbVendor.PostgreSQL =>
+        hikariConfig.addDataSourceProperty("sslmode", "prefer")
+        hikariConfig.addDataSourceProperty("tcpKeepAlive", "true")
+      case DbVendor.SQLServer => // connection properties already in JDBC URL
+    }
     hikariConfig.addDataSourceProperty("ApplicationName", "OBP-OIDC-Provider")
 
     HikariTransactor.fromHikariConfig[IO](hikariConfig)
@@ -1567,7 +1571,7 @@ object DatabaseAuthService {
   /** Test database connection and setup
     */
   def testConnection(config: OidcConfig): IO[Either[String, String]] = {
-    createTransactor(config.database).use { transactor =>
+    createTransactor(config.database, config.dbVendor).use { transactor =>
       val testQuery = sql"SELECT COUNT(*) FROM v_oidc_users".query[Int]
 
       testQuery.unique
@@ -1589,7 +1593,7 @@ object DatabaseAuthService {
   /** Test client view access
     */
   def testClientConnection(config: OidcConfig): IO[Either[String, String]] = {
-    createTransactor(config.database).use { transactor =>
+    createTransactor(config.database, config.dbVendor).use { transactor =>
       val testQuery = sql"SELECT COUNT(*) FROM v_oidc_clients".query[Int]
 
       testQuery.unique
@@ -1612,7 +1616,7 @@ object DatabaseAuthService {
   /** Test admin database connection and v_oidc_admin_clients view access
     */
   def testAdminConnection(config: OidcConfig): IO[Either[String, String]] = {
-    createTransactor(config.adminDatabase).use { transactor =>
+    createTransactor(config.adminDatabase, config.dbVendor).use { transactor =>
       val testQuery = sql"SELECT COUNT(*) FROM v_oidc_admin_clients".query[Int]
 
       testQuery.unique

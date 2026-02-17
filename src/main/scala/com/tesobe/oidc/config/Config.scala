@@ -35,6 +35,32 @@ case class DatabaseConfig(
     maxConnections: Int = 10
 )
 
+/** Database vendor options */
+sealed trait DbVendor {
+  def driverClassName: String
+  def jdbcUrl(host: String, port: Int, database: String): String
+  def defaultPort: Int
+}
+object DbVendor {
+  case object PostgreSQL extends DbVendor {
+    val driverClassName = "org.postgresql.Driver"
+    def jdbcUrl(host: String, port: Int, database: String): String =
+      s"jdbc:postgresql://$host:$port/$database"
+    val defaultPort = 5432
+  }
+  case object SQLServer extends DbVendor {
+    val driverClassName = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
+    def jdbcUrl(host: String, port: Int, database: String): String =
+      s"jdbc:sqlserver://$host:$port;databaseName=$database;encrypt=true;trustServerCertificate=true"
+    val defaultPort = 1433
+  }
+
+  def fromString(s: String): DbVendor = s.toLowerCase match {
+    case "sqlserver" | "mssql" | "sql_server" => SQLServer
+    case _                                     => PostgreSQL // default
+  }
+}
+
 /** Credential verification method options */
 sealed trait VerifyCredentialsMethod
 object VerifyCredentialsMethod {
@@ -82,7 +108,8 @@ case class OidcConfig(
     obpApiPassword: Option[String] = None,
     obpApiConsumerKey: Option[String] = None,
     obpApiRetryMaxAttempts: Int = 60,
-    obpApiRetryDelaySeconds: Int = 30
+    obpApiRetryDelaySeconds: Int = 30,
+    dbVendor: DbVendor = DbVendor.PostgreSQL
 )
 
 object Config {
@@ -103,9 +130,14 @@ object Config {
     }
     val issuer = s"$baseUrl/obp-oidc"
 
+    val dbVendor = DbVendor.fromString(
+      sys.env.getOrElse("DB_VENDOR", "postgresql")
+    )
+    val defaultPort = dbVendor.defaultPort.toString
+
     val dbConfig = DatabaseConfig(
       host = sys.env.getOrElse("DB_HOST", "localhost"),
-      port = sys.env.getOrElse("DB_PORT", "5432").toInt,
+      port = sys.env.getOrElse("DB_PORT", defaultPort).toInt,
       database = sys.env.getOrElse("DB_NAME", "sandbox"),
       username = sys.env.getOrElse("OIDC_USER_USERNAME", "oidc_user"),
       password = sys.env.getOrElse(
@@ -118,7 +150,7 @@ object Config {
     val adminDbConfig = DatabaseConfig(
       host = sys.env
         .getOrElse("DB_HOST", "localhost"), // Same host as read-only database
-      port = sys.env.getOrElse("DB_PORT", "5432").toInt,
+      port = sys.env.getOrElse("DB_PORT", defaultPort).toInt,
       database =
         sys.env.getOrElse("DB_NAME", "sandbox"), // Same database as read-only
       username = sys.env.getOrElse("OIDC_ADMIN_USERNAME", "oidc_admin"),
@@ -165,7 +197,8 @@ object Config {
       obpApiPassword = sys.env.get("OBP_API_PASSWORD"),
       obpApiConsumerKey = sys.env.get("OBP_API_CONSUMER_KEY"),
       obpApiRetryMaxAttempts = sys.env.getOrElse("OBP_API_RETRY_MAX_ATTEMPTS", "60").toInt,
-      obpApiRetryDelaySeconds = sys.env.getOrElse("OBP_API_RETRY_DELAY_SECONDS", "30").toInt
+      obpApiRetryDelaySeconds = sys.env.getOrElse("OBP_API_RETRY_DELAY_SECONDS", "30").toInt,
+      dbVendor = dbVendor
     )
   }
 }
