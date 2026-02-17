@@ -152,6 +152,9 @@ scoverage-report/
 logs/
 *.log.*
 
+# Untracked working files
+untracked_files/
+
 # Don't upload generated files
 .cursor
 .cursorindexingignore
