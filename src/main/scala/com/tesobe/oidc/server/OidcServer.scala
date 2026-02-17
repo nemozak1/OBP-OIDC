@@ -122,11 +122,12 @@ object OidcServer extends IOApp {
             IO(println("Skipping v_oidc_users view test (using OBP API for credential validation)"))
         }
       } else {
+        val username = config.obpApiUsername.getOrElse("unknown")
         IO {
           println("⏭️  No database connection required. Reason:")
           println(s"   OIDC_SKIP_CLIENT_BOOTSTRAP=true")
-          println(s"   VERIFY_CREDENTIALS_METHOD=verify_credentials_endpoint")
-          println(s"   VERIFY_CLIENT_METHOD=verify_client_endpoint")
+          println(s"   VERIFY_CREDENTIALS_METHOD=verify_credentials_endpoint (requires OBP_API_USERNAME '$username' to have role CanVerifyUserCredentials)")
+          println(s"   VERIFY_CLIENT_METHOD=verify_client_endpoint (requires OBP_API_USERNAME '$username' to have role CanVerifyOidcClient)")
           println(s"   LIST_PROVIDERS_METHOD=get_providers_endpoint")
         }
       }
