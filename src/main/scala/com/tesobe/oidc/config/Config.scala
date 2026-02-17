@@ -66,11 +66,6 @@ sealed trait VerifyCredentialsMethod
 object VerifyCredentialsMethod {
   case object ViaOidcUsersView extends VerifyCredentialsMethod
   case object ViaApiEndpoint extends VerifyCredentialsMethod
-
-  def fromString(s: String): VerifyCredentialsMethod = s.toLowerCase match {
-    case "verify_credentials_endpoint" => ViaApiEndpoint
-    case _                             => ViaOidcUsersView // default
-  }
 }
 
 /** Client verification method options */
@@ -78,11 +73,6 @@ sealed trait VerifyClientMethod
 object VerifyClientMethod {
   case object ViaDatabase extends VerifyClientMethod
   case object ViaApiEndpoint extends VerifyClientMethod
-
-  def fromString(s: String): VerifyClientMethod = s.toLowerCase match {
-    case "verify_client_endpoint" => ViaApiEndpoint
-    case _                        => ViaDatabase // default
-  }
 }
 
 /** Provider listing method options */
@@ -90,11 +80,6 @@ sealed trait ListProvidersMethod
 object ListProvidersMethod {
   case object ViaOidcUsersView extends ListProvidersMethod
   case object ViaApiEndpoint extends ListProvidersMethod
-
-  def fromString(s: String): ListProvidersMethod = s.toLowerCase match {
-    case "get_providers_endpoint" => ViaApiEndpoint
-    case _                        => ViaOidcUsersView // default
-  }
 }
 
 case class OidcConfig(
@@ -114,12 +99,7 @@ case class OidcConfig(
     obpPortalBaseUrl: String = "http://localhost:5174",
     skipClientBootstrap: Boolean = false,
     enableDynamicClientRegistration: Boolean = false,
-    verifyCredentialsMethod: VerifyCredentialsMethod =
-      VerifyCredentialsMethod.ViaOidcUsersView,
-    verifyClientMethod: VerifyClientMethod =
-      VerifyClientMethod.ViaDatabase,
-    listProvidersMethod: ListProvidersMethod =
-      ListProvidersMethod.ViaOidcUsersView,
+    useVerifyEndpoints: Boolean = false,
     obpApiUsername: Option[String] = None,
     obpApiPassword: Option[String] = None,
     obpApiConsumerKey: Option[String] = None,
@@ -128,12 +108,22 @@ case class OidcConfig(
     dbVendor: DbVendor = DbVendor.PostgreSQL
 ) {
 
+  /** Derived method settings from useVerifyEndpoints */
+  def verifyCredentialsMethod: VerifyCredentialsMethod =
+    if (useVerifyEndpoints) VerifyCredentialsMethod.ViaApiEndpoint
+    else VerifyCredentialsMethod.ViaOidcUsersView
+
+  def verifyClientMethod: VerifyClientMethod =
+    if (useVerifyEndpoints) VerifyClientMethod.ViaApiEndpoint
+    else VerifyClientMethod.ViaDatabase
+
+  def listProvidersMethod: ListProvidersMethod =
+    if (useVerifyEndpoints) ListProvidersMethod.ViaApiEndpoint
+    else ListProvidersMethod.ViaOidcUsersView
+
   /** Whether any configured method requires a database connection */
   def needsDatabase: Boolean =
-    !skipClientBootstrap ||
-      verifyCredentialsMethod == VerifyCredentialsMethod.ViaOidcUsersView ||
-      verifyClientMethod == VerifyClientMethod.ViaDatabase ||
-      listProvidersMethod == ListProvidersMethod.ViaOidcUsersView
+    !skipClientBootstrap || !useVerifyEndpoints
 }
 
 object Config {
@@ -215,15 +205,8 @@ object Config {
         sys.env.getOrElse("OIDC_SKIP_CLIENT_BOOTSTRAP", "false").toBoolean,
       enableDynamicClientRegistration =
         sys.env.getOrElse("ENABLE_DYNAMIC_CLIENT_REGISTRATION", "false").toBoolean,
-      verifyCredentialsMethod = VerifyCredentialsMethod.fromString(
-        sys.env.getOrElse("VERIFY_CREDENTIALS_METHOD", "v_oidc_users")
-      ),
-      verifyClientMethod = VerifyClientMethod.fromString(
-        sys.env.getOrElse("VERIFY_CLIENT_METHOD", "database")
-      ),
-      listProvidersMethod = ListProvidersMethod.fromString(
-        sys.env.getOrElse("LIST_PROVIDERS_METHOD", "v_oidc_users")
-      ),
+      useVerifyEndpoints =
+        sys.env.getOrElse("USE_VERIFY_ENDPOINTS", "false").toBoolean,
       obpApiUsername = sys.env.get("OBP_API_USERNAME"),
       obpApiPassword = sys.env.get("OBP_API_PASSWORD"),
       obpApiConsumerKey = sys.env.get("OBP_API_CONSUMER_KEY"),

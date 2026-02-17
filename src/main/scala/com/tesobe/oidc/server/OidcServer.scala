@@ -126,9 +126,10 @@ object OidcServer extends IOApp {
         IO {
           println("⏭️  No database connection required. Reason:")
           println(s"   OIDC_SKIP_CLIENT_BOOTSTRAP=true")
-          println(s"   VERIFY_CREDENTIALS_METHOD=verify_credentials_endpoint (requires OBP_API_USERNAME '$username' to have role CanVerifyUserCredentials)")
-          println(s"   VERIFY_CLIENT_METHOD=verify_client_endpoint (requires OBP_API_USERNAME '$username' to have role CanVerifyOidcClient)")
-          println(s"   LIST_PROVIDERS_METHOD=get_providers_endpoint")
+          println(s"   USE_VERIFY_ENDPOINTS=true")
+          println(s"     -> Credentials verified via OBP API (requires OBP_API_USERNAME '$username' to have role CanVerifyUserCredentials)")
+          println(s"     -> Clients verified via OBP API (requires OBP_API_USERNAME '$username' to have role CanVerifyOidcClient)")
+          println(s"     -> Providers listed via OBP API")
         }
       }
 
@@ -941,19 +942,14 @@ object OidcServer extends IOApp {
                       else "DISABLED"}"
                   )
                 ) *>
-                (config.verifyCredentialsMethod match {
-                  case VerifyCredentialsMethod.ViaOidcUsersView =>
-                    IO(println("Credential Verification Method: v_oidc_users (database view)"))
-                  case VerifyCredentialsMethod.ViaApiEndpoint =>
-                    IO(println("Credential Verification Method: verify_credentials_endpoint (OBP API)")) *>
-                    IO(println(s"  OBP API Username: ${config.obpApiUsername.getOrElse("unknown")}"))
-                }) *>
-                (config.verifyClientMethod match {
-                  case VerifyClientMethod.ViaDatabase =>
-                    IO(println("Client Verification Method: v_oidc_clients (database view)"))
-                  case VerifyClientMethod.ViaApiEndpoint =>
-                    IO(println("Client Verification Method: verify_client_endpoint (OBP API)")) *>
-                    IO(println(s"  OBP API Username: ${config.obpApiUsername.getOrElse("unknown")}"))
+                IO(println(s"USE_VERIFY_ENDPOINTS: ${config.useVerifyEndpoints}")) *>
+                (if (config.useVerifyEndpoints) {
+                  IO(println("  All verification methods use OBP API endpoints")) *>
+                  IO(println(s"  OBP API Username: ${config.obpApiUsername.getOrElse("unknown")}"))
+                } else {
+                  IO(println("  Credential verification: v_oidc_users (database view)")) *>
+                  IO(println("  Client verification: v_oidc_clients (database view)")) *>
+                  IO(println("  Provider listing: v_oidc_users (database view)"))
                 }) *>
                 IO.never
             }

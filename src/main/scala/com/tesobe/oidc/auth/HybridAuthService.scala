@@ -35,16 +35,15 @@ import com.tesobe.oidc.auth.DatabaseUserInstances._
 import java.time.Instant
 import java.util.UUID
 
-/** Database-based authentication service using PostgreSQL view v_oidc_users
+/** Hybrid authentication service supporting both database and API-based verification.
   *
-  * This service connects to the OBP database and authenticates users against
-  * the authuser table via the read-only view created by the OIDC setup script.
+  * When USE_VERIFY_ENDPOINTS=false (default), this service connects to the OBP database
+  * and authenticates users against the authuser table via the read-only view created
+  * by the OIDC setup script. Password verification uses BCrypt to match the OBP-API implementation.
   *
-  * Password verification uses BCrypt to match the OBP-API implementation.
-  *
-  * Alternatively, when verify_credentials_method is set to
-  * "verify_credentials_endpoint", credentials are verified via the OBP API
-  * endpoint POST /obp/v6.0.0/users/verify-credentials
+  * When USE_VERIFY_ENDPOINTS=true, credentials are verified via the OBP API
+  * endpoint POST /obp/v6.0.0/users/verify-credentials, clients via
+  * GET /obp/v6.0.0/oidc/clients/CLIENT_ID, and providers via GET /obp/v6.0.0/providers.
   */
 class HybridAuthService(
     transactor: Option[Transactor[IO]],
@@ -72,7 +71,7 @@ class HybridAuthService(
     * Uses either:
     * - v_oidc_users database view (default)
     * - OBP API endpoint GET /obp/v6.0.0/providers
-    *   (when VERIFY_CREDENTIALS_METHOD=verify_credentials_endpoint)
+    *   (when USE_VERIFY_ENDPOINTS=true)
     */
   def getAvailableProviders(): IO[List[String]] = {
     config.listProvidersMethod match {
@@ -130,7 +129,7 @@ class HybridAuthService(
     * Uses either:
     * - v_oidc_users database view (default)
     * - OBP API endpoint POST /obp/v6.0.0/users/verify-credentials
-    *   (when VERIFY_CREDENTIALS_METHOD=verify_credentials_endpoint)
+    *   (when USE_VERIFY_ENDPOINTS=true)
     */
   def authenticate(
       username: String,
@@ -572,7 +571,7 @@ class HybridAuthService(
     * Uses either:
     * - v_oidc_clients database view (default)
     * - OBP API endpoint GET /obp/v6.0.0/oidc/clients/CLIENT_ID
-    *   (when VERIFY_CLIENT_METHOD=verify_client_endpoint)
+    *   (when USE_VERIFY_ENDPOINTS=true)
     */
   def findClientByClientIdThatIsKey(
       clientId: String
@@ -709,7 +708,7 @@ class HybridAuthService(
     * Uses either:
     * - v_oidc_clients database view (default)
     * - OBP API endpoint POST /obp/v6.0.0/oidc/clients/verify
-    *   (when VERIFY_CLIENT_METHOD=verify_client_endpoint)
+    *   (when USE_VERIFY_ENDPOINTS=true)
     */
   def authenticateClient(
       clientId: String,
@@ -1459,8 +1458,8 @@ object HybridAuthService {
 
   /** Create a HybridAuthService with HikariCP connection pooling
     *
-    * When verify_credentials_method is set to "verify_credentials_endpoint",
-    * an ObpApiCredentialsService is also created for API-based credential verification.
+    * When USE_VERIFY_ENDPOINTS=true, ObpApiCredentialsService and ObpApiClientService
+    * are created for API-based verification. No database connection is needed.
     */
   def create(config: OidcConfig): Resource[IO, HybridAuthService] = {
     for {
@@ -1685,7 +1684,7 @@ object HybridAuthService {
       case VerifyClientMethod.ViaApiEndpoint =>
         ObpApiClientService.testConnection(config)
       case VerifyClientMethod.ViaDatabase =>
-        IO.pure(Right("Client verification using database (VERIFY_CLIENT_METHOD not set to verify_client_endpoint)"))
+        IO.pure(Right("Client verification using database (USE_VERIFY_ENDPOINTS=false)"))
     }
   }
 }
