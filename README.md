@@ -733,7 +733,7 @@ src/main/scala/com/tesobe/oidc/
 
 ### Key Components
 
-- **DatabaseAuthService**: PostgreSQL-based user authentication
+- **HybridAuthService**: PostgreSQL-based user authentication
 - **JwtService**: JWT token generation and validation with RSA256
 - **CodeService**: Authorization code management with expiration
 - **Endpoints**: Individual OIDC endpoint implementations
@@ -864,7 +864,7 @@ This ensures the OAuth authorization flow redirects to the correct OBP-API endpo
    </dependency>
    ```
 
-2. **Updated password verification logic** in `DatabaseAuthService.scala`:
+2. **Updated password verification logic** in `HybridAuthService.scala`:
 
    ```scala
    if (storedHash.startsWith("b;")) {

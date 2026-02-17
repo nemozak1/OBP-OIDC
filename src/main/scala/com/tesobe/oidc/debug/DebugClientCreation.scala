@@ -20,7 +20,7 @@
 package com.tesobe.oidc.debug
 
 import cats.effect.{IO, IOApp, ExitCode}
-import com.tesobe.oidc.auth.DatabaseAuthService
+import com.tesobe.oidc.auth.HybridAuthService
 import com.tesobe.oidc.config.Config
 import com.tesobe.oidc.models.OidcClient
 
@@ -51,21 +51,21 @@ object DebugClientCreation extends IOApp {
       // Test database connections
       _ <- IO(println("🔌 Testing database connections..."))
 
-      userDbResult <- DatabaseAuthService.testConnection(config)
+      userDbResult <- HybridAuthService.testConnection(config)
       _ <- userDbResult match {
         case Right(msg)  => IO(println(s"✅ User DB: $msg"))
         case Left(error) => IO(println(s"❌ User DB: $error"))
       }
 
-      adminDbResult <- DatabaseAuthService.testAdminConnection(config)
+      adminDbResult <- HybridAuthService.testAdminConnection(config)
       _ <- adminDbResult match {
         case Right(msg)  => IO(println(s"✅ Admin DB: $msg"))
         case Left(error) => IO(println(s"❌ Admin DB: $error"))
       }
       _ <- IO(println())
 
-      // Create DatabaseAuthService and test client operations
-      exitCode <- DatabaseAuthService.create(config).use { authService =>
+      // Create HybridAuthService and test client operations
+      exitCode <- HybridAuthService.create(config).use { authService =>
         for {
           _ <- IO(println("🧪 Testing client operations..."))
 

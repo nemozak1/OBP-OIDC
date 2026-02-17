@@ -21,7 +21,7 @@ package com.tesobe.oidc.endpoints
 
 import cats.effect.IO
 
-import com.tesobe.oidc.auth.DatabaseAuthService
+import com.tesobe.oidc.auth.HybridAuthService
 import com.tesobe.oidc.config.OidcConfig
 import com.tesobe.oidc.revocation.TokenRevocationService
 import org.http4s._
@@ -44,7 +44,7 @@ import java.util.Base64
   *   - Optional token_type_hint parameter to optimize lookup
   */
 class RevocationEndpoint(
-    authService: DatabaseAuthService,
+    authService: HybridAuthService,
     revocationService: TokenRevocationService[IO],
     config: OidcConfig
 ) {
@@ -225,7 +225,7 @@ class RevocationEndpoint(
 
 object RevocationEndpoint {
   def apply(
-      authService: DatabaseAuthService,
+      authService: HybridAuthService,
       revocationService: TokenRevocationService[IO],
       config: OidcConfig
   ): RevocationEndpoint = new RevocationEndpoint(

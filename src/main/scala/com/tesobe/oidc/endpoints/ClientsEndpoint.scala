@@ -20,12 +20,12 @@
 package com.tesobe.oidc.endpoints
 
 import cats.effect.IO
-import com.tesobe.oidc.auth.DatabaseAuthService
+import com.tesobe.oidc.auth.HybridAuthService
 import com.tesobe.oidc.models.OidcClient
 import org.http4s._
 import org.http4s.dsl.io._
 
-class ClientsEndpoint(authService: DatabaseAuthService) {
+class ClientsEndpoint(authService: HybridAuthService) {
 
   val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
     case GET -> Root / "clients" =>
@@ -234,6 +234,6 @@ class ClientsEndpoint(authService: DatabaseAuthService) {
 }
 
 object ClientsEndpoint {
-  def apply(authService: DatabaseAuthService): ClientsEndpoint =
+  def apply(authService: HybridAuthService): ClientsEndpoint =
     new ClientsEndpoint(authService)
 }

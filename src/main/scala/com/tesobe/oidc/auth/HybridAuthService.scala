@@ -46,7 +46,7 @@ import java.util.UUID
   * "verify_credentials_endpoint", credentials are verified via the OBP API
   * endpoint POST /obp/v6.0.0/users/verify-credentials
   */
-class DatabaseAuthService(
+class HybridAuthService(
     transactor: Option[Transactor[IO]],
     adminTransactor: Option[Transactor[IO]] = None,
     config: OidcConfig,
@@ -57,8 +57,8 @@ class DatabaseAuthService(
   private val logger = LoggerFactory.getLogger(getClass)
 
   // Test logging immediately when class is created
-  logger.info("🚀 DatabaseAuthService created - logging is working!")
-  println("🚀 DatabaseAuthService created - logging is working!")
+  logger.info("🚀 HybridAuthService created - logging is working!")
+  println("🚀 HybridAuthService created - logging is working!")
 
   /** Get the read transactor, failing with a clear message if database is not configured */
   private def requireTransactor: Transactor[IO] = transactor.getOrElse(
@@ -1453,21 +1453,21 @@ object AdminDatabaseClient {
   )
 }
 
-object DatabaseAuthService {
+object HybridAuthService {
 
   private val logger = LoggerFactory.getLogger(getClass)
 
-  /** Create a DatabaseAuthService with HikariCP connection pooling
+  /** Create a HybridAuthService with HikariCP connection pooling
     *
     * When verify_credentials_method is set to "verify_credentials_endpoint",
     * an ObpApiCredentialsService is also created for API-based credential verification.
     */
-  def create(config: OidcConfig): Resource[IO, DatabaseAuthService] = {
+  def create(config: OidcConfig): Resource[IO, HybridAuthService] = {
     for {
       _ <- Resource.eval(
         IO(
           logger.info(
-            "🔧 Creating DatabaseAuthService"
+            "🔧 Creating HybridAuthService"
           )
         )
       )
@@ -1566,7 +1566,7 @@ object DatabaseAuthService {
           ) *>
             Resource.pure[IO, Option[ObpApiClientService]](None)
       }
-      service = new DatabaseAuthService(
+      service = new HybridAuthService(
         readTransactor,
         adminTransactor,
         config,
@@ -1574,7 +1574,7 @@ object DatabaseAuthService {
         obpApiClientService
       )
       _ <- Resource.eval(
-        IO(logger.info("✅ DatabaseAuthService created successfully"))
+        IO(logger.info("✅ HybridAuthService created successfully"))
       )
     } yield service
   }

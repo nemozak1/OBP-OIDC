@@ -24,10 +24,10 @@ import scala.io.Source
 import cats.effect.{ExitCode, IO, IOApp}
 import cats.syntax.all._
 import com.comcast.ip4s.{Host, Port}
-import com.tesobe.oidc.auth.{CodeService, DatabaseAuthService, DatabaseClient, ObpApiCredentialsService, ObpApiClientService}
+import com.tesobe.oidc.auth.{CodeService, HybridAuthService, DatabaseClient, ObpApiCredentialsService, ObpApiClientService}
 import com.tesobe.oidc.models.OidcClient
 import com.tesobe.oidc.bootstrap.ClientBootstrap
-import com.tesobe.oidc.config.{Config, VerifyCredentialsMethod, VerifyClientMethod}
+import com.tesobe.oidc.config.{Config, OidcConfig, VerifyCredentialsMethod, VerifyClientMethod}
 import com.tesobe.oidc.endpoints._
 import com.tesobe.oidc.tokens.JwtService
 import com.tesobe.oidc.stats.StatsService
@@ -105,40 +105,53 @@ object OidcServer extends IOApp {
         )
       )
       _ <- IO(println(s"Issuer: ${config.issuer}"))
+      _ <- IO(println(s"needsDatabase: ${config.needsDatabase}"))
 
-      // Test database connections based on credential validation method
-      _ <- config.verifyCredentialsMethod match {
-        case VerifyCredentialsMethod.ViaOidcUsersView =>
-          // v_oidc_users view is required for database-based authentication
-          DatabaseAuthService.testConnection(config).flatMap {
-            case Right(msg) => IO(println(msg))
-            case Left(error) =>
-              IO.raiseError(
-                new RuntimeException(s"User database connection failed: $error")
-              )
-          }
-        case VerifyCredentialsMethod.ViaApiEndpoint =>
-          // v_oidc_users view is not required when using OBP API for authentication
-          IO(println("Skipping v_oidc_users view test (using OBP API for credential validation)"))
+      // Test database connections (only if database is needed)
+      _ <- if (config.needsDatabase) {
+        config.verifyCredentialsMethod match {
+          case VerifyCredentialsMethod.ViaOidcUsersView =>
+            HybridAuthService.testConnection(config).flatMap {
+              case Right(msg) => IO(println(msg))
+              case Left(error) =>
+                IO.raiseError(
+                  new RuntimeException(s"User database connection failed: $error")
+                )
+            }
+          case VerifyCredentialsMethod.ViaApiEndpoint =>
+            IO(println("Skipping v_oidc_users view test (using OBP API for credential validation)"))
+        }
+      } else {
+        IO {
+          println("⏭️  No database connection required. Reason:")
+          println(s"   OIDC_SKIP_CLIENT_BOOTSTRAP=true")
+          println(s"   VERIFY_CREDENTIALS_METHOD=verify_credentials_endpoint")
+          println(s"   VERIFY_CLIENT_METHOD=verify_client_endpoint")
+          println(s"   LIST_PROVIDERS_METHOD=get_providers_endpoint")
+        }
       }
 
-      _ <- DatabaseAuthService.testClientConnection(config).flatMap {
-        case Right(msg) => IO(println(msg))
-        case Left(error) =>
-          IO(
-            println(s"Client database warning: $error (using permissive mode)")
-          )
-      }
-
-      _ <- DatabaseAuthService.testAdminConnection(config).flatMap {
-        case Right(msg) => IO(println(msg))
-        case Left(error) =>
-          IO(
-            println(
-              s"Admin database warning: $error (client management features disabled)"
+      _ <- if (config.needsDatabase) {
+        HybridAuthService.testClientConnection(config).flatMap {
+          case Right(msg) => IO(println(msg))
+          case Left(error) =>
+            IO(
+              println(s"Client database warning: $error (using permissive mode)")
             )
-          )
-      }
+        }
+      } else IO.unit
+
+      _ <- if (config.needsDatabase) {
+        HybridAuthService.testAdminConnection(config).flatMap {
+          case Right(msg) => IO(println(msg))
+          case Left(error) =>
+            IO(
+              println(
+                s"Admin database warning: $error (client management features disabled)"
+              )
+            )
+        }
+      } else IO.unit
 
       // Test OBP API connection if using verify_credentials_endpoint method
       _ <- config.verifyCredentialsMethod match {
@@ -166,7 +179,7 @@ object OidcServer extends IOApp {
           IO.unit // Database connection already tested above
       }
 
-      exitCode <- DatabaseAuthService.create(config).use { authService =>
+      exitCode <- HybridAuthService.create(config).use { authService =>
         for {
           // Initialize standard OBP ecosystem clients (create-only mode)
           _ <- IO(
@@ -435,7 +448,8 @@ object OidcServer extends IOApp {
                 // Info page - detailed server information
                 case GET -> Root / "info" if config.localDevelopmentMode =>
                   for {
-                    clientsResult <- authService.listClients()
+                    clientsResult <- if (config.needsDatabase) authService.listClients()
+                      else IO.pure(Right(List.empty[OidcClient]))
                     // Check credential validation method and role status
                     credentialValidationInfo <- config.verifyCredentialsMethod match {
                       case VerifyCredentialsMethod.ViaApiEndpoint =>
@@ -918,7 +932,7 @@ object OidcServer extends IOApp {
                 IO(println(s"  Health Check: $baseUriString/health")) *>
                 config.obpApiUrl
                   .fold(IO.unit)(url => IO(println(s"  OBP-API: $url"))) *>
-                printOBPConfiguration(baseUriString, authService) *>
+                printOBPConfiguration(baseUriString, authService, config) *>
                 IO(println(s"OIDC Provider started at ${server.baseUri}")) *>
                 IO(
                   println(
@@ -930,39 +944,15 @@ object OidcServer extends IOApp {
                   case VerifyCredentialsMethod.ViaOidcUsersView =>
                     IO(println("Credential Verification Method: v_oidc_users (database view)"))
                   case VerifyCredentialsMethod.ViaApiEndpoint =>
-                    val username = config.obpApiUsername.getOrElse("unknown")
                     IO(println("Credential Verification Method: verify_credentials_endpoint (OBP API)")) *>
-                    IO(println(s"  OBP API Username: $username")) *>
-                    ObpApiCredentialsService.testConnection(config).flatMap {
-                      case Right(msg) =>
-                        val hasRole = msg.contains("User has CanVerifyUserCredentials role")
-                        if (hasRole) {
-                          IO(println("  Has CanVerifyUserCredentials Role: Yes"))
-                        } else {
-                          IO(println("  Has CanVerifyUserCredentials Role: No (WARNING)"))
-                        }
-                      case Left(_) =>
-                        IO(println("  Has CanVerifyUserCredentials Role: Unknown (connection failed)"))
-                    }
+                    IO(println(s"  OBP API Username: ${config.obpApiUsername.getOrElse("unknown")}"))
                 }) *>
                 (config.verifyClientMethod match {
                   case VerifyClientMethod.ViaDatabase =>
                     IO(println("Client Verification Method: v_oidc_clients (database view)"))
                   case VerifyClientMethod.ViaApiEndpoint =>
-                    val username = config.obpApiUsername.getOrElse("unknown")
                     IO(println("Client Verification Method: verify_client_endpoint (OBP API)")) *>
-                    IO(println(s"  OBP API Username: $username")) *>
-                    ObpApiClientService.testConnection(config).flatMap {
-                      case Right(msg) =>
-                        val hasRole = msg.contains("User has CanVerifyOidcClient role")
-                        if (hasRole) {
-                          IO(println("  Has CanVerifyOidcClient Role: Yes"))
-                        } else {
-                          IO(println("  Has CanVerifyOidcClient Role: No (WARNING)"))
-                        }
-                      case Left(_) =>
-                        IO(println("  Has CanVerifyOidcClient Role: Unknown (connection failed)"))
-                    }
+                    IO(println(s"  OBP API Username: ${config.obpApiUsername.getOrElse("unknown")}"))
                 }) *>
                 IO.never
             }
@@ -1039,53 +1029,58 @@ object OidcServer extends IOApp {
     */
   private def printOBPConfiguration(
       baseUri: String,
-      authService: DatabaseAuthService
+      authService: HybridAuthService,
+      config: OidcConfig
   ): IO[Unit] = {
-    for {
-      _ <- IO(println("=" * 100))
-      _ <- IO(println("🚀 OBP clients from the database"))
-      _ <- IO(println("=" * 100))
-      _ <- IO(println())
-      _ <- IO(println("📊 Database Field Mapping (v_oidc_clients view):"))
-      _ <- IO(println("=" * 100))
-      _ <- IO(println("| Database Column | View Alias(es)      | Purpose"))
-      _ <- IO(
-        println(
-          "|-----------------|---------------------|--------------------------------------------"
+    if (!config.needsDatabase) {
+      IO(println("⏭️  Skipping database client listing (all methods use API endpoints)"))
+    } else {
+      for {
+        _ <- IO(println("=" * 100))
+        _ <- IO(println("🚀 OBP clients from the database"))
+        _ <- IO(println("=" * 100))
+        _ <- IO(println())
+        _ <- IO(println("📊 Database Field Mapping (v_oidc_clients view):"))
+        _ <- IO(println("=" * 100))
+        _ <- IO(println("| Database Column | View Alias(es)      | Purpose"))
+        _ <- IO(
+          println(
+            "|-----------------|---------------------|--------------------------------------------"
+          )
         )
-      )
-      _ <- IO(
-        println(
-          "| consumerid      | consumer_id         | Internal database ID (auto-generated)"
+        _ <- IO(
+          println(
+            "| consumerid      | consumer_id         | Internal database ID (auto-generated)"
+          )
         )
-      )
-      _ <- IO(
-        println(
-          "| key_c           | key, client_id      | OAuth1/OAuth2 identifier (what apps use)"
+        _ <- IO(
+          println(
+            "| key_c           | key, client_id      | OAuth1/OAuth2 identifier (what apps use)"
+          )
         )
-      )
-      _ <- IO(
-        println(
-          "| secret          | secret, client_secret| Authentication secret"
+        _ <- IO(
+          println(
+            "| secret          | secret, client_secret| Authentication secret"
+          )
         )
-      )
-      _ <- IO(println("=" * 100))
-      _ <- IO(println())
+        _ <- IO(println("=" * 100))
+        _ <- IO(println())
 
-      clientsResult <- authService.listClients()
-      _ <- clientsResult match {
-        case Right(clients) if clients.nonEmpty =>
-          clients.foldLeft(IO.unit) { (acc, client) =>
-            acc.flatMap(_ => printClient(Some(client)))
-          }
-        case Right(_) =>
-          IO(println("No Clients Found"))
-        case Left(error) =>
-          IO(println(s"Error retrieving clients: ${error.error}"))
-      }
+        clientsResult <- authService.listClients()
+        _ <- clientsResult match {
+          case Right(clients) if clients.nonEmpty =>
+            clients.foldLeft(IO.unit) { (acc, client) =>
+              acc.flatMap(_ => printClient(Some(client)))
+            }
+          case Right(_) =>
+            IO(println("No Clients Found"))
+          case Left(error) =>
+            IO(println(s"Error retrieving clients: ${error.error}"))
+        }
 
-      _ <- IO(println("=" * 100))
-    } yield ()
+        _ <- IO(println("=" * 100))
+      } yield ()
+    }
   }
 
   /** Print client configuration in standardized format

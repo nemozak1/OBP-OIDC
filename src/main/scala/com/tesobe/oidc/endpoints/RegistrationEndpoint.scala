@@ -21,7 +21,7 @@ package com.tesobe.oidc.endpoints
 
 import cats.effect.IO
 import cats.syntax.all._
-import com.tesobe.oidc.auth.DatabaseAuthService
+import com.tesobe.oidc.auth.HybridAuthService
 import com.tesobe.oidc.config.OidcConfig
 import com.tesobe.oidc.models._
 import com.tesobe.oidc.ratelimit.RateLimitService
@@ -44,7 +44,7 @@ import scala.util.Try
   * Endpoint: POST /obp-oidc/connect/register
   */
 class RegistrationEndpoint(
-    authService: DatabaseAuthService,
+    authService: HybridAuthService,
     rateLimitService: RateLimitService[IO],
     config: OidcConfig
 ) {
@@ -392,7 +392,7 @@ class RegistrationEndpoint(
 
 object RegistrationEndpoint {
   def apply(
-      authService: DatabaseAuthService,
+      authService: HybridAuthService,
       rateLimitService: RateLimitService[IO],
       config: OidcConfig
   ): RegistrationEndpoint =

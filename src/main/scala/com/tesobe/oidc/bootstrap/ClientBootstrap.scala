@@ -21,7 +21,7 @@ package com.tesobe.oidc.bootstrap
 
 import cats.effect.IO
 import cats.implicits._
-import com.tesobe.oidc.auth.{DatabaseAuthService, AdminDatabaseClient}
+import com.tesobe.oidc.auth.{HybridAuthService, AdminDatabaseClient}
 import com.tesobe.oidc.config.OidcConfig
 import com.tesobe.oidc.models.OidcClient
 import org.slf4j.LoggerFactory
@@ -39,7 +39,7 @@ import scala.concurrent.duration._
   *   - Explorer II: API exploration tool
   *   - Opey II: OBP mobile/web client
   */
-class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
+class ClientBootstrap(authService: HybridAuthService, config: OidcConfig) {
 
   private val logger = LoggerFactory.getLogger(getClass)
   private val secureRandom = new SecureRandom()
@@ -495,7 +495,7 @@ object ClientBootstrap {
   /** Create and run client bootstrap
     */
   def initialize(
-      authService: DatabaseAuthService,
+      authService: HybridAuthService,
       config: OidcConfig
   ): IO[Unit] = {
     println("🎯 DEBUG: ClientBootstrap.initialize() called from server")

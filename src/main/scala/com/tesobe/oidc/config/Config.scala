@@ -112,6 +112,7 @@ case class OidcConfig(
     ),
     logoAltText: String = "Open Bank Project",
     obpPortalBaseUrl: String = "http://localhost:5174",
+    skipClientBootstrap: Boolean = false,
     enableDynamicClientRegistration: Boolean = false,
     verifyCredentialsMethod: VerifyCredentialsMethod =
       VerifyCredentialsMethod.ViaOidcUsersView,
@@ -129,7 +130,8 @@ case class OidcConfig(
 
   /** Whether any configured method requires a database connection */
   def needsDatabase: Boolean =
-    verifyCredentialsMethod == VerifyCredentialsMethod.ViaOidcUsersView ||
+    !skipClientBootstrap ||
+      verifyCredentialsMethod == VerifyCredentialsMethod.ViaOidcUsersView ||
       verifyClientMethod == VerifyClientMethod.ViaDatabase ||
       listProvidersMethod == ListProvidersMethod.ViaOidcUsersView
 }
@@ -209,6 +211,8 @@ object Config {
         val url = sys.env.getOrElse("OBP_PORTAL_BASE_URL", "http://localhost:5174")
         if (url.endsWith("/")) url.dropRight(1) else url
       },
+      skipClientBootstrap =
+        sys.env.getOrElse("OIDC_SKIP_CLIENT_BOOTSTRAP", "false").toBoolean,
       enableDynamicClientRegistration =
         sys.env.getOrElse("ENABLE_DYNAMIC_CLIENT_REGISTRATION", "false").toBoolean,
       verifyCredentialsMethod = VerifyCredentialsMethod.fromString(
