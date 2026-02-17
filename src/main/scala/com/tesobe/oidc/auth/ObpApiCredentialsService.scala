@@ -452,6 +452,60 @@ class ObpApiCredentialsService(
         }
     }
   }
+
+  /** Get available authentication providers by calling GET /obp/v6.0.0/providers
+    */
+  def getProviders(): IO[List[String]] = {
+    config.obpApiUrl match {
+      case None =>
+        logger.error("OBP_API_URL is not configured for fetching providers")
+        IO.pure(List.empty)
+
+      case Some(baseUrl) =>
+        getValidToken().flatMap {
+          case Left(error) =>
+            logger.error(s"Failed to get token for providers endpoint: ${error.error}")
+            IO.pure(List.empty)
+          case Right(token) =>
+            val endpoint = s"${baseUrl.stripSuffix("/")}/obp/v6.0.0/providers"
+            logger.info(s"Fetching providers from OBP API: $endpoint")
+
+            val request = Request[IO](
+              method = Method.GET,
+              uri = Uri.unsafeFromString(endpoint)
+            ).putHeaders(
+              Header.Raw(ci"DirectLogin", s"token=$token")
+            )
+
+            client
+              .run(request)
+              .use { response =>
+                response.status match {
+                  case Status.Ok =>
+                    response.as[Json].map { json =>
+                      json.hcursor.get[List[String]]("providers") match {
+                        case Right(providers) =>
+                          logger.info(s"Got ${providers.size} providers from OBP API")
+                          providers
+                        case Left(_) =>
+                          logger.warn(s"Unexpected providers response format: $json")
+                          List.empty
+                      }
+                    }
+                  case status =>
+                    response.as[String].flatMap { body =>
+                      logger.error(s"Failed to fetch providers from OBP API ($status): $body")
+                      IO.pure(List.empty)
+                    }
+                }
+              }
+              .handleErrorWith { error =>
+                logger.error(s"Error calling OBP API providers endpoint: ${error.getMessage}", error)
+                IO.pure(List.empty)
+              }
+        }
+    }
+  }
 }
 
 /** Response structure for entitlements check */

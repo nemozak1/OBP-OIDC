@@ -21,7 +21,7 @@ package com.tesobe.oidc.auth
 
 import cats.effect.{IO, Resource}
 import cats.implicits._
-import com.tesobe.oidc.config.{DatabaseConfig, DbVendor, OidcConfig, VerifyCredentialsMethod, VerifyClientMethod}
+import com.tesobe.oidc.config.{DatabaseConfig, DbVendor, ListProvidersMethod, OidcConfig, VerifyCredentialsMethod, VerifyClientMethod}
 import com.tesobe.oidc.models.{User, UserInfo, OidcError, OidcClient}
 import doobie._
 import doobie.hikari.HikariTransactor
@@ -47,7 +47,7 @@ import java.util.UUID
   * endpoint POST /obp/v6.0.0/users/verify-credentials
   */
 class DatabaseAuthService(
-    transactor: Transactor[IO],
+    transactor: Option[Transactor[IO]],
     adminTransactor: Option[Transactor[IO]] = None,
     config: OidcConfig,
     obpApiCredentialsService: Option[ObpApiCredentialsService] = None,
@@ -60,11 +60,38 @@ class DatabaseAuthService(
   logger.info("🚀 DatabaseAuthService created - logging is working!")
   println("🚀 DatabaseAuthService created - logging is working!")
 
-  /** Get available providers for dropdown
+  /** Get the read transactor, failing with a clear message if database is not configured */
+  private def requireTransactor: Transactor[IO] = transactor.getOrElse(
+    throw new IllegalStateException(
+      "Database transactor not available. This method requires a database connection but all methods are configured to use API endpoints."
+    )
+  )
+
+  /** Get available providers for dropdown.
+    *
+    * Uses either:
+    * - v_oidc_users database view (default)
+    * - OBP API endpoint GET /obp/v6.0.0/providers
+    *   (when VERIFY_CREDENTIALS_METHOD=verify_credentials_endpoint)
     */
   def getAvailableProviders(): IO[List[String]] = {
-    logger.debug("🔍 Fetching available providers from database")
+    config.listProvidersMethod match {
+      case ListProvidersMethod.ViaApiEndpoint =>
+        logger.info("🌐 Fetching providers via OBP API endpoint (GET /obp/v6.0.0/providers)")
+        obpApiCredentialsService match {
+          case Some(service) => service.getProviders()
+          case None =>
+            logger.error("OBP API Credentials Service not initialized but get_providers_endpoint is configured")
+            IO.pure(List.empty[String])
+        }
 
+      case ListProvidersMethod.ViaOidcUsersView =>
+        logger.debug("🔍 Fetching available providers from database")
+        getAvailableProvidersViaDatabase()
+    }
+  }
+
+  private def getAvailableProvidersViaDatabase(): IO[List[String]] = {
     val excludedProviders =
       List("google", "yahoo", "azure", "auth0", "keycloak", "hydra", "mitreid")
 
@@ -77,7 +104,7 @@ class DatabaseAuthService(
 
     query
       .to[List]
-      .transact(transactor)
+      .transact(requireTransactor)
       .map { providers =>
         logger.info(
           s"🔍 Filtering out excluded providers: ${excludedProviders.mkString(", ")}"
@@ -317,7 +344,7 @@ class DatabaseAuthService(
       WHERE username = $userId AND validated = true
     """.query[DatabaseUser]
 
-    query.option.transact(transactor).handleErrorWith { error =>
+    query.option.transact(requireTransactor).handleErrorWith { error =>
       logger
         .error(s"Database error while finding user by username $userId", error)
       IO.pure(None)
@@ -339,7 +366,7 @@ class DatabaseAuthService(
       WHERE username = $username AND validated = true
     """.query[DatabaseUser]
 
-    query.option.transact(transactor).handleErrorWith { error =>
+    query.option.transact(requireTransactor).handleErrorWith { error =>
       logger.error(s"🚨 Database error while finding user $username", error)
       println(
         s"🚨 Database error while finding user $username: ${error.getMessage}"
@@ -377,7 +404,7 @@ class DatabaseAuthService(
     )
 
     query.option
-      .transact(transactor)
+      .transact(requireTransactor)
       .flatTap { result =>
         IO {
           result match {
@@ -432,7 +459,7 @@ class DatabaseAuthService(
       LIMIT 1
     """.query[DatabaseUser]
 
-    query.option.transact(transactor).handleErrorWith { error =>
+    query.option.transact(requireTransactor).handleErrorWith { error =>
       logger.error(
         s"🚨 Database error while finding user details for $username",
         error
@@ -453,7 +480,7 @@ class DatabaseAuthService(
       SELECT COUNT(*) FROM v_oidc_users WHERE username = $username
     """.query[Int]
 
-    query.unique.transact(transactor).handleErrorWith { error =>
+    query.unique.transact(requireTransactor).handleErrorWith { error =>
       logger
         .error(s"🚨 Database error while counting username $username", error)
       println(
@@ -479,7 +506,7 @@ class DatabaseAuthService(
       ORDER BY provider, validated DESC
     """.query[DatabaseUser]
 
-    query.to[List].transact(transactor).handleErrorWith { error =>
+    query.to[List].transact(requireTransactor).handleErrorWith { error =>
       logger.error(
         s"🚨 Database error while getting all users for username $username",
         error
@@ -506,7 +533,7 @@ class DatabaseAuthService(
 
     query
       .to[List]
-      .transact(transactor)
+      .transact(requireTransactor)
       .flatMap { users =>
         if (users.nonEmpty) {
           logger.warn("🔍 DEBUG: Sample users in database:")
@@ -524,7 +551,7 @@ class DatabaseAuthService(
           val countQuery =
             sql"SELECT COUNT(*) FROM v_oidc_users WHERE validated = true"
               .query[Int]
-          countQuery.unique.transact(transactor).map { count =>
+          countQuery.unique.transact(requireTransactor).map { count =>
             logger.warn(s"🔍 DEBUG: Total validated users in database: $count")
             println(s"🔍 DEBUG: Total validated users in database: $count")
           }
@@ -582,7 +609,7 @@ class DatabaseAuthService(
     """.query[DatabaseClient]
 
     query.option
-      .transact(transactor)
+      .transact(requireTransactor)
       .map { result =>
         result.map { client =>
           logger.debug(s"Found client: ${client.client_name} with id: ${client.client_id}")
@@ -605,7 +632,7 @@ class DatabaseAuthService(
       WHERE client_id = $clientId
     """.query[DatabaseClient]
 
-    query.option.transact(transactor)
+    query.option.transact(requireTransactor)
   }
 
   /** Validate client and redirect URI
@@ -766,7 +793,7 @@ class DatabaseAuthService(
     """.query[DatabaseClient]
 
     query.option
-      .transact(transactor)
+      .transact(requireTransactor)
       .map { result =>
         println(s"   📊 DEBUG: Query result: ${if (result.isDefined) "FOUND"
           else "NOT FOUND"}")
@@ -798,7 +825,7 @@ class DatabaseAuthService(
 
     query
       .to[List]
-      .transact(transactor)
+      .transact(requireTransactor)
       .map { duplicates =>
         println(
           s"   📊 DEBUG: Found ${duplicates.length} client names with duplicates"
@@ -833,7 +860,7 @@ class DatabaseAuthService(
 
     query
       .to[List]
-      .transact(transactor)
+      .transact(requireTransactor)
       .map { clients =>
         println(
           s"   📊 DEBUG: Found ${clients.length} clients with name: $clientName"
@@ -1021,7 +1048,7 @@ class DatabaseAuthService(
     logger.info("🔄 Executing SELECT query on v_oidc_clients")
     query
       .to[List]
-      .transact(transactor)
+      .transact(requireTransactor)
       .map { clients =>
         println(
           s"📊 DEBUG: SELECT result: Found ${clients.length} clients in v_oidc_clients"
@@ -1440,21 +1467,7 @@ object DatabaseAuthService {
       _ <- Resource.eval(
         IO(
           logger.info(
-            "🔧 Creating DatabaseAuthService with read and admin transactors"
-          )
-        )
-      )
-      _ <- Resource.eval(
-        IO(
-          logger.info(
-            s"   Read DB: ${config.database.username}@${config.database.host}:${config.database.port}/${config.database.database}"
-          )
-        )
-      )
-      _ <- Resource.eval(
-        IO(
-          logger.info(
-            s"   Admin DB: ${config.adminDatabase.username}@${config.adminDatabase.host}:${config.adminDatabase.port}/${config.adminDatabase.database}"
+            "🔧 Creating DatabaseAuthService"
           )
         )
       )
@@ -1472,34 +1485,65 @@ object DatabaseAuthService {
           )
         )
       )
-      readTransactor <- createTransactor(config.database, config.dbVendor)
       _ <- Resource.eval(
-        IO(logger.info("✅ Read transactor created successfully"))
+        IO(
+          logger.info(
+            s"   List providers method: ${config.listProvidersMethod}"
+          )
+        )
       )
-      adminTransactor <- createTransactor(config.adminDatabase, config.dbVendor)
       _ <- Resource.eval(
-        IO(logger.info("✅ Admin transactor created successfully"))
+        IO(
+          logger.info(
+            s"   Database required: ${config.needsDatabase}"
+          )
+        )
       )
-      // Create OBP API credentials service if using API endpoint method
-      obpApiService <- config.verifyCredentialsMethod match {
-        case VerifyCredentialsMethod.ViaApiEndpoint =>
+      // Only create database transactors if at least one method needs the database
+      readTransactor <- if (config.needsDatabase) {
+        Resource.eval(IO(logger.info(
+          s"   Read DB: ${config.database.username}@${config.database.host}:${config.database.port}/${config.database.database}"
+        ))) *>
+        createTransactor(config.database, config.dbVendor).map(Some(_)).flatTap(_ =>
+          Resource.eval(IO(logger.info("✅ Read transactor created successfully")))
+        )
+      } else {
+        Resource.eval(IO(logger.info("⏭️  Skipping database connection (all methods use API endpoints)"))) *>
+        Resource.pure[IO, Option[HikariTransactor[IO]]](None)
+      }
+      adminTransactor <- if (config.needsDatabase) {
+        Resource.eval(IO(logger.info(
+          s"   Admin DB: ${config.adminDatabase.username}@${config.adminDatabase.host}:${config.adminDatabase.port}/${config.adminDatabase.database}"
+        ))) *>
+        createTransactor(config.adminDatabase, config.dbVendor).map(Some(_)).flatTap(_ =>
+          Resource.eval(IO(logger.info("✅ Admin transactor created successfully")))
+        )
+      } else {
+        Resource.pure[IO, Option[HikariTransactor[IO]]](None)
+      }
+      // Create OBP API credentials service if using API endpoint method for credentials or providers
+      obpApiService <- {
+        val needsCredentialsApi = config.verifyCredentialsMethod == VerifyCredentialsMethod.ViaApiEndpoint
+        val needsProvidersApi = config.listProvidersMethod == ListProvidersMethod.ViaApiEndpoint
+        if (needsCredentialsApi || needsProvidersApi) {
           Resource.eval(
             IO(
               logger.info(
-                "🌐 Creating ObpApiCredentialsService for API-based credential verification"
+                "🌐 Creating ObpApiCredentialsService for API-based operations"
               )
             )
           ) *>
             ObpApiCredentialsService.create(config).map(Some(_))
-        case VerifyCredentialsMethod.ViaOidcUsersView =>
+        } else {
           Resource.eval(
             IO(
               logger.info(
-                "🗄️ Using database view (v_oidc_users) for credential verification"
+                "🗄️ Using database view (v_oidc_users) for credential verification and provider listing"
               )
             )
           ) *>
             Resource.pure[IO, Option[ObpApiCredentialsService]](None)
+        }
       }
       // Create OBP API client service if using API endpoint method for client verification
       obpApiClientService <- config.verifyClientMethod match {
@@ -1524,13 +1568,13 @@ object DatabaseAuthService {
       }
       service = new DatabaseAuthService(
         readTransactor,
-        Some(adminTransactor),
+        adminTransactor,
         config,
         obpApiService,
         obpApiClientService
       )
       _ <- Resource.eval(
-        IO(logger.info("✅ DatabaseAuthService created with admin capabilities"))
+        IO(logger.info("✅ DatabaseAuthService created successfully"))
       )
     } yield service
   }
@@ -1570,11 +1614,11 @@ object DatabaseAuthService {
   /** Test database connection and setup
     */
   def testConnection(config: OidcConfig): IO[Either[String, String]] = {
-    createTransactor(config.database, config.dbVendor).use { transactor =>
+    createTransactor(config.database, config.dbVendor).use { xa =>
       val testQuery = sql"SELECT COUNT(*) FROM v_oidc_users".query[Int]
 
       testQuery.unique
-        .transact(transactor)
+        .transact(xa)
         .map { count =>
           val message =
             s"Database connection successful. Found $count validated users in v_oidc_users view."
@@ -1592,11 +1636,11 @@ object DatabaseAuthService {
   /** Test client view access
     */
   def testClientConnection(config: OidcConfig): IO[Either[String, String]] = {
-    createTransactor(config.database, config.dbVendor).use { transactor =>
+    createTransactor(config.database, config.dbVendor).use { xa =>
       val testQuery = sql"SELECT COUNT(*) FROM v_oidc_clients".query[Int]
 
       testQuery.unique
-        .transact(transactor)
+        .transact(xa)
         .map { count =>
           val message =
             s"Client database connection successful. Found $count registered clients in v_oidc_clients view."
@@ -1615,11 +1659,11 @@ object DatabaseAuthService {
   /** Test admin database connection and v_oidc_admin_clients view access
     */
   def testAdminConnection(config: OidcConfig): IO[Either[String, String]] = {
-    createTransactor(config.adminDatabase, config.dbVendor).use { transactor =>
+    createTransactor(config.adminDatabase, config.dbVendor).use { xa =>
       val testQuery = sql"SELECT COUNT(*) FROM v_oidc_admin_clients".query[Int]
 
       testQuery.unique
-        .transact(transactor)
+        .transact(xa)
         .map { count =>
           val message =
             s"Admin database connection successful. Found $count clients accessible via v_oidc_admin_clients view."

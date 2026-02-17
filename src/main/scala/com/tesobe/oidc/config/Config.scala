@@ -85,6 +85,18 @@ object VerifyClientMethod {
   }
 }
 
+/** Provider listing method options */
+sealed trait ListProvidersMethod
+object ListProvidersMethod {
+  case object ViaOidcUsersView extends ListProvidersMethod
+  case object ViaApiEndpoint extends ListProvidersMethod
+
+  def fromString(s: String): ListProvidersMethod = s.toLowerCase match {
+    case "get_providers_endpoint" => ViaApiEndpoint
+    case _                        => ViaOidcUsersView // default
+  }
+}
+
 case class OidcConfig(
     issuer: String,
     server: ServerConfig,
@@ -105,13 +117,22 @@ case class OidcConfig(
       VerifyCredentialsMethod.ViaOidcUsersView,
     verifyClientMethod: VerifyClientMethod =
       VerifyClientMethod.ViaDatabase,
+    listProvidersMethod: ListProvidersMethod =
+      ListProvidersMethod.ViaOidcUsersView,
     obpApiUsername: Option[String] = None,
     obpApiPassword: Option[String] = None,
     obpApiConsumerKey: Option[String] = None,
     obpApiRetryMaxAttempts: Int = 60,
     obpApiRetryDelaySeconds: Int = 30,
     dbVendor: DbVendor = DbVendor.PostgreSQL
-)
+) {
+
+  /** Whether any configured method requires a database connection */
+  def needsDatabase: Boolean =
+    verifyCredentialsMethod == VerifyCredentialsMethod.ViaOidcUsersView ||
+      verifyClientMethod == VerifyClientMethod.ViaDatabase ||
+      listProvidersMethod == ListProvidersMethod.ViaOidcUsersView
+}
 
 object Config {
 
@@ -195,6 +216,9 @@ object Config {
       ),
       verifyClientMethod = VerifyClientMethod.fromString(
         sys.env.getOrElse("VERIFY_CLIENT_METHOD", "database")
+      ),
+      listProvidersMethod = ListProvidersMethod.fromString(
+        sys.env.getOrElse("LIST_PROVIDERS_METHOD", "v_oidc_users")
       ),
       obpApiUsername = sys.env.get("OBP_API_USERNAME"),
       obpApiPassword = sys.env.get("OBP_API_PASSWORD"),
