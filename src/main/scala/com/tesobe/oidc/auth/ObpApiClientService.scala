@@ -254,7 +254,7 @@ class ObpApiClientService(
     *
     * Requires:
     * - OBP_API_URL to be configured
-    * - OBP_API_USERNAME (a user with CanVerifyOidcClient role)
+    * - OBP_API_USERNAME (a user with CanGetOidcClient role)
     * - OBP_API_PASSWORD
     * - OBP_API_CONSUMER_KEY
     */
@@ -377,17 +377,17 @@ class ObpApiClientService(
                     }
 
                   case Status.Forbidden =>
-                    logger.warn(
-                      s"Client verification forbidden for client_id: $clientId"
-                    )
-                    IO.pure(
-                      Left(
-                        OidcError(
-                          "access_denied",
-                          Some("Not authorized to verify clients")
+                    response.as[String].flatMap { body =>
+                      logger.error(s"OBP API returned 403 Forbidden for client verification: $body")
+                      IO.pure(
+                        Left(
+                          OidcError(
+                            "server_error",
+                            Some(body)
+                          )
                         )
                       )
-                    )
+                    }
 
                   case Status.NotFound =>
                     logger.warn(
@@ -526,6 +526,12 @@ class ObpApiClientService(
                       }
                     }
 
+                  case Status.Forbidden =>
+                    response.as[String].flatMap { body =>
+                      logger.error(s"OBP API returned 403 Forbidden for client lookup: $body")
+                      IO.raiseError(new RuntimeException(body))
+                    }
+
                   case status =>
                     response.as[String].flatMap { body =>
                       logger.error(s"Unexpected response from OBP API: status=$status, body=$body")
@@ -545,7 +551,7 @@ class ObpApiClientService(
 object ObpApiClientService {
 
   private val logger = LoggerFactory.getLogger(getClass)
-  private val RequiredRole = "CanVerifyOidcClient"
+  private val RequiredRole = "CanGetOidcClient"
 
   /** Create an ObpApiClientService with http4s Ember client
     */
@@ -572,7 +578,7 @@ object ObpApiClientService {
           case Left(error) =>
             IO.pure(Left(s"OBP API connection failed for client verification: ${error.error_description.getOrElse(error.error)}"))
           case Right(token) =>
-            // Check for CanVerifyOidcClient role
+            // Check for CanGetOidcClient role
             checkUserRole(client, baseUrl, token).map {
               case Right(hasRole) =>
                 val roleStatus = if (hasRole) {
@@ -596,7 +602,7 @@ object ObpApiClientService {
     }
   }
 
-  /** Check if the current user has the CanVerifyOidcClient role
+  /** Check if the current user has the CanGetOidcClient role
     */
   private def checkUserRole(
       client: Client[IO],

@@ -128,7 +128,7 @@ object OidcServer extends IOApp {
           println(s"   OIDC_SKIP_CLIENT_BOOTSTRAP=true")
           println(s"   USE_VERIFY_ENDPOINTS=true")
           println(s"     -> Credentials verified via OBP API (requires OBP_API_USERNAME '$username' to have role CanVerifyUserCredentials)")
-          println(s"     -> Clients verified via OBP API (requires OBP_API_USERNAME '$username' to have role CanVerifyOidcClient)")
+          println(s"     -> Clients verified via OBP API (requires OBP_API_USERNAME '$username' to have role CanGetOidcClient)")
           println(s"     -> Providers listed via OBP API")
         }
       }
@@ -944,8 +944,12 @@ object OidcServer extends IOApp {
                 ) *>
                 IO(println(s"USE_VERIFY_ENDPOINTS: ${config.useVerifyEndpoints}")) *>
                 (if (config.useVerifyEndpoints) {
+                  val username = config.obpApiUsername.getOrElse("unknown")
                   IO(println("  All verification methods use OBP API endpoints")) *>
-                  IO(println(s"  OBP API Username: ${config.obpApiUsername.getOrElse("unknown")}"))
+                  IO(println(s"  OBP API Username: $username")) *>
+                  IO(println(s"  Required roles for OBP_API_USERNAME '$username':")) *>
+                  IO(println(s"    - CanVerifyUserCredentials (for POST /obp/v6.0.0/users/verify-credentials)")) *>
+                  IO(println(s"    - CanGetOidcClient (for GET /obp/v6.0.0/oidc/clients/CLIENT_ID)"))
                 } else {
                   IO(println("  Credential verification: v_oidc_users (database view)")) *>
                   IO(println("  Client verification: v_oidc_clients (database view)")) *>
