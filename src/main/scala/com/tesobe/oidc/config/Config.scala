@@ -100,6 +100,7 @@ case class OidcConfig(
     ),
     logoAltText: String = "Open Bank Project",
     obpPortalBaseUrl: String = "http://localhost:5174",
+    enableDynamicClientRegistration: Boolean = false,
     verifyCredentialsMethod: VerifyCredentialsMethod =
       VerifyCredentialsMethod.ViaOidcUsersView,
     verifyClientMethod: VerifyClientMethod =
@@ -187,6 +188,8 @@ object Config {
         val url = sys.env.getOrElse("OBP_PORTAL_BASE_URL", "http://localhost:5174")
         if (url.endsWith("/")) url.dropRight(1) else url
       },
+      enableDynamicClientRegistration =
+        sys.env.getOrElse("ENABLE_DYNAMIC_CLIENT_REGISTRATION", "false").toBoolean,
       verifyCredentialsMethod = VerifyCredentialsMethod.fromString(
         sys.env.getOrElse("VERIFY_CREDENTIALS_METHOD", "v_oidc_users")
       ),

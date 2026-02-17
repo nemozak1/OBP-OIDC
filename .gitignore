@@ -15,6 +15,9 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with OBP-OIDC. If not, see <http://www.gnu.org/licenses/>.
 
+# Generated files
+obp-oidc-generated-config.txt
+
 # Maven
 target/
 pom.xml.tag
