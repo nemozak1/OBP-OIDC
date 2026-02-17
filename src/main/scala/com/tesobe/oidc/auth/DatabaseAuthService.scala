@@ -1541,11 +1541,12 @@ object DatabaseAuthService {
       dbConfig: DatabaseConfig,
       dbVendor: DbVendor
   ): Resource[IO, HikariTransactor[IO]] = {
+    val jdbcUrl = dbVendor.jdbcUrl(dbConfig.host, dbConfig.port, dbConfig.database)
+    logger.info(s"JDBC URL: $jdbcUrl (user: ${dbConfig.username}, password: ****)")
+
     val hikariConfig = new HikariConfig()
     hikariConfig.setDriverClassName(dbVendor.driverClassName)
-    hikariConfig.setJdbcUrl(
-      dbVendor.jdbcUrl(dbConfig.host, dbConfig.port, dbConfig.database)
-    )
+    hikariConfig.setJdbcUrl(jdbcUrl)
     hikariConfig.setUsername(dbConfig.username)
     hikariConfig.setPassword(dbConfig.password)
     hikariConfig.setMaximumPoolSize(dbConfig.maxConnections)
