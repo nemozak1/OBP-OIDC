@@ -209,59 +209,62 @@ mvn exec:java -Dexec.mainClass="com.tesobe.oidc.server.OidcServer"
 - Statistics and debugging information (`/stats`)
 - Client configuration details (`/clients`)
 
-#### Credential Validation Method
+#### Verification Method (Database vs OBP API)
 
-OBP-OIDC supports two methods for validating user credentials:
+OBP-OIDC supports two modes for verifying users, clients, and listing providers, controlled by a single env var `USE_VERIFY_ENDPOINTS`:
 
-**1. Database View (Default):** `v_oidc_users`
-- Validates credentials directly against the PostgreSQL `v_oidc_users` view
-- Requires database access to the OBP user tables
-- This is the default and recommended method for most deployments
+**1. Database Views (Default):** `USE_VERIFY_ENDPOINTS=false`
+- Verifies credentials against the `v_oidc_users` database view
+- Verifies clients against the `v_oidc_clients` database view
+- Lists providers from the `v_oidc_users` database view
+- Requires database access to the OBP user/client tables
 
-**2. OBP API Endpoint:** `validate_credentials_endpoint`
-- Validates credentials via the OBP API endpoint `POST /obp/v6.0.0/users/verify-credentials`
+**2. OBP API Endpoints:** `USE_VERIFY_ENDPOINTS=true`
+- Verifies credentials via `POST /obp/v6.0.0/users/verify-credentials`
+- Verifies clients via `GET /obp/v6.0.0/oidc/clients/CLIENT_ID`
+- Lists providers via `GET /obp/v6.0.0/providers`
 - Useful when you don't want to grant direct database access to OBP-OIDC
-- Requires a user with the `CanVerifyUserCredentials` role
+- Requires `OBP_API_USERNAME` to have `CanVerifyUserCredentials` and `CanVerifyOidcClient` roles
+- When combined with `OIDC_SKIP_CLIENT_BOOTSTRAP=true`, no database connection is needed at all
 
 **Configuration:**
 
 ```bash
-# Default: Use database view (no configuration needed)
-VALIDATE_CREDENTIALS_METHOD=v_oidc_users
+# Default: Use database views (no extra configuration needed)
+USE_VERIFY_ENDPOINTS=false
 
-# Alternative: Use OBP API endpoint
-VALIDATE_CREDENTIALS_METHOD=validate_credentials_endpoint
+# Alternative: Use OBP API endpoints
+USE_VERIFY_ENDPOINTS=true
 OBP_API_URL=http://localhost:8080
-OBP_API_USERNAME=admin_user          # User with CanVerifyUserCredentials role
+OBP_API_USERNAME=admin_user          # Needs CanVerifyUserCredentials + CanVerifyOidcClient roles
 OBP_API_PASSWORD=admin_password
 OBP_API_CONSUMER_KEY=your_consumer_key
 ```
 
 **Startup Output:**
 
-When using `v_oidc_users`:
+When using database views (`USE_VERIFY_ENDPOINTS=false`):
 ```
 Database connection successful. Found X validated users in v_oidc_users view.
 ...
-Credential Validation Method: v_oidc_users (database view)
+USE_VERIFY_ENDPOINTS: false
+  Credential verification: v_oidc_users (database view)
+  Client verification: v_oidc_clients (database view)
+  Provider listing: v_oidc_users (database view)
 ```
 
-When using `validate_credentials_endpoint`:
+When using OBP API endpoints (`USE_VERIFY_ENDPOINTS=true`):
 ```
-Skipping v_oidc_users view test (using OBP API for credential validation)
-...
-OBP API credential verification connection successful. Connected to http://localhost:8080 as admin_user. User has CanVerifyUserCredentials role
-...
-Credential Validation Method: validate_credentials_endpoint (OBP API)
+USE_VERIFY_ENDPOINTS: true
+  All verification methods use OBP API endpoints
   OBP API Username: admin_user
-  Has CanVerifyUserCredentials Role: Yes
 ```
 
-**Note:** When using `validate_credentials_endpoint`, the server will fail to start if:
-- The OBP API is unreachable
+**Note:** When using `USE_VERIFY_ENDPOINTS=true`, the server will retry connecting to the OBP API on startup. It will fail if:
+- The OBP API is unreachable after all retry attempts
 - The username/password/consumer_key is invalid
 
-The `/info` page (available in Local Development Mode) also displays the current credential validation method, username, and role status.
+The `/info` page (available in Local Development Mode) also displays the current verification method, username, and role status.
 
 #### Authentication Provider Dropdown
 
