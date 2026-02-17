@@ -73,7 +73,7 @@ case class OidcConfig(
       "https://static.openbankproject.com/images/OBP/OBP_Horizontal_2025.png"
     ),
     logoAltText: String = "Open Bank Project",
-    forgotPasswordUrl: Option[String] = None,
+    obpPortalBaseUrl: String = "http://localhost:5174",
     verifyCredentialsMethod: VerifyCredentialsMethod =
       VerifyCredentialsMethod.ViaOidcUsersView,
     verifyClientMethod: VerifyClientMethod =
@@ -151,7 +151,10 @@ object Config {
           )
         ),
       logoAltText = sys.env.getOrElse("LOGO_ALT_TEXT", "Open Bank Project"),
-      forgotPasswordUrl = sys.env.get("FORGOT_PASSWORD_URL"),
+      obpPortalBaseUrl = {
+        val url = sys.env.getOrElse("OBP_PORTAL_BASE_URL", "http://localhost:5174")
+        if (url.endsWith("/")) url.dropRight(1) else url
+      },
       verifyCredentialsMethod = VerifyCredentialsMethod.fromString(
         sys.env.getOrElse("VERIFY_CREDENTIALS_METHOD", "v_oidc_users")
       ),

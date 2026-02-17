@@ -414,10 +414,7 @@ class AuthEndpoint(
               redirectUri // Fallback to full redirect_uri if parsing fails
           }
 
-        // Determine forgot password URL: use config setting or default to calling app + /forgot-password
-        forgotPasswordLink = config.forgotPasswordUrl.getOrElse(
-          s"$logoLinkUrl/forgot-password"
-        )
+        forgotPasswordLink = s"${config.obpPortalBaseUrl}/forgot-password"
 
         logoHtml = config.logoUrl match {
           case Some(url) =>
@@ -532,10 +529,7 @@ class AuthEndpoint(
         }
         .mkString("\n            ")
 
-      // For test login, use configured forgot password URL or default to localhost
-      forgotPasswordLink = config.forgotPasswordUrl.getOrElse(
-        "http://localhost:5174/forgot-password"
-      )
+      forgotPasswordLink = s"${config.obpPortalBaseUrl}/forgot-password"
 
       html = s"""
       <!DOCTYPE html>

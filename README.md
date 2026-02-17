@@ -289,9 +289,9 @@ export LOGO_URL="https://example.com/logo.png"
 # Set logo alt text for accessibility
 export LOGO_ALT_TEXT="Company Logo"
 
-# Set custom forgot password URL (optional)
-# Defaults to calling application's URL + /forgot-password
-export FORGOT_PASSWORD_URL="https://portal.example.com/reset-password"
+# Set OBP Portal base URL (used for forgot password link)
+# Defaults to http://localhost:5174
+export OBP_PORTAL_BASE_URL="https://portal.example.com"
 ```
 
 **Default Logo:**
@@ -319,12 +319,11 @@ Examples:
 
 **Forgot Password Link:**
 
-The login page includes a "Forgot password?" link that helps users reset their passwords. The link automatically points to the calling application:
+The login page includes a "Forgot password?" link that sends users to the OBP Portal's `/forgot-password` page:
 
-- **Default behavior**: Links to `{calling_app_url}/forgot-password`
-  - Example: If redirect_uri is `http://localhost:5174/login/callback`, the forgot password link will be `http://localhost:5174/forgot-password`
-- **Custom URL**: Set `FORGOT_PASSWORD_URL` to override with a specific URL
-  - Example: `export FORGOT_PASSWORD_URL="https://portal.example.com/user/reset-password"`
+- **Default**: Links to `http://localhost:5174/forgot-password`
+- **Custom Portal URL**: Set `OBP_PORTAL_BASE_URL` to your Portal host
+  - Example: `export OBP_PORTAL_BASE_URL="https://portal.example.com"` → link becomes `https://portal.example.com/forgot-password`
 
 **Example (Using Default OBP Logo):**
 

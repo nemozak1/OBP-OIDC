@@ -100,7 +100,11 @@ class ClientBootstrap(authService: DatabaseAuthService, config: OidcConfig) {
     ClientDefinition(
       name = "other-app-4",
       redirect_uris = "http://localhost:5178/login/obp/callback"
-    )
+    ),
+    ClientDefinition(name = "agent-1", redirect_uris = "http://localhost:5179/login/obp/callback"),
+    ClientDefinition(name = "agent-2", redirect_uris = "http://localhost:5180/login/obp/callback"),
+    ClientDefinition(name = "agent-3", redirect_uris = "http://localhost:5181/login/obp/callback"),
+    ClientDefinition(name = "agent-4", redirect_uris = "http://localhost:5182/login/obp/callback")
   )
 
   /** Generate secure database passwords and print ready-to-use configuration
