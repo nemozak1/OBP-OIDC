@@ -47,27 +47,27 @@ class TokenEndpoint(
   val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
     case req @ POST -> Root / "obp-oidc" / "token" =>
       println(
-        s"🎫 DEBUG: TokenEndpoint route matched! ${req.method} ${req.uri}"
+        s"DEBUG: TokenEndpoint route matched! ${req.method} ${req.uri}"
       )
-      println(s"🎫 DEBUG: About to log with logger...")
-      logger.info(s"🎫 Token endpoint called")
+      println(s"DEBUG: About to log with logger...")
+      logger.info(s"Token endpoint called")
       logger.info(
-        s"📋 Content-Type: ${req.headers.get[headers.`Content-Type`].map(_.mediaType).getOrElse("MISSING")}"
+        s"Content-Type: ${req.headers.get[headers.`Content-Type`].map(_.mediaType).getOrElse("MISSING")}"
       )
       logger.info(
-        s"🔗 Headers: ${req.headers.headers.map(h => s"${h.name}: ${h.value}").mkString(", ")}"
+        s"Headers: ${req.headers.headers.map(h => s"${h.name}: ${h.value}").mkString(", ")}"
       )
-      println(s"🎫 DEBUG: Logger calls completed, about to parse form...")
+      println(s"DEBUG: Logger calls completed, about to parse form...")
 
       req.as[UrlForm].attempt.flatMap {
         case Right(form) =>
-          println(s"🎫 DEBUG: Form parsing successful")
-          println(s"🎫 DEBUG: Form data: ${form.values}")
+          println(s"DEBUG: Form parsing successful")
+          println(s"DEBUG: Form data: ${form.values}")
           handleTokenRequest(req, form)
         case Left(error) =>
-          println(s"💥 DEBUG: Form parsing failed: ${error.getMessage}")
+          println(s"DEBUG: Form parsing failed: ${error.getMessage}")
           logger
-            .error(s"💥 Failed to parse form data: ${error.getMessage}", error)
+            .error(s"Failed to parse form data: ${error.getMessage}", error)
           BadRequest(
             OidcError(
               "invalid_request",
@@ -108,12 +108,12 @@ class TokenEndpoint(
       req: Request[IO],
       form: UrlForm
   ): IO[Response[IO]] = {
-    println(s"🎫 DEBUG: handleTokenRequest called")
+    println(s"DEBUG: handleTokenRequest called")
     val formData = form.values.view.mapValues(_.headOption.getOrElse("")).toMap
-    println(s"🎫 DEBUG: formData created: ${formData}")
+    println(s"DEBUG: formData created: ${formData}")
 
-    logger.info(s"🎫 Token request received")
-    logger.info(s"📋 Form data keys: ${formData.keys.mkString(", ")}")
+    logger.info(s"Token request received")
+    logger.info(s"Form data keys: ${formData.keys.mkString(", ")}")
 
     val grantType = formData.get("grant_type")
     val code = formData.get("code")
@@ -128,13 +128,13 @@ class TokenEndpoint(
     val resolvedClientId = clientIdFromBasic.orElse(clientIdFromForm)
     val refreshToken = formData.get("refresh_token")
 
-    println(s"🎫 DEBUG: Grant type extracted: ${grantType}")
-    logger.info(s"🔑 Grant type: ${grantType.getOrElse("MISSING")}")
-    logger.info(s"🎟️ Code: ${code.map(_ => "PROVIDED").getOrElse("MISSING")}")
-    logger.info(s"📍 Redirect URI: ${redirectUri.getOrElse("MISSING")}")
-    logger.info(s"🆔 Client ID: ${resolvedClientId.getOrElse("MISSING")}")
+    println(s"DEBUG: Grant type extracted: ${grantType}")
+    logger.info(s"Grant type: ${grantType.getOrElse("MISSING")}")
+    logger.info(s"Code: ${code.map(_ => "PROVIDED").getOrElse("MISSING")}")
+    logger.info(s"Redirect URI: ${redirectUri.getOrElse("MISSING")}")
+    logger.info(s"Client ID: ${resolvedClientId.getOrElse("MISSING")}")
 
-    println(s"🎫 DEBUG: About to match on parameters")
+    println(s"DEBUG: About to match on parameters")
     grantType match {
       case Some("authorization_code") =>
         // Build optional credentials tuple for validation when provided
@@ -148,16 +148,16 @@ class TokenEndpoint(
 
         (code, redirectUri, resolvedClientId) match {
           case (Some(authCode), Some(redirectUriValue), Some(clientIdValue)) =>
-            println(s"🎫 DEBUG: Matched authorization_code case")
+            println(s"DEBUG: Matched authorization_code case")
             logger.info(
-              s"✅ Processing authorization_code grant for client: $clientIdValue"
+              s"Processing authorization_code grant for client: $clientIdValue"
             )
             // If credentials are provided (Basic or form), validate client secret
             credentialsOpt match {
               case Some((id, secret)) =>
                 if (id != clientIdValue) {
                   logger.warn(
-                    "❌ Client ID in credentials does not match resolved client_id"
+                    "Client ID in credentials does not match resolved client_id"
                   )
                   BadRequest(
                     OidcError(
@@ -178,7 +178,7 @@ class TokenEndpoint(
                       )
                     case Left(error) =>
                       logger.warn(
-                        s"❌ Client authentication failed for authorization_code: ${error.error}"
+                        s"Client authentication failed for authorization_code: ${error.error}"
                       )
                       BadRequest(error.asJson)
                   }
@@ -196,10 +196,10 @@ class TokenEndpoint(
             }
           case _ =>
             println(
-              s"🎫 DEBUG: Missing required parameters for authorization_code"
+              s"DEBUG: Missing required parameters for authorization_code"
             )
             logger.warn(
-              s"❌ Missing required parameters for authorization_code - code: ${code.isDefined}, redirect_uri: ${redirectUri.isDefined}, client_id: ${resolvedClientId.isDefined}"
+              s"Missing required parameters for authorization_code - code: ${code.isDefined}, redirect_uri: ${redirectUri.isDefined}, client_id: ${resolvedClientId.isDefined}"
             )
             BadRequest(
               OidcError(
@@ -211,15 +211,15 @@ class TokenEndpoint(
       case Some("refresh_token") =>
         (refreshToken, resolvedClientId) match {
           case (Some(refreshTokenValue), Some(clientIdValue)) =>
-            println(s"🎫 DEBUG: Matched refresh_token case")
+            println(s"DEBUG: Matched refresh_token case")
             logger.info(
-              s"✅ Processing refresh_token grant for client: $clientIdValue"
+              s"Processing refresh_token grant for client: $clientIdValue"
             )
             processRefreshTokenGrant(refreshTokenValue, clientIdValue)
           case _ =>
-            println(s"🎫 DEBUG: Missing required parameters for refresh_token")
+            println(s"DEBUG: Missing required parameters for refresh_token")
             logger.warn(
-              s"❌ Missing required parameters for refresh_token - refresh_token: ${refreshToken.isDefined}, client_id: ${resolvedClientId.isDefined}"
+              s"Missing required parameters for refresh_token - refresh_token: ${refreshToken.isDefined}, client_id: ${resolvedClientId.isDefined}"
             )
             BadRequest(
               OidcError(
@@ -229,8 +229,8 @@ class TokenEndpoint(
             )
         }
       case Some("client_credentials") =>
-        println(s"🎫 DEBUG: Matched client_credentials case")
-        logger.info(s"✅ Processing client_credentials grant")
+        println(s"DEBUG: Matched client_credentials case")
+        logger.info(s"Processing client_credentials grant")
 
         // Extract client credentials from Basic Auth header or form data
         val credentials = extractBasicAuthCredentials(req).orElse {
@@ -250,10 +250,10 @@ class TokenEndpoint(
             )
           case None =>
             println(
-              s"🎫 DEBUG: Missing client credentials for client_credentials"
+              s"DEBUG: Missing client credentials for client_credentials"
             )
             logger.warn(
-              s"❌ Missing client credentials for client_credentials grant"
+              s"Missing client credentials for client_credentials grant"
             )
             BadRequest(
               OidcError(
@@ -266,9 +266,9 @@ class TokenEndpoint(
         }
       case Some(unsupportedGrant) =>
         println(
-          s"🎫 DEBUG: Matched unsupported grant type case: '$unsupportedGrant'"
+          s"DEBUG: Matched unsupported grant type case: '$unsupportedGrant'"
         )
-        logger.warn(s"❌ Unsupported grant type: '$unsupportedGrant'")
+        logger.warn(s"Unsupported grant type: '$unsupportedGrant'")
         BadRequest(
           OidcError(
             "unsupported_grant_type",
@@ -276,8 +276,8 @@ class TokenEndpoint(
           ).asJson
         )
       case None =>
-        println(s"🎫 DEBUG: Missing grant_type parameter")
-        logger.warn(s"❌ Missing grant_type parameter")
+        println(s"DEBUG: Missing grant_type parameter")
+        logger.warn(s"Missing grant_type parameter")
         BadRequest(
           OidcError(
             "invalid_request",
@@ -293,9 +293,9 @@ class TokenEndpoint(
       clientId: String
   ): IO[Response[IO]] = {
 
-    logger.info(s"🔍 Validating authorization code for client: $clientId")
+    logger.info(s"Validating authorization code for client: $clientId")
     logger.info(
-      s"🔍 DEBUG: Code: ${code.take(8)}..., RedirectUri: $redirectUri"
+      s"DEBUG: Code: ${code.take(8)}..., RedirectUri: $redirectUri"
     )
     logger.trace(
       s"About to call validateAndConsumeCode with code: ${code.take(8)}..."
@@ -305,9 +305,9 @@ class TokenEndpoint(
         logger.trace(
           s"Authorization code validation SUCCESS for user: ${authCode.sub}"
         )
-        logger.info(s"✅ Authorization code validated for user: ${authCode.sub}")
+        logger.info(s"Authorization code validated for user: ${authCode.sub}")
         logger.info(
-          s"🔍 DEBUG: AuthCode details - scope: ${authCode.scope}, nonce: ${authCode.nonce}"
+          s"DEBUG: AuthCode details - scope: ${authCode.scope}, nonce: ${authCode.nonce}"
         )
         // Get user information
         logger.trace(
@@ -316,9 +316,9 @@ class TokenEndpoint(
         authService.getUserById(authCode.sub).flatMap {
           case Some(user) =>
             logger.trace(s"User FOUND: ${user.username}")
-            logger.info(s"✅ User found: ${user.username}, generating tokens...")
+            logger.info(s"User found: ${user.username}, generating tokens...")
             logger.info(
-              s"🎯 DEBUG: About to generate tokens with azp claim set to clientId: $clientId"
+              s"DEBUG: About to generate tokens with azp claim set to clientId: $clientId"
             )
             logger.trace(
               s"Entering for comprehension for token generation"
@@ -330,7 +330,7 @@ class TokenEndpoint(
               )
               _ <- IO.pure(
                 logger.info(
-                  s"🎫 DEBUG: Calling generateIdToken with clientId (azp): $clientId"
+                  s"DEBUG: Calling generateIdToken with clientId (azp): $clientId"
                 )
               )
               idToken <- jwtService
@@ -340,7 +340,7 @@ class TokenEndpoint(
               )
               _ <- IO.pure(
                 logger.info(
-                  s"🎫 DEBUG: Calling generateAccessToken with clientId (azp): $clientId"
+                  s"DEBUG: Calling generateAccessToken with clientId (azp): $clientId"
                 )
               )
               accessToken <- jwtService
@@ -351,7 +351,7 @@ class TokenEndpoint(
                 )
               )
               _ <- IO.pure(
-                logger.info(s"✅ DEBUG: Both tokens generated successfully")
+                logger.info(s"DEBUG: Both tokens generated successfully")
               )
 
               // Track successful authorization code grant
@@ -425,7 +425,7 @@ class TokenEndpoint(
               )
               _ <- IO.pure(
                 logger
-                  .info(s"🚀 DEBUG: Token response created, sending response")
+                  .info(s"DEBUG: Token response created, sending response")
               )
               response <- Ok(tokenResponse.asJson)
                 .map(
@@ -444,7 +444,7 @@ class TokenEndpoint(
             logger.trace(
               s"User NOT FOUND for sub: ${authCode.sub}"
             )
-            logger.warn(s"❌ User not found for sub: ${authCode.sub}")
+            logger.warn(s"User not found for sub: ${authCode.sub}")
             BadRequest(
               OidcError("invalid_grant", Some("User not found")).asJson
             )
@@ -456,11 +456,11 @@ class TokenEndpoint(
               .getOrElse("No description")}"
         )
         logger.warn(
-          s"❌ Authorization code validation failed: ${error.error} - ${error.error_description
+          s"Authorization code validation failed: ${error.error} - ${error.error_description
               .getOrElse("No description")}"
         )
         logger.info(
-          s"🔍 DEBUG: This is why you don't see azp logging - code validation failed!"
+          s"DEBUG: This is why you don't see azp logging - code validation failed!"
         )
         // Track failed authorization code grant
         statsService
@@ -473,17 +473,17 @@ class TokenEndpoint(
       refreshToken: String,
       clientId: String
   ): IO[Response[IO]] = {
-    logger.info(s"🔄 Processing refresh token grant for client: $clientId")
+    logger.info(s"Processing refresh token grant for client: $clientId")
 
     // Validate the refresh token JWT (stateless validation)
     jwtService.validateRefreshToken(refreshToken).flatMap {
       case Right(tokenClaims) =>
         logger
-          .info(s"✅ Refresh token JWT validated for user: ${tokenClaims.sub}")
+          .info(s"Refresh token JWT validated for user: ${tokenClaims.sub}")
 
         // Check if client_id matches
         if (tokenClaims.client_id != clientId) {
-          logger.warn(s"❌ Client ID mismatch in refresh token")
+          logger.warn(s"Client ID mismatch in refresh token")
           BadRequest(
             OidcError("invalid_grant", Some("Client ID mismatch")).asJson
           )
@@ -491,7 +491,7 @@ class TokenEndpoint(
           // Get user information
           authService.getUserById(tokenClaims.sub).flatMap {
             case Some(user) =>
-              logger.info(s"✅ User found for refresh: ${user.username}")
+              logger.info(s"User found for refresh: ${user.username}")
 
               for {
                 // Generate new access token
@@ -560,7 +560,7 @@ class TokenEndpoint(
 
                 _ <- IO.pure(
                   logger.info(
-                    s"🎉 Refresh token successfully used for user: ${user.username}, client: $clientId - New tokens issued"
+                    s"Refresh token successfully used for user: ${user.username}, client: $clientId - New tokens issued"
                   )
                 )
 
@@ -580,7 +580,7 @@ class TokenEndpoint(
 
             case None =>
               logger.warn(
-                s"❌ User not found for refresh token: ${tokenClaims.sub}"
+                s"User not found for refresh token: ${tokenClaims.sub}"
               )
               statsService
                 .incrementRefreshTokenFailure("User not found")
@@ -593,7 +593,7 @@ class TokenEndpoint(
         }
 
       case Left(error) =>
-        logger.warn(s"❌ Refresh token validation failed: ${error.error}")
+        logger.warn(s"Refresh token validation failed: ${error.error}")
         statsService
           .incrementRefreshTokenFailure(error.error)
           .flatMap(_ => BadRequest(error.asJson))
@@ -606,13 +606,13 @@ class TokenEndpoint(
       scope: String
   ): IO[Response[IO]] = {
     logger.info(
-      s"🔑 Processing client credentials grant for client: $clientId"
+      s"Processing client credentials grant for client: $clientId"
     )
 
     // Authenticate the client
     authService.authenticateClient(clientId, clientSecret).flatMap {
       case Right(client) =>
-        logger.info(s"✅ Client authenticated: ${client.client_name}")
+        logger.info(s"Client authenticated: ${client.client_name}")
 
         for {
           // Generate access token for the client (no user context)
@@ -631,7 +631,7 @@ class TokenEndpoint(
 
           _ <- IO.pure(
             logger.info(
-              s"🎉 Client credentials grant successful for client: $clientId"
+              s"Client credentials grant successful for client: $clientId"
             )
           )
 
@@ -651,7 +651,7 @@ class TokenEndpoint(
 
       case Left(error) =>
         logger.warn(
-          s"❌ Client authentication failed: ${error.error} - ${error.error_description.getOrElse("No description")}"
+          s"Client authentication failed: ${error.error} - ${error.error_description.getOrElse("No description")}"
         )
         statsService
           .incrementAuthorizationCodeFailure(error.error)

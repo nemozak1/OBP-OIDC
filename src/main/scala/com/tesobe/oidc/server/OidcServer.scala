@@ -124,12 +124,13 @@ object OidcServer extends IOApp {
       } else {
         val username = config.obpApiUsername.getOrElse("unknown")
         IO {
-          println("⏭️  No database connection required. Reason:")
+          println("No database connection required. Reason:")
           println(s"   OIDC_SKIP_CLIENT_BOOTSTRAP=true")
           println(s"   USE_VERIFY_ENDPOINTS=true")
           println(s"     -> Credentials verified via OBP API (requires OBP_API_USERNAME '$username' to have role CanVerifyUserCredentials)")
           println(s"     -> Clients verified via OBP API (requires OBP_API_USERNAME '$username' to have role CanGetOidcClient)")
-          println(s"     -> Providers listed via OBP API")
+          println(s"     -> Consumers listed via OBP API (requires OBP_API_USERNAME '$username' to have role CanGetConsumers)")
+          println(s"     -> Providers listed via OBP API (GET /obp/v6.0.0/providers - no special role required, just authentication)")
         }
       }
 
@@ -794,13 +795,13 @@ object OidcServer extends IOApp {
                 case req @ POST -> Root / "obp-oidc" / "connect" / "register" =>
                   registrationEndpoint match {
                     case Some(endpoint) =>
-                      IO(println("📝 Dynamic Client Registration request received")) *>
+                      IO(println("Dynamic Client Registration request received")) *>
                         endpoint.routes.run(req).value.flatMap {
                           case Some(resp) => IO.pure(resp)
                           case None       => NotFound("Registration endpoint not found")
                         }
                     case None =>
-                      IO(println("📝 Dynamic Client Registration request received but DCR is disabled")) *>
+                      IO(println("Dynamic Client Registration request received but DCR is disabled")) *>
                         Forbidden("Dynamic Client Registration is disabled on this server")
                   }
 
@@ -809,43 +810,43 @@ object OidcServer extends IOApp {
                   statsService.incrementTotalRequests *>
                     IO(
                       println(
-                        s"🌐 Incoming request: ${req.method} ${req.uri} - Content-Type: ${req.headers.get[headers.`Content-Type`].map(_.mediaType).getOrElse("MISSING")}"
+                        s"Incoming request: ${req.method} ${req.uri} - Content-Type: ${req.headers.get[headers.`Content-Type`].map(_.mediaType).getOrElse("MISSING")}"
                       )
                     ) *>
                     authEndpoint.routes.run(req).value.flatMap {
                       case Some(resp) =>
-                        IO(println(s"🔐 Request handled by AuthEndpoint")) *>
+                        IO(println(s"Request handled by AuthEndpoint")) *>
                           IO.pure(resp)
                       case None =>
                         IO(
                           println(
-                            s"🔐 AuthEndpoint did not handle request, trying TokenEndpoint"
+                            s"AuthEndpoint did not handle request, trying TokenEndpoint"
                           )
                         ) *>
                           tokenEndpoint.routes.run(req).value.flatMap {
                             case Some(resp) =>
                               IO(
-                                println(s"🎫 Request handled by TokenEndpoint")
+                                println(s"Request handled by TokenEndpoint")
                               ) *>
                                 IO.pure(resp)
                             case None =>
                               IO(
                                 println(
-                                  s"🎫 TokenEndpoint did not handle request, trying UserInfoEndpoint"
+                                  s"TokenEndpoint did not handle request, trying UserInfoEndpoint"
                                 )
                               ) *>
                                 userInfoEndpoint.routes.run(req).value.flatMap {
                                   case Some(resp) =>
                                     IO(
                                       println(
-                                        s"👤 Request handled by UserInfoEndpoint"
+                                        s"Request handled by UserInfoEndpoint"
                                       )
                                     ) *>
                                       IO.pure(resp)
                                   case None =>
                                     IO(
                                       println(
-                                        s"👤 UserInfoEndpoint did not handle request, trying ClientsEndpoint"
+                                        s"UserInfoEndpoint did not handle request, trying ClientsEndpoint"
                                       )
                                     ) *>
                                       (if (config.localDevelopmentMode) {
@@ -949,7 +950,9 @@ object OidcServer extends IOApp {
                   IO(println(s"  OBP API Username: $username")) *>
                   IO(println(s"  Required roles for OBP_API_USERNAME '$username':")) *>
                   IO(println(s"    - CanVerifyUserCredentials (for POST /obp/v6.0.0/users/verify-credentials)")) *>
-                  IO(println(s"    - CanGetOidcClient (for GET /obp/v6.0.0/oidc/clients/CLIENT_ID)"))
+                  IO(println(s"    - CanGetOidcClient (for GET /obp/v6.0.0/oidc/clients/CLIENT_ID)")) *>
+                  IO(println(s"    - CanGetConsumers (for GET /obp/v6.0.0/management/consumers)")) *>
+                  IO(println(s"  No special role required for GET /obp/v6.0.0/providers (just authentication)"))
                 } else {
                   IO(println("  Credential verification: v_oidc_users (database view)")) *>
                   IO(println("  Client verification: v_oidc_clients (database view)")) *>
@@ -971,17 +974,17 @@ object OidcServer extends IOApp {
   private def generateDeveloperConfig(): IO[ExitCode] = {
     for {
       config <- Config.load
-      _ <- IO(println("🚀 OBP-OIDC Developer Configuration Generator"))
+      _ <- IO(println("OBP-OIDC Developer Configuration Generator"))
       _ <- IO(println())
       _ <- ClientBootstrap.generateDatabaseConfig(config)
       _ <- IO(
         println(
-          "📋 Next, run the database setup commands above, then start OBP-OIDC to generate OIDC client configurations."
+          "Next, run the database setup commands above, then start OBP-OIDC to generate OIDC client configurations."
         )
       )
       _ <- IO(
         println(
-          "💡 Or run: ./mvn exec:java to start the server and auto-generate everything."
+          "Or run: ./mvn exec:java to start the server and auto-generate everything."
         )
       )
     } yield ExitCode.Success
@@ -1001,7 +1004,7 @@ object OidcServer extends IOApp {
   private def printHelp(): IO[ExitCode] = {
     IO {
       println()
-      println("🚀 OBP-OIDC Developer Helper")
+      println("OBP-OIDC Developer Helper")
       println("=" * 50)
       println()
       println("Usage:")
@@ -1034,14 +1037,14 @@ object OidcServer extends IOApp {
       config: OidcConfig
   ): IO[Unit] = {
     if (!config.needsDatabase) {
-      IO(println("⏭️  Skipping database client listing (all methods use API endpoints)"))
+      IO(println("Skipping database client listing (all methods use API endpoints)"))
     } else {
       for {
         _ <- IO(println("=" * 100))
-        _ <- IO(println("🚀 OBP clients from the database"))
+        _ <- IO(println("OBP clients from the database"))
         _ <- IO(println("=" * 100))
         _ <- IO(println())
-        _ <- IO(println("📊 Database Field Mapping (v_oidc_clients view):"))
+        _ <- IO(println("Database Field Mapping (v_oidc_clients view):"))
         _ <- IO(println("=" * 100))
         _ <- IO(println("| Database Column | View Alias(es)      | Purpose"))
         _ <- IO(

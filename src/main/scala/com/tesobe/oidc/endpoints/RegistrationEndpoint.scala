@@ -54,7 +54,7 @@ class RegistrationEndpoint(
 
   val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
     case req @ POST -> Root / "obp-oidc" / "connect" / "register" =>
-      logger.info("📝 Dynamic Client Registration request received")
+      logger.info("Dynamic Client Registration request received")
       handleRegistrationRequest(req)
   }
 
@@ -65,7 +65,7 @@ class RegistrationEndpoint(
     // Check rate limit first
     rateLimitService.isBlocked(clientIp, "registration").flatMap { blocked =>
       if (blocked) {
-        logger.warn(s"🚫 Rate limit exceeded for IP: $clientIp")
+        logger.warn(s"Rate limit exceeded for IP: $clientIp")
         TooManyRequests(
           ClientRegistrationError(
             "invalid_request",
@@ -88,12 +88,12 @@ class RegistrationEndpoint(
       .flatMap {
         case Right(registrationRequest) =>
           logger.info(
-            s"📋 Processing registration for client: ${registrationRequest.client_name}"
+            s"Processing registration for client: ${registrationRequest.client_name}"
           )
           validateAndRegister(registrationRequest)
 
         case Left(error) =>
-          logger.error(s"💥 Failed to parse registration request: ${error.getMessage}")
+          logger.error(s"Failed to parse registration request: ${error.getMessage}")
           BadRequest(
             ClientRegistrationError(
               ClientRegistrationError.INVALID_CLIENT_METADATA,
@@ -109,7 +109,7 @@ class RegistrationEndpoint(
     // Validate the request
     validateRequest(request) match {
       case Left(error) =>
-        logger.warn(s"❌ Validation failed: ${error.error_description.getOrElse(error.error)}")
+        logger.warn(s"Validation failed: ${error.error_description.getOrElse(error.error)}")
         BadRequest(error.asJson).map(addNoCacheHeaders)
 
       case Right(validatedRequest) =>
@@ -149,7 +149,7 @@ class RegistrationEndpoint(
         // Persist the client
         authService.createClient(oidcClient).flatMap {
           case Right(_) =>
-            logger.info(s"✅ Successfully registered client: $clientId (${validatedRequest.client_name})")
+            logger.info(s"Successfully registered client: $clientId (${validatedRequest.client_name})")
 
             // Build response
             val response = ClientRegistrationResponse(
@@ -171,7 +171,7 @@ class RegistrationEndpoint(
             Created(response.asJson).map(addNoCacheHeaders)
 
           case Left(error) =>
-            logger.error(s"❌ Failed to persist client: ${error.error_description.getOrElse(error.error)}")
+            logger.error(s"Failed to persist client: ${error.error_description.getOrElse(error.error)}")
             InternalServerError(
               ClientRegistrationError(
                 "server_error",
@@ -331,7 +331,7 @@ class RegistrationEndpoint(
           // Warn about localhost in non-development mode (but still allow it)
           val host = parsedUri.getHost.toLowerCase
           if (!config.localDevelopmentMode && (host == "localhost" || host == "127.0.0.1")) {
-            logger.warn(s"⚠️ Localhost redirect_uri registered in non-development mode: $uri")
+            logger.warn(s"Localhost redirect_uri registered in non-development mode: $uri")
           }
         }
 

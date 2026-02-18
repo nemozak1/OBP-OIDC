@@ -33,12 +33,12 @@ object DebugClientCreation extends IOApp {
 
   def run(args: List[String]): IO[ExitCode] = {
     for {
-      _ <- IO(println("🔍 Debug Client Creation Test"))
+      _ <- IO(println("Debug Client Creation Test"))
       _ <- IO(println("=" * 40))
 
       // Load configuration
       config <- Config.load
-      _ <- IO(println(s"✅ Configuration loaded"))
+      _ <- IO(println(s"Configuration loaded"))
       _ <- IO(
         println(
           s"   Database: ${config.database.host}:${config.database.port}/${config.database.database}"
@@ -49,32 +49,32 @@ object DebugClientCreation extends IOApp {
       _ <- IO(println())
 
       // Test database connections
-      _ <- IO(println("🔌 Testing database connections..."))
+      _ <- IO(println("Testing database connections..."))
 
       userDbResult <- HybridAuthService.testConnection(config)
       _ <- userDbResult match {
-        case Right(msg)  => IO(println(s"✅ User DB: $msg"))
-        case Left(error) => IO(println(s"❌ User DB: $error"))
+        case Right(msg)  => IO(println(s"User DB: $msg"))
+        case Left(error) => IO(println(s"User DB: $error"))
       }
 
       adminDbResult <- HybridAuthService.testAdminConnection(config)
       _ <- adminDbResult match {
-        case Right(msg)  => IO(println(s"✅ Admin DB: $msg"))
-        case Left(error) => IO(println(s"❌ Admin DB: $error"))
+        case Right(msg)  => IO(println(s"Admin DB: $msg"))
+        case Left(error) => IO(println(s"Admin DB: $error"))
       }
       _ <- IO(println())
 
       // Create HybridAuthService and test client operations
       exitCode <- HybridAuthService.create(config).use { authService =>
         for {
-          _ <- IO(println("🧪 Testing client operations..."))
+          _ <- IO(println("Testing client operations..."))
 
           // Test 1: List existing clients
-          _ <- IO(println("📋 Listing existing clients..."))
+          _ <- IO(println("Listing existing clients..."))
           listResult <- authService.listClients()
           _ <- listResult match {
             case Right(clients) =>
-              IO(println(s"✅ Found ${clients.length} existing clients:")) *>
+              IO(println(s"Found ${clients.length} existing clients:")) *>
                 IO(
                   clients.foreach(client =>
                     println(s"   - ${client.client_name} (${client.client_id})")
@@ -83,14 +83,14 @@ object DebugClientCreation extends IOApp {
             case Left(error) =>
               IO(
                 println(
-                  s"❌ Failed to list clients: ${error.error} - ${error.error_description.getOrElse("No description")}"
+                  s"Failed to list clients: ${error.error} - ${error.error_description.getOrElse("No description")}"
                 )
               )
           }
           _ <- IO(println())
 
           // Test 2: Create a test client
-          _ <- IO(println("➕ Creating test client..."))
+          _ <- IO(println("Creating test client..."))
           testClient = OidcClient(
             client_id = "debug-test-client",
             client_secret = Some("debug-secret-123"),
@@ -106,11 +106,11 @@ object DebugClientCreation extends IOApp {
 
           createResult <- authService.createClient(testClient)
           _ <- createResult match {
-            case Right(_) => IO(println("✅ Test client created successfully"))
+            case Right(_) => IO(println("Test client created successfully"))
             case Left(error) =>
               IO(
                 println(
-                  s"❌ Failed to create test client: ${error.error} - ${error.error_description
+                  s"Failed to create test client: ${error.error} - ${error.error_description
                       .getOrElse("No description")}"
                 )
               )
@@ -118,41 +118,41 @@ object DebugClientCreation extends IOApp {
           _ <- IO(println())
 
           // Test 3: Find the created client
-          _ <- IO(println("🔍 Finding created test client..."))
+          _ <- IO(println("Finding created test client..."))
           findResult <- authService
             .findClientByClientIdThatIsKey("debug-test-client")
           _ <- findResult match {
             case Some(client) =>
-              IO(println(s"✅ Found client: ${client.client_name}"))
-            case None => IO(println("❌ Test client not found after creation"))
+              IO(println(s"Found client: ${client.client_name}"))
+            case None => IO(println("Test client not found after creation"))
           }
           _ <- IO(println())
 
           // Test 4: Clean up - delete test client
-          _ <- IO(println("🧹 Cleaning up test client..."))
+          _ <- IO(println("Cleaning up test client..."))
           deleteResult <- authService.deleteClient("debug-test-client")
           _ <- deleteResult match {
-            case Right(msg) => IO(println(s"✅ $msg"))
+            case Right(msg) => IO(println(s"$msg"))
             case Left(error) =>
               IO(
                 println(
-                  s"❌ Failed to delete test client: ${error.error} - ${error.error_description
+                  s"Failed to delete test client: ${error.error} - ${error.error_description
                       .getOrElse("No description")}"
                 )
               )
           }
 
           _ <- IO(println())
-          _ <- IO(println("🎉 Debug test completed!"))
+          _ <- IO(println("Debug test completed!"))
           _ <- IO(println())
           _ <- IO(
             println(
-              "💡 If all tests passed, client creation should work during startup"
+              "If all tests passed, client creation should work during startup"
             )
           )
           _ <- IO(
             println(
-              "💡 If any tests failed, that's where the startup issue is occurring"
+              "If any tests failed, that's where the startup issue is occurring"
             )
           )
 

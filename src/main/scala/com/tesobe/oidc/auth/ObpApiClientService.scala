@@ -74,6 +74,31 @@ object GetClientResponse {
   implicit val decoder: Decoder[GetClientResponse] = deriveDecoder
 }
 
+/** Single consumer from GET /obp/v6.0.0/management/consumers response
+  */
+case class ConsumerJson(
+    consumer_id: String,
+    app_name: String,
+    consumer_key: String,
+    redirect_url: String,
+    enabled: Boolean,
+    created: Option[String]
+)
+
+object ConsumerJson {
+  implicit val decoder: Decoder[ConsumerJson] = deriveDecoder
+}
+
+/** Response from GET /obp/v6.0.0/management/consumers
+  */
+case class ConsumersResponse(
+    consumers: List[ConsumerJson]
+)
+
+object ConsumersResponse {
+  implicit val decoder: Decoder[ConsumersResponse] = deriveDecoder
+}
+
 /** Service for verifying OIDC clients via OBP API endpoint
   *
   * This service calls POST /obp/v6.0.0/oidc/clients/verify to verify
@@ -458,6 +483,75 @@ class ObpApiClientService(
     * Used for authorization endpoint to check redirect_uri
     * Calls GET /obp/v6.0.0/oidc/clients/CLIENT_ID
     */
+  /** List all consumers via OBP API
+    * Calls GET /obp/v6.0.0/management/consumers
+    */
+  def listClients(): IO[Either[OidcError, List[OidcClient]]] = {
+    config.obpApiUrl match {
+      case None =>
+        logger.error("OBP_API_URL is not configured")
+        IO.pure(Left(OidcError("server_error", Some("OBP_API_URL is not configured"))))
+
+      case Some(baseUrl) =>
+        getValidToken().flatMap {
+          case Left(error) =>
+            IO.pure(Left(error))
+          case Right(token) =>
+            val endpoint = s"${baseUrl.stripSuffix("/")}/obp/v6.0.0/management/consumers"
+            logger.info(s"Listing consumers via OBP API: $endpoint")
+
+            val request = Request[IO](
+              method = Method.GET,
+              uri = Uri.unsafeFromString(endpoint)
+            ).putHeaders(
+              Header.Raw(ci"DirectLogin", s"token=$token")
+            )
+
+            client
+              .run(request)
+              .use { response =>
+                response.status match {
+                  case Status.Ok =>
+                    response.as[Json].flatMap { json =>
+                      json.as[ConsumersResponse] match {
+                        case Right(consumersResp) =>
+                          val clients = consumersResp.consumers.map { c =>
+                            OidcClient(
+                              client_id = c.consumer_key,
+                              client_secret = None,
+                              consumer_id = c.consumer_id,
+                              client_name = c.app_name,
+                              redirect_uris = c.redirect_url.split("[,\\s]+").map(_.trim).filter(_.nonEmpty).toList,
+                              grant_types = List("authorization_code", "refresh_token"),
+                              response_types = List("code"),
+                              scopes = List("openid", "profile", "email"),
+                              token_endpoint_auth_method = "client_secret_basic",
+                              created_at = c.created
+                            )
+                          }
+                          logger.info(s"Found ${clients.size} consumers via OBP API")
+                          IO.pure(Right(clients))
+                        case Left(error) =>
+                          logger.error(s"Failed to parse consumers response: ${error.getMessage}")
+                          IO.pure(Left(OidcError("server_error", Some(s"Failed to parse response: ${error.getMessage}"))))
+                      }
+                    }
+
+                  case _ =>
+                    response.as[String].flatMap { body =>
+                      logger.error(s"OBP API returned ${response.status} for consumer listing: $body")
+                      IO.pure(Left(OidcError("server_error", Some(body))))
+                    }
+                }
+              }
+              .handleErrorWith { error =>
+                logger.error(s"Error listing consumers via OBP API: ${error.getMessage}", error)
+                IO.pure(Left(OidcError("server_error", Some(s"Failed to connect to OBP API: ${error.getMessage}"))))
+              }
+        }
+    }
+  }
+
   def findClient(clientId: String): IO[Option[OidcClient]] = {
     config.obpApiUrl match {
       case None =>

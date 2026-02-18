@@ -116,10 +116,10 @@ class ClientBootstrap(authService: HybridAuthService, config: OidcConfig) {
 
       println()
       println("=" * 80)
-      println("🔐 DEVELOPER HELPER: Database Configuration")
+      println("DEVELOPER HELPER: Database Configuration")
       println("=" * 80)
       println()
-      println("📋 Database Setup Commands (copy & paste to terminal):")
+      println("Database Setup Commands (copy & paste to terminal):")
       println("-" * 50)
       println("# Create database and users")
       println("sudo -u postgres psql << EOF")
@@ -133,7 +133,7 @@ class ClientBootstrap(authService: HybridAuthService, config: OidcConfig) {
       println()
 
       println(
-        "📋 Environment Variables for OBP-OIDC (copy to your .env or export):"
+        "Environment Variables for OBP-OIDC (copy to your .env or export):"
       )
       println("-" * 50)
       println("export DB_HOST=localhost")
@@ -149,7 +149,7 @@ class ClientBootstrap(authService: HybridAuthService, config: OidcConfig) {
 
       println("=" * 80)
       println(
-        "✅ Database configuration ready! Set up your database first, then run OBP-OIDC."
+        "Database configuration ready! Set up your database first, then run OBP-OIDC."
       )
       println("=" * 80)
       println()
@@ -170,70 +170,70 @@ class ClientBootstrap(authService: HybridAuthService, config: OidcConfig) {
     * manually configured client settings in production environments.
     */
   def initializeClients(): IO[Unit] = {
-    println("🎬 DEBUG: ClientBootstrap.initializeClients() called")
-    logger.info("🎬 ClientBootstrap.initializeClients() called")
+    println("DEBUG: ClientBootstrap.initializeClients() called")
+    logger.info("ClientBootstrap.initializeClients() called")
     // Check if client bootstrap is disabled
     val skipBootstrap =
       sys.env.get("OIDC_SKIP_CLIENT_BOOTSTRAP").exists(_.toLowerCase == "true")
     println(
-      s"🔧 DEBUG: OIDC_SKIP_CLIENT_BOOTSTRAP = ${sys.env.get("OIDC_SKIP_CLIENT_BOOTSTRAP").getOrElse("not set")}"
+      s"DEBUG: OIDC_SKIP_CLIENT_BOOTSTRAP = ${sys.env.get("OIDC_SKIP_CLIENT_BOOTSTRAP").getOrElse("not set")}"
     )
     logger.info(
-      s"🔧 OIDC_SKIP_CLIENT_BOOTSTRAP = ${sys.env.get("OIDC_SKIP_CLIENT_BOOTSTRAP").getOrElse("not set")}"
+      s"OIDC_SKIP_CLIENT_BOOTSTRAP = ${sys.env.get("OIDC_SKIP_CLIENT_BOOTSTRAP").getOrElse("not set")}"
     )
 
     if (skipBootstrap) {
       println(
-        "⏭️  DEBUG: Client bootstrap disabled via OIDC_SKIP_CLIENT_BOOTSTRAP environment variable"
+        "DEBUG: Client bootstrap disabled via OIDC_SKIP_CLIENT_BOOTSTRAP environment variable"
       )
       logger.info(
-        "⏭️  Client bootstrap disabled via OIDC_SKIP_CLIENT_BOOTSTRAP environment variable"
+        "Client bootstrap disabled via OIDC_SKIP_CLIENT_BOOTSTRAP environment variable"
       )
       IO.unit
     } else {
       println(
-        "🚦 DEBUG: Bootstrap not disabled - proceeding with client initialization"
+        "DEBUG: Bootstrap not disabled - proceeding with client initialization"
       )
-      println("🚀 DEBUG: Initializing OBP ecosystem OIDC clients...")
+      println("DEBUG: Initializing OBP ecosystem OIDC clients...")
       logger.info(
-        "🚦 Bootstrap not disabled - proceeding with client initialization"
+        "Bootstrap not disabled - proceeding with client initialization"
       )
-      logger.info("🚀 Initializing OBP ecosystem OIDC clients...")
-      logger.info("🔍 Step 1: Checking admin database availability...")
+      logger.info("Initializing OBP ecosystem OIDC clients...")
+      logger.info("Step 1: Checking admin database availability...")
 
       // Check if admin database is available first
-      println("🔍 DEBUG: About to check admin database availability...")
+      println("DEBUG: About to check admin database availability...")
       checkAdminDatabaseAvailability().flatMap { adminAvailable =>
-        println(s"📊 DEBUG: Admin database available = $adminAvailable")
+        println(s"DEBUG: Admin database available = $adminAvailable")
         if (adminAvailable) {
           println(
-            "✅ DEBUG: Admin database available - proceeding with client management"
+            "DEBUG: Admin database available - proceeding with client management"
           )
           logger.info(
-            "✅ Step 2: Admin database available - proceeding with client management"
+            "Step 2: Admin database available - proceeding with client management"
           )
           logger.info(
-            "🔧 Step 3: Creating missing OBP ecosystem clients (read-only for existing)..."
+            "Step 3: Creating missing OBP ecosystem clients (read-only for existing)..."
           )
           for {
             _ <- IO(
-              println("🔧 DEBUG: Starting configurable client creation...")
+              println("DEBUG: Starting configurable client creation...")
             )
             _ <- createConfiguredClients()
           } yield {
             println(
-              "✅ DEBUG: All OBP ecosystem clients initialized successfully"
+              "DEBUG: All OBP ecosystem clients initialized successfully"
             )
-            logger.info("✅ All OBP ecosystem clients initialized successfully")
+            logger.info("All OBP ecosystem clients initialized successfully")
           }
         } else {
           println(
-            "❌ DEBUG: Admin database not available - skipping automatic client creation"
+            "DEBUG: Admin database not available - skipping automatic client creation"
           )
           logger.warn(
-            "❌ Step 2: Admin database not available - skipping automatic client creation"
+            "Step 2: Admin database not available - skipping automatic client creation"
           )
-          logger.info("📋 Step 3: Generating manual SQL commands instead...")
+          logger.info("Step 3: Generating manual SQL commands instead...")
           logManualClientCreationSQL()
         }
       }
@@ -245,14 +245,14 @@ class ClientBootstrap(authService: HybridAuthService, config: OidcConfig) {
   private def createConfiguredClients(): IO[Unit] = {
     val enabledClients = getEnabledClients()
     println(
-      s"🔧 DEBUG: Creating ${enabledClients.size} enabled clients: ${enabledClients.map(_.client_name).mkString(", ")}"
+      s"DEBUG: Creating ${enabledClients.size} enabled clients: ${enabledClients.map(_.client_name).mkString(", ")}"
     )
 
     for {
       _ <- enabledClients.foldLeft(IO.unit) { (acc, client) =>
         acc.flatMap(_ =>
           ensureClient(client).flatMap(_ =>
-            IO(println(s"🔧 DEBUG: ${client.client_name} processing completed"))
+            IO(println(s"DEBUG: ${client.client_name} processing completed"))
           )
         )
       }
@@ -295,43 +295,43 @@ class ClientBootstrap(authService: HybridAuthService, config: OidcConfig) {
     */
   private def checkAdminDatabaseAvailability(): IO[Boolean] = {
     println(
-      "   🔍 DEBUG: Testing admin database with listClients() operation..."
+      "   DEBUG: Testing admin database with listClients() operation..."
     )
-    logger.info("   🔍 Testing admin database with listClients() operation...")
+    logger.info("   Testing admin database with listClients() operation...")
     // Try a simple admin database operation with timeout
     IO.race(
       IO.sleep(5.seconds),
       authService.listClients()
     ).map {
       case Left(_) =>
-        println("   ⏱️ DEBUG: Admin database check TIMED OUT after 5 seconds")
-        logger.warn("   ⏱️ Admin database check timed out after 5 seconds")
+        println("   DEBUG: Admin database check TIMED OUT after 5 seconds")
+        logger.warn("   Admin database check timed out after 5 seconds")
         false
       case Right(result) =>
         result match {
           case Right(clients) =>
             println(
-              s"   ✅ DEBUG: Admin database responds - found ${clients.length} existing clients"
+              s"   DEBUG: Admin database responds - found ${clients.length} existing clients"
             )
             logger.info(
-              s"   ✅ Admin database responds - found ${clients.length} existing clients"
+              s"   Admin database responds - found ${clients.length} existing clients"
             )
             true
           case Left(error) =>
             println(
-              s"   ❌ DEBUG: Admin database error: ${error.error} - ${error.error_description
+              s"   DEBUG: Admin database error: ${error.error} - ${error.error_description
                   .getOrElse("No description")}"
             )
             logger.warn(
-              s"   ❌ Admin database error: ${error.error} - ${error.error_description.getOrElse("No description")}"
+              s"   Admin database error: ${error.error} - ${error.error_description.getOrElse("No description")}"
             )
             false
         }
     }.handleErrorWith { error =>
       println(
-        s"   ❌ DEBUG: Admin database exception: ${error.getClass.getSimpleName}: ${error.getMessage}"
+        s"   DEBUG: Admin database exception: ${error.getClass.getSimpleName}: ${error.getMessage}"
       )
-      logger.warn(s"   ❌ Admin database exception: ${error.getMessage}")
+      logger.warn(s"   Admin database exception: ${error.getMessage}")
       IO.pure(false)
     }
   }
@@ -346,7 +346,7 @@ class ClientBootstrap(authService: HybridAuthService, config: OidcConfig) {
     ).flatMap {
       case Left(_) =>
         logger.error(
-          s"⏱️ Client operation timed out for ${clientConfig.client_name}"
+          s"Client operation timed out for ${clientConfig.client_name}"
         )
         IO.unit
       case Right(_) =>
@@ -356,50 +356,50 @@ class ClientBootstrap(authService: HybridAuthService, config: OidcConfig) {
 
   private def performClientOperation(clientConfig: OidcClient): IO[Unit] = {
     println(
-      s"   🔍 DEBUG: Checking if client exists by name: ${clientConfig.client_name}"
+      s"   DEBUG: Checking if client exists by name: ${clientConfig.client_name}"
     )
     logger.info(
-      s"   🔍 Checking if client exists by name: ${clientConfig.client_name}"
+      s"   Checking if client exists by name: ${clientConfig.client_name}"
     )
     authService.findClientByName(clientConfig.client_name).flatMap {
       case Some(existingClient) =>
         println(
-          s"   ✅ DEBUG: Client exists: ${existingClient.client_name} (${existingClient.client_id}) - SKIPPING (read-only mode)"
+          s"   DEBUG: Client exists: ${existingClient.client_name} (${existingClient.client_id}) - SKIPPING (read-only mode)"
         )
         logger.info(
-          s"   ✅ Client exists: ${existingClient.client_name} - preserving existing configuration"
+          s"   Client exists: ${existingClient.client_name} - preserving existing configuration"
         )
         logger.info(
-          s"   📖 READ-ONLY: Not modifying existing client ${existingClient.client_name}"
+          s"   READ-ONLY: Not modifying existing client ${existingClient.client_name}"
         )
         IO.unit
       case None =>
         println(
-          s"   ➕ DEBUG: Client not found - creating new client: ${clientConfig.client_name} (${clientConfig.client_id})"
+          s"   DEBUG: Client not found - creating new client: ${clientConfig.client_name} (${clientConfig.client_id})"
         )
         logger.info(
-          s"   ➕ Client not found - creating new client: ${clientConfig.client_name} (${clientConfig.client_id})"
+          s"   Client not found - creating new client: ${clientConfig.client_name} (${clientConfig.client_id})"
         )
         authService.createClient(clientConfig).flatMap {
           case Right(_) =>
             println(
-              s"   ✅ DEBUG: Successfully created client: ${clientConfig.client_name}"
+              s"   DEBUG: Successfully created client: ${clientConfig.client_name}"
             )
             logger.info(
-              s"   ✅ Successfully created client: ${clientConfig.client_name}"
+              s"   Successfully created client: ${clientConfig.client_name}"
             )
             IO.unit
           case Left(error) =>
             println(
-              s"   ❌ DEBUG: Failed to create client ${clientConfig.client_name}: ${error.error} - ${error.error_description
+              s"   DEBUG: Failed to create client ${clientConfig.client_name}: ${error.error} - ${error.error_description
                   .getOrElse("No description")}"
             )
             logger.error(
-              s"   ❌ Failed to create client ${clientConfig.client_name}: ${error.error} - ${error.error_description
+              s"   Failed to create client ${clientConfig.client_name}: ${error.error} - ${error.error_description
                   .getOrElse("No description")}"
             )
             logger.error(
-              s"   💡 Hint: Check if admin user has write permissions to v_oidc_admin_clients"
+              s"   Hint: Check if admin user has write permissions to v_oidc_admin_clients"
             )
             IO.unit
         }
@@ -412,7 +412,7 @@ class ClientBootstrap(authService: HybridAuthService, config: OidcConfig) {
     val clients = CLIENT_DEFINITIONS.map(createClient)
 
     IO {
-      logger.info("📋 Manual Client Creation SQL:")
+      logger.info("Manual Client Creation SQL:")
       logger.info("=" * 60)
 
       clients.foreach { client =>
@@ -441,7 +441,7 @@ INSERT INTO v_oidc_admin_clients (
       }
 
       logger.info("=" * 60)
-      logger.info("💡 Run these SQL commands manually to create OIDC clients")
+      logger.info("Run these SQL commands manually to create OIDC clients")
     }
   }
 
@@ -471,16 +471,16 @@ INSERT INTO v_oidc_admin_clients (
       case Some(secret) if secret.contains("CHANGE_THIS") =>
         val fresh = generateSecureSecret()
         println(
-          s"🔐 Generated fresh secret (was placeholder): ${fresh.take(20)}..."
+          s"Generated fresh secret (was placeholder): ${fresh.take(20)}..."
         )
         fresh
       case Some(secret) if secret.nonEmpty =>
-        println(s"🔑 Using existing secret: ${secret.take(20)}...")
+        println(s"Using existing secret: ${secret.take(20)}...")
         secret
       case _ =>
         val fresh = generateSecureSecret()
         println(
-          s"🔐 Generated fresh secret (none provided): ${fresh.take(20)}..."
+          s"Generated fresh secret (none provided): ${fresh.take(20)}..."
         )
         fresh
     }
@@ -498,8 +498,8 @@ object ClientBootstrap {
       authService: HybridAuthService,
       config: OidcConfig
   ): IO[Unit] = {
-    println("🎯 DEBUG: ClientBootstrap.initialize() called from server")
-    logger.info("🎯 ClientBootstrap.initialize() called from server")
+    println("DEBUG: ClientBootstrap.initialize() called from server")
+    logger.info("ClientBootstrap.initialize() called from server")
     new ClientBootstrap(authService, config).initializeClients()
   }
 

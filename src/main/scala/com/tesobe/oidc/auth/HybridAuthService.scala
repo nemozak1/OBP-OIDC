@@ -56,8 +56,8 @@ class HybridAuthService(
   private val logger = LoggerFactory.getLogger(getClass)
 
   // Test logging immediately when class is created
-  logger.info("🚀 HybridAuthService created - logging is working!")
-  println("🚀 HybridAuthService created - logging is working!")
+  logger.info("HybridAuthService created - logging is working!")
+  println("HybridAuthService created - logging is working!")
 
   /** Get the read transactor, failing with a clear message if database is not configured */
   private def requireTransactor: Transactor[IO] = transactor.getOrElse(
@@ -76,7 +76,7 @@ class HybridAuthService(
   def getAvailableProviders(): IO[List[String]] = {
     config.listProvidersMethod match {
       case ListProvidersMethod.ViaApiEndpoint =>
-        logger.info("🌐 Fetching providers via OBP API endpoint (GET /obp/v6.0.0/providers)")
+        logger.info("Fetching providers via OBP API endpoint (GET /obp/v6.0.0/providers)")
         obpApiCredentialsService match {
           case Some(service) => service.getProviders()
           case None =>
@@ -85,7 +85,7 @@ class HybridAuthService(
         }
 
       case ListProvidersMethod.ViaOidcUsersView =>
-        logger.debug("🔍 Fetching available providers from database")
+        logger.debug("Fetching available providers from database")
         getAvailableProvidersViaDatabase()
     }
   }
@@ -106,7 +106,7 @@ class HybridAuthService(
       .transact(requireTransactor)
       .map { providers =>
         logger.info(
-          s"🔍 Filtering out excluded providers: ${excludedProviders.mkString(", ")}"
+          s"Filtering out excluded providers: ${excludedProviders.mkString(", ")}"
         )
         providers.filterNot { provider =>
           excludedProviders.exists(excluded =>
@@ -115,9 +115,9 @@ class HybridAuthService(
         }
       }
       .handleErrorWith { error =>
-        logger.error("🚨 Database error while fetching providers", error)
+        logger.error("Database error while fetching providers", error)
         println(
-          s"🚨 Database error while fetching providers: ${error.getMessage}"
+          s"Database error while fetching providers: ${error.getMessage}"
         )
         IO.pure(List.empty[String])
       }
@@ -137,26 +137,26 @@ class HybridAuthService(
       provider: String
   ): IO[Either[OidcError, User]] = {
     logger.info(
-      s"🔐 Starting authentication for username: '$username' with provider: '$provider'"
+      s"Starting authentication for username: '$username' with provider: '$provider'"
     )
     println(
-      s"🔐 Starting authentication for username: '$username' with provider: '$provider'"
+      s"Starting authentication for username: '$username' with provider: '$provider'"
     )
     logger.debug(
-      s"🔐 Authentication request details - username length: ${username.length}, password length: ${password.length}, provider: '$provider'"
+      s"Authentication request details - username length: ${username.length}, password length: ${password.length}, provider: '$provider'"
     )
     println(
-      s"🔐 Authentication request details - username length: ${username.length}, password length: ${password.length}, provider: '$provider'"
+      s"Authentication request details - username length: ${username.length}, password length: ${password.length}, provider: '$provider'"
     )
 
     // Check which credential validation method to use
     config.verifyCredentialsMethod match {
       case VerifyCredentialsMethod.ViaApiEndpoint =>
         logger.info(
-          s"🌐 Using OBP API endpoint for credential verification (verify_credentials_endpoint)"
+          s"Using OBP API endpoint for credential verification (verify_credentials_endpoint)"
         )
         println(
-          s"🌐 Using OBP API endpoint for credential verification (verify_credentials_endpoint)"
+          s"Using OBP API endpoint for credential verification (verify_credentials_endpoint)"
         )
         obpApiCredentialsService match {
           case Some(service) =>
@@ -179,10 +179,10 @@ class HybridAuthService(
 
       case VerifyCredentialsMethod.ViaOidcUsersView =>
         logger.info(
-          s"🗄️ Using v_oidc_users database view for credential verification (v_oidc_users)"
+          s"Using v_oidc_users database view for credential verification (v_oidc_users)"
         )
         println(
-          s"🗄️ Using v_oidc_users database view for credential verification (v_oidc_users)"
+          s"Using v_oidc_users database view for credential verification (v_oidc_users)"
         )
         authenticateViaDatabase(username, password, provider)
     }
@@ -198,10 +198,10 @@ class HybridAuthService(
     findUserByUsernameAndProvider(username, provider).flatMap {
       case None =>
         logger.warn(
-          s"❌ User NOT FOUND in database: '$username' with provider: '$provider'"
+          s"User NOT FOUND in database: '$username' with provider: '$provider'"
         )
         println(
-          s"❌ User NOT FOUND in database: '$username' with provider: '$provider'"
+          s"User NOT FOUND in database: '$username' with provider: '$provider'"
         )
 
         // Additional debugging: try to find user without provider constraint
@@ -209,10 +209,10 @@ class HybridAuthService(
           userCount <- getUsernameCount(username)
           _ <- IO {
             logger.warn(
-              s"🔍 DEBUG: Found $userCount user(s) with username '$username'"
+              s"DEBUG: Found $userCount user(s) with username '$username'"
             )
             println(
-              s"🔍 DEBUG: Found $userCount user(s) with username '$username'"
+              s"DEBUG: Found $userCount user(s) with username '$username'"
             )
           }
           userWithoutProvider <- findUserDetailsByUsernameOnly(username)
@@ -220,7 +220,7 @@ class HybridAuthService(
             case Some(foundUser) =>
               IO {
                 logger.warn(
-                  s"🔍 DEBUG: User '$username' found in database with details:"
+                  s"DEBUG: User '$username' found in database with details:"
                 )
                 logger.warn(s"  - username: '${foundUser.username}'")
                 logger.warn(
@@ -230,7 +230,7 @@ class HybridAuthService(
                 logger.warn(s"  - user_id: '${foundUser.userId}'")
                 logger.warn(s"  - email: '${foundUser.email}'")
                 println(
-                  s"🔍 DEBUG: User '$username' found in database with details:"
+                  s"DEBUG: User '$username' found in database with details:"
                 )
                 println(s"  - username: '${foundUser.username}'")
                 println(
@@ -243,10 +243,10 @@ class HybridAuthService(
             case None =>
               IO {
                 logger.warn(
-                  s"🔍 DEBUG: User '$username' does not exist in database at all"
+                  s"DEBUG: User '$username' does not exist in database at all"
                 )
                 println(
-                  s"🔍 DEBUG: User '$username' does not exist in database at all"
+                  s"DEBUG: User '$username' does not exist in database at all"
                 )
               }
           }
@@ -255,10 +255,10 @@ class HybridAuthService(
               getAllUserDetailsByUsername(username).flatMap { allUsers =>
                 IO {
                   logger.warn(
-                    s"🔍 DEBUG: All $userCount users with username '$username':"
+                    s"DEBUG: All $userCount users with username '$username':"
                   )
                   println(
-                    s"🔍 DEBUG: All $userCount users with username '$username':"
+                    s"DEBUG: All $userCount users with username '$username':"
                   )
                   allUsers.zipWithIndex.foreach { case (user, index) =>
                     logger.warn(
@@ -280,33 +280,33 @@ class HybridAuthService(
         debugResult
       case Some(dbUser) =>
         logger.info(
-          s"✅ User FOUND in database: '$username' (userId: ${dbUser.userId})"
+          s"User FOUND in database: '$username' (userId: ${dbUser.userId})"
         )
         println(
-          s"✅ User FOUND in database: '$username' (userId: ${dbUser.userId})"
+          s"User FOUND in database: '$username' (userId: ${dbUser.userId})"
         )
         logger.debug(
-          s"🔍 Password hash length: ${dbUser.passwordHash.length}, Salt length: ${dbUser.passwordSalt.length}"
+          s"Password hash length: ${dbUser.passwordHash.length}, Salt length: ${dbUser.passwordSalt.length}"
         )
         println(
-          s"🔍 Password hash length: ${dbUser.passwordHash.length}, Salt length: ${dbUser.passwordSalt.length}"
+          s"Password hash length: ${dbUser.passwordHash.length}, Salt length: ${dbUser.passwordSalt.length}"
         )
 
         verifyPassword(password, dbUser.passwordHash, dbUser.passwordSalt)
           .flatMap { isValid =>
             if (isValid) {
               logger.info(
-                s"✅ Password verification SUCCESSFUL for user: '$username'"
+                s"Password verification SUCCESSFUL for user: '$username'"
               )
               println(
-                s"✅ Password verification SUCCESSFUL for user: '$username'"
+                s"Password verification SUCCESSFUL for user: '$username'"
               )
               IO.pure(Right(dbUser.toUser))
             } else {
               logger.warn(
-                s"❌ Password verification FAILED for user: '$username'"
+                s"Password verification FAILED for user: '$username'"
               )
-              println(s"❌ Password verification FAILED for user: '$username'")
+              println(s"Password verification FAILED for user: '$username'")
               IO.pure(
                 Left(
                   OidcError(
@@ -354,7 +354,7 @@ class HybridAuthService(
     */
   private def findUserByUsername(username: String): IO[Option[DatabaseUser]] = {
     logger.debug(
-      s"🔍 Searching for user by username only: '$username', validated=true"
+      s"Searching for user by username only: '$username', validated=true"
     )
 
     val query = sql"""
@@ -366,9 +366,9 @@ class HybridAuthService(
     """.query[DatabaseUser]
 
     query.option.transact(requireTransactor).handleErrorWith { error =>
-      logger.error(s"🚨 Database error while finding user $username", error)
+      logger.error(s"Database error while finding user $username", error)
       println(
-        s"🚨 Database error while finding user $username: ${error.getMessage}"
+        s"Database error while finding user $username: ${error.getMessage}"
       )
       IO.pure(None)
     }
@@ -381,10 +381,10 @@ class HybridAuthService(
       provider: String
   ): IO[Option[DatabaseUser]] = {
     logger.debug(
-      s"🔍 Searching for user: username='$username', provider='$provider', validated=true"
+      s"Searching for user: username='$username', provider='$provider', validated=true"
     )
     println(
-      s"🔍 Searching for user: username='$username', provider='$provider', validated=true"
+      s"Searching for user: username='$username', provider='$provider', validated=true"
     )
 
     val query = sql"""
@@ -396,10 +396,10 @@ class HybridAuthService(
     """.query[DatabaseUser]
 
     logger.debug(
-      s"🔍 SQL Query: SELECT user_id, username, firstname, lastname, email, validated, provider, password_pw, password_slt, createdat, updatedat FROM v_oidc_users WHERE username = '$username' AND provider = '$provider' AND validated = true"
+      s"SQL Query: SELECT user_id, username, firstname, lastname, email, validated, provider, password_pw, password_slt, createdat, updatedat FROM v_oidc_users WHERE username = '$username' AND provider = '$provider' AND validated = true"
     )
     println(
-      s"🔍 SQL Query: SELECT ... FROM v_oidc_users WHERE username = '$username' AND provider = '$provider' AND validated = true"
+      s"SQL Query: SELECT ... FROM v_oidc_users WHERE username = '$username' AND provider = '$provider' AND validated = true"
     )
 
     query.option
@@ -409,28 +409,28 @@ class HybridAuthService(
           result match {
             case Some(user) =>
               logger.debug(
-                s"🎯 Query returned user: ${user.username} with provider: ${user.provider}"
+                s"Query returned user: ${user.username} with provider: ${user.provider}"
               )
               println(
-                s"🎯 Query returned user: ${user.username} with provider: ${user.provider}"
+                s"Query returned user: ${user.username} with provider: ${user.provider}"
               )
             case None =>
               logger.debug(
-                s"🎯 Query returned no results for username='$username', provider='$provider'"
+                s"Query returned no results for username='$username', provider='$provider'"
               )
               println(
-                s"🎯 Query returned no results for username='$username', provider='$provider'"
+                s"Query returned no results for username='$username', provider='$provider'"
               )
           }
         }
       }
       .handleErrorWith { error =>
         logger.error(
-          s"🚨 Database error while finding user by username $username and provider $provider",
+          s"Database error while finding user by username $username and provider $provider",
           error
         )
         println(
-          s"🚨 Database error while finding user by username $username and provider $provider: ${error.getMessage}"
+          s"Database error while finding user by username $username and provider $provider: ${error.getMessage}"
         )
         IO.pure(None)
       }
@@ -443,10 +443,10 @@ class HybridAuthService(
       username: String
   ): IO[Option[DatabaseUser]] = {
     logger.debug(
-      s"🔍 EXTRA DEBUG: Searching for user by username only: '$username' (ignoring provider and validation)"
+      s"EXTRA DEBUG: Searching for user by username only: '$username' (ignoring provider and validation)"
     )
     println(
-      s"🔍 EXTRA DEBUG: Searching for user by username only: '$username' (ignoring provider and validation)"
+      s"EXTRA DEBUG: Searching for user by username only: '$username' (ignoring provider and validation)"
     )
 
     val query = sql"""
@@ -460,11 +460,11 @@ class HybridAuthService(
 
     query.option.transact(requireTransactor).handleErrorWith { error =>
       logger.error(
-        s"🚨 Database error while finding user details for $username",
+        s"Database error while finding user details for $username",
         error
       )
       println(
-        s"🚨 Database error while finding user details for $username: ${error.getMessage}"
+        s"Database error while finding user details for $username: ${error.getMessage}"
       )
       IO.pure(None)
     }
@@ -473,7 +473,7 @@ class HybridAuthService(
   /** Get count of users with a specific username
     */
   private def getUsernameCount(username: String): IO[Int] = {
-    logger.debug(s"🔍 Counting users with username: '$username'")
+    logger.debug(s"Counting users with username: '$username'")
 
     val query = sql"""
       SELECT COUNT(*) FROM v_oidc_users WHERE username = $username
@@ -481,9 +481,9 @@ class HybridAuthService(
 
     query.unique.transact(requireTransactor).handleErrorWith { error =>
       logger
-        .error(s"🚨 Database error while counting username $username", error)
+        .error(s"Database error while counting username $username", error)
       println(
-        s"🚨 Database error while counting username $username: ${error.getMessage}"
+        s"Database error while counting username $username: ${error.getMessage}"
       )
       IO.pure(0)
     }
@@ -494,7 +494,7 @@ class HybridAuthService(
   private def getAllUserDetailsByUsername(
       username: String
   ): IO[List[DatabaseUser]] = {
-    logger.debug(s"🔍 Getting all users with username: '$username'")
+    logger.debug(s"Getting all users with username: '$username'")
 
     val query = sql"""
       SELECT user_id, username, firstname, lastname, email,
@@ -507,11 +507,11 @@ class HybridAuthService(
 
     query.to[List].transact(requireTransactor).handleErrorWith { error =>
       logger.error(
-        s"🚨 Database error while getting all users for username $username",
+        s"Database error while getting all users for username $username",
         error
       )
       println(
-        s"🚨 Database error while getting all users for username $username: ${error.getMessage}"
+        s"Database error while getting all users for username $username: ${error.getMessage}"
       )
       IO.pure(List.empty)
     }
@@ -520,8 +520,8 @@ class HybridAuthService(
   /** Debug method to show sample users in database for troubleshooting
     */
   private def showSampleUsersForDebugging(): IO[Unit] = {
-    logger.debug("🔍 DEBUG: Fetching sample users for troubleshooting...")
-    println("🔍 DEBUG: Fetching sample users for troubleshooting...")
+    logger.debug("DEBUG: Fetching sample users for troubleshooting...")
+    println("DEBUG: Fetching sample users for troubleshooting...")
 
     val query = sql"""
       SELECT username, provider, validated, user_id
@@ -535,8 +535,8 @@ class HybridAuthService(
       .transact(requireTransactor)
       .flatMap { users =>
         if (users.nonEmpty) {
-          logger.warn("🔍 DEBUG: Sample users in database:")
-          println("🔍 DEBUG: Sample users in database:")
+          logger.warn("DEBUG: Sample users in database:")
+          println("DEBUG: Sample users in database:")
           users.foreach { case (username, provider, validated, userId) =>
             logger.warn(
               s"  - username: '$username', provider: '$provider', validated: $validated, userId: '$userId'"
@@ -551,18 +551,18 @@ class HybridAuthService(
             sql"SELECT COUNT(*) FROM v_oidc_users WHERE validated = true"
               .query[Int]
           countQuery.unique.transact(requireTransactor).map { count =>
-            logger.warn(s"🔍 DEBUG: Total validated users in database: $count")
-            println(s"🔍 DEBUG: Total validated users in database: $count")
+            logger.warn(s"DEBUG: Total validated users in database: $count")
+            println(s"DEBUG: Total validated users in database: $count")
           }
         } else {
-          logger.warn("🔍 DEBUG: No users found in v_oidc_users table")
-          println("🔍 DEBUG: No users found in v_oidc_users table")
+          logger.warn("DEBUG: No users found in v_oidc_users table")
+          println("DEBUG: No users found in v_oidc_users table")
           IO.unit
         }
       }
       .handleError { error =>
-        logger.error("🚨 DEBUG: Could not fetch sample users", error)
-        println(s"🚨 DEBUG: Could not fetch sample users: ${error.getMessage}")
+        logger.error("DEBUG: Could not fetch sample users", error)
+        println(s"DEBUG: Could not fetch sample users: ${error.getMessage}")
       }
   }
 
@@ -642,48 +642,48 @@ class HybridAuthService(
         val isValid = client.redirect_uris.contains(redirectUri)
         IO(
           logger.info(
-            s"🔍 Validating redirect_uri for client: $clientId"
+            s"Validating redirect_uri for client: $clientId"
           )
         ) *>
           IO(
             logger.info(
-              s"   📥 Requested redirect_uri: $redirectUri"
+              s"   Requested redirect_uri: $redirectUri"
             )
           ) *>
           IO(
             logger.info(
-              s"   📋 Allowed redirect_uris (${client.redirect_uris.size}): [${client.redirect_uris.mkString(", ")}]"
+              s"   Allowed redirect_uris (${client.redirect_uris.size}): [${client.redirect_uris.mkString(", ")}]"
             )
           ) *>
           IO(
             println(
-              s"🔍 Validating redirect_uri for client: $clientId"
+              s"Validating redirect_uri for client: $clientId"
             )
           ) *>
           IO(
             println(
-              s"   📥 Requested redirect_uri: $redirectUri"
+              s"   Requested redirect_uri: $redirectUri"
             )
           ) *>
           IO(
             println(
-              s"   📋 Allowed redirect_uris (${client.redirect_uris.size}): [${client.redirect_uris.mkString(", ")}]"
+              s"   Allowed redirect_uris (${client.redirect_uris.size}): [${client.redirect_uris.mkString(", ")}]"
             )
           ) *>
           IO(
             if (isValid) {
               logger.info(
-                s"   ✅ Redirect URI validation PASSED: requested URI found in allowed list"
+                s"   Redirect URI validation PASSED: requested URI found in allowed list"
               )
               println(
-                s"   ✅ Redirect URI validation PASSED: requested URI found in allowed list"
+                s"   Redirect URI validation PASSED: requested URI found in allowed list"
               )
             } else {
               logger.warn(
-                s"   ❌ Redirect URI validation FAILED: requested URI NOT found in allowed list"
+                s"   Redirect URI validation FAILED: requested URI NOT found in allowed list"
               )
               println(
-                s"   ❌ Redirect URI validation FAILED: requested URI NOT found in allowed list"
+                s"   Redirect URI validation FAILED: requested URI NOT found in allowed list"
               )
             }
           ) *>
@@ -691,12 +691,12 @@ class HybridAuthService(
       case None =>
         IO(
           logger.warn(
-            s"❌ Client validation FAILED: client not found with clientId: $clientId"
+            s"Client validation FAILED: client not found with clientId: $clientId"
           )
         ) *>
           IO(
             println(
-              s"❌ Client validation FAILED: client not found with clientId: $clientId"
+              s"Client validation FAILED: client not found with clientId: $clientId"
             )
           ) *>
           IO.pure(false)
@@ -781,7 +781,7 @@ class HybridAuthService(
   /** Find OIDC client by client_name to prevent duplicates
     */
   def findClientByName(clientName: String): IO[Option[OidcClient]] = {
-    println(s"🔍 DEBUG: findClientByName() called for clientName: $clientName")
+    println(s"DEBUG: findClientByName() called for clientName: $clientName")
     println(s"   Looking in v_oidc_clients view with column 'client_name'")
     val query = sql"""
       SELECT client_id, client_secret, client_name, consumer_id, redirect_uris,
@@ -794,18 +794,18 @@ class HybridAuthService(
     query.option
       .transact(requireTransactor)
       .map { result =>
-        println(s"   📊 DEBUG: Query result: ${if (result.isDefined) "FOUND"
+        println(s"   DEBUG: Query result: ${if (result.isDefined) "FOUND"
           else "NOT FOUND"}")
         result.map { client =>
           println(
-            s"   ✅ DEBUG: Found client: ${client.client_name} with id: ${client.client_id}"
+            s"   DEBUG: Found client: ${client.client_name} with id: ${client.client_id}"
           )
           client.toOidcClient
         }
       }
       .handleErrorWith { error =>
         println(
-          s"   ❌ DEBUG: Query error: ${error.getClass.getSimpleName}: ${error.getMessage}"
+          s"   DEBUG: Query error: ${error.getClass.getSimpleName}: ${error.getMessage}"
         )
         IO.pure(None)
       }
@@ -814,7 +814,7 @@ class HybridAuthService(
   /** Find all clients with duplicate names for cleanup purposes
     */
   def findDuplicateClientNames(): IO[List[String]] = {
-    println("🔍 DEBUG: findDuplicateClientNames() called")
+    println("DEBUG: findDuplicateClientNames() called")
     val query = sql"""
       SELECT client_name, COUNT(*) as count
       FROM v_oidc_clients
@@ -827,17 +827,17 @@ class HybridAuthService(
       .transact(requireTransactor)
       .map { duplicates =>
         println(
-          s"   📊 DEBUG: Found ${duplicates.length} client names with duplicates"
+          s"   DEBUG: Found ${duplicates.length} client names with duplicates"
         )
         duplicates.foreach { case (name, count) =>
-          println(s"   ⚠️ WARNING: Client '$name' has $count duplicate entries")
+          println(s"   WARNING: Client '$name' has $count duplicate entries")
           logger.warn(s"Client '$name' has $count duplicate entries")
         }
         duplicates.map(_._1)
       }
       .handleErrorWith { error =>
         println(
-          s"   ❌ DEBUG: Query error: ${error.getClass.getSimpleName}: ${error.getMessage}"
+          s"   DEBUG: Query error: ${error.getClass.getSimpleName}: ${error.getMessage}"
         )
         IO.pure(List.empty[String])
       }
@@ -847,7 +847,7 @@ class HybridAuthService(
     */
   def findAllClientsByName(clientName: String): IO[List[OidcClient]] = {
     println(
-      s"🔍 DEBUG: findAllClientsByName() called for clientName: $clientName"
+      s"DEBUG: findAllClientsByName() called for clientName: $clientName"
     )
     val query = sql"""
       SELECT client_id, client_secret, client_name, consumer_id, redirect_uris,
@@ -862,7 +862,7 @@ class HybridAuthService(
       .transact(requireTransactor)
       .map { clients =>
         println(
-          s"   📊 DEBUG: Found ${clients.length} clients with name: $clientName"
+          s"   DEBUG: Found ${clients.length} clients with name: $clientName"
         )
         clients.foreach { client =>
           println(
@@ -873,7 +873,7 @@ class HybridAuthService(
       }
       .handleErrorWith { error =>
         println(
-          s"   ❌ DEBUG: Query error: ${error.getClass.getSimpleName}: ${error.getMessage}"
+          s"   DEBUG: Query error: ${error.getClass.getSimpleName}: ${error.getMessage}"
         )
         IO.pure(List.empty[OidcClient])
       }
@@ -890,15 +890,15 @@ class HybridAuthService(
     */
   def createClient(client: OidcClient): IO[Either[OidcError, OidcClient]] = {
     logger.info(
-      s"🔍 createClient() called for: ${client.client_name} (${client.client_id})"
+      s"createClient() called for: ${client.client_name} (${client.client_id})"
     )
     adminTransactor match {
       case Some(adminTx) =>
         logger.info(
-          s"✅ Admin transactor available, preparing INSERT for: ${client.client_id}"
+          s"Admin transactor available, preparing INSERT for: ${client.client_id}"
         )
         val adminClient = AdminDatabaseClient.fromOidcClient(client, config)
-        logger.info(s"🔧 Mapped OIDC client to database format:")
+        logger.info(s"Mapped OIDC client to database format:")
         logger.info(s"   name: ${adminClient.name}")
         logger.info(s"   consumerid: ${adminClient.consumerid}")
         logger.info(
@@ -922,22 +922,22 @@ class HybridAuthService(
         """.update
 
         logger.info(
-          s"🔄 Executing INSERT query for client: ${client.client_id}"
+          s"Executing INSERT query for client: ${client.client_id}"
         )
         insertQuery.run
           .transact(adminTx)
           .map { rowsAffected =>
             logger.info(
-              s"📊 INSERT result: $rowsAffected rows affected for client: ${client.client_id}"
+              s"INSERT result: $rowsAffected rows affected for client: ${client.client_id}"
             )
             if (rowsAffected > 0) {
               logger.info(
-                s"✅ Successfully created OIDC client: ${client.client_id}"
+                s"Successfully created OIDC client: ${client.client_id}"
               )
               Right(client)
             } else {
               logger.error(
-                s"❌ INSERT returned 0 rows affected for client: ${client.client_id}"
+                s"INSERT returned 0 rows affected for client: ${client.client_id}"
               )
               Left(
                 OidcError(
@@ -949,10 +949,10 @@ class HybridAuthService(
           }
           .handleErrorWith { error =>
             logger.error(
-              s"❌ Database error creating client ${client.client_id}: ${error.getMessage}",
+              s"Database error creating client ${client.client_id}: ${error.getMessage}",
               error
             )
-            logger.error(s"💡 Error type: ${error.getClass.getSimpleName}")
+            logger.error(s"Error type: ${error.getClass.getSimpleName}")
             IO.pure(
               Left(
                 OidcError(
@@ -966,7 +966,7 @@ class HybridAuthService(
           }
       case None =>
         logger.error(
-          s"❌ Admin database connection not available for client: ${client.client_id}"
+          s"Admin database connection not available for client: ${client.client_id}"
         )
         IO.pure(
           Left(
@@ -1029,13 +1029,33 @@ class HybridAuthService(
     }
   }
 
-  /** List all clients using the admin database connection
+  /** List all clients
+    *
+    * Uses either:
+    * - v_oidc_clients database view (default)
+    * - OBP API endpoint GET /obp/v6.0.0/management/consumers
+    *   (when USE_VERIFY_ENDPOINTS=true)
     */
   def listClients(): IO[Either[OidcError, List[OidcClient]]] = {
-    println("🔍 DEBUG: listClients() called")
-    logger.info("🔍 listClients() called")
+    config.verifyClientMethod match {
+      case VerifyClientMethod.ViaApiEndpoint =>
+        logger.info("Listing clients via OBP API endpoint (GET /obp/v6.0.0/management/consumers)")
+        obpApiClientService match {
+          case Some(service) => service.listClients()
+          case None =>
+            logger.error("OBP API Client Service not initialized but verify_client_endpoint is configured")
+            IO.pure(Left(OidcError("server_error", Some("Client service not properly configured"))))
+        }
 
-    // Use the regular transactor and v_oidc_clients view to get proper client_id and consumer_id mapping
+      case VerifyClientMethod.ViaDatabase =>
+        listClientsViaDatabase()
+    }
+  }
+
+  private def listClientsViaDatabase(): IO[Either[OidcError, List[OidcClient]]] = {
+    println("DEBUG: listClients() called")
+    logger.info("listClients() called")
+
     val query = sql"""
       SELECT client_id, client_secret, client_name, consumer_id, redirect_uris,
              grant_types, response_types, scopes, token_endpoint_auth_method, created_at
@@ -1043,17 +1063,17 @@ class HybridAuthService(
       ORDER BY client_name ASC
     """.query[DatabaseClient]
 
-    println("🔄 DEBUG: Executing SELECT query on v_oidc_clients")
-    logger.info("🔄 Executing SELECT query on v_oidc_clients")
+    println("DEBUG: Executing SELECT query on v_oidc_clients")
+    logger.info("Executing SELECT query on v_oidc_clients")
     query
       .to[List]
       .transact(requireTransactor)
       .map { clients =>
         println(
-          s"📊 DEBUG: SELECT result: Found ${clients.length} clients in v_oidc_clients"
+          s"DEBUG: SELECT result: Found ${clients.length} clients in v_oidc_clients"
         )
         logger.info(
-          s"📊 DEBUG: SELECT result: Found ${clients.length} clients in v_oidc_clients"
+          s"DEBUG: SELECT result: Found ${clients.length} clients in v_oidc_clients"
         )
         clients.foreach(client =>
           logger.info(
@@ -1064,13 +1084,13 @@ class HybridAuthService(
       }
       .handleErrorWith { error =>
         println(
-          s"❌ DEBUG: Database error listing clients: ${error.getClass.getSimpleName}: ${error.getMessage}"
+          s"DEBUG: Database error listing clients: ${error.getClass.getSimpleName}: ${error.getMessage}"
         )
         logger.error(
-          s"❌ Database error listing clients: ${error.getMessage}",
+          s"Database error listing clients: ${error.getMessage}",
           error
         )
-        logger.error(s"💡 Error type: ${error.getClass.getSimpleName}")
+        logger.error(s"Error type: ${error.getClass.getSimpleName}")
         IO.pure(
           Left(
             OidcError(
@@ -1089,7 +1109,7 @@ class HybridAuthService(
       clientId: String
   ): IO[Option[OidcClient]] = {
     println(
-      s"🔍 DEBUG: findAdminClientByClientIdThatIsKey() called for clientId: $clientId"
+      s"DEBUG: findAdminClientByClientIdThatIsKey() called for clientId: $clientId"
     )
     println(
       s"   Looking in v_oidc_admin_clients view with column 'key_c' (client_id)"
@@ -1107,31 +1127,31 @@ class HybridAuthService(
         query.option
           .transact(adminTx)
           .map { result =>
-            println(s"   📊 DEBUG: Query result: ${if (result.isDefined) "FOUND"
+            println(s"   DEBUG: Query result: ${if (result.isDefined) "FOUND"
               else "NOT FOUND"}")
             result.map { client =>
               println(
-                s"   ✅ DEBUG: Found client: ${client.name.getOrElse("No Name")} with key_c (client_id): ${client.key_c
+                s"   DEBUG: Found client: ${client.name.getOrElse("No Name")} with key_c (client_id): ${client.key_c
                     .getOrElse("No Key")}"
               )
               println(
-                s"   🔑 DEBUG: Database secret: ${client.secret.map(_.take(20)).getOrElse("None")}..."
+                s"   DEBUG: Database secret: ${client.secret.map(_.take(20)).getOrElse("None")}..."
               )
               val oidcClient = client.toOidcClient
               println(
-                s"   🔑 DEBUG: Converted secret: ${oidcClient.client_secret.map(_.take(20)).getOrElse("None")}..."
+                s"   DEBUG: Converted secret: ${oidcClient.client_secret.map(_.take(20)).getOrElse("None")}..."
               )
               oidcClient
             }
           }
           .handleErrorWith { error =>
             println(
-              s"   ❌ DEBUG: Query error: ${error.getClass.getSimpleName}: ${error.getMessage}"
+              s"   DEBUG: Query error: ${error.getClass.getSimpleName}: ${error.getMessage}"
             )
             IO.pure(None)
           }
       case None =>
-        println("   ❌ DEBUG: Admin transactor not available")
+        println("   DEBUG: Admin transactor not available")
         IO.pure(None)
     }
   }
@@ -1147,41 +1167,41 @@ class HybridAuthService(
   ): IO[Boolean] = {
     IO {
       try {
-        logger.info(s"🔐 Starting password verification...")
-        println(s"🔐 Starting password verification...")
-        logger.debug(s"📝 Stored hash: '$storedHash'")
-        println(s"📝 Stored hash: '$storedHash'")
-        logger.debug(s"🧂 Salt: '$salt'")
-        println(s"🧂 Salt: '$salt'")
-        logger.debug(s"🔑 Plain password length: ${plainPassword.length}")
-        println(s"🔑 Plain password length: ${plainPassword.length}")
+        logger.info(s"Starting password verification...")
+        println(s"Starting password verification...")
+        logger.debug(s"Stored hash: '$storedHash'")
+        println(s"Stored hash: '$storedHash'")
+        logger.debug(s"Salt: '$salt'")
+        println(s"Salt: '$salt'")
+        logger.debug(s"Plain password length: ${plainPassword.length}")
+        println(s"Plain password length: ${plainPassword.length}")
 
         // Log hex representation for debugging
         logger.debug(
-          s"📝 Stored hash (hex): ${storedHash.getBytes("UTF-8").map("%02x".format(_)).mkString}"
+          s"Stored hash (hex): ${storedHash.getBytes("UTF-8").map("%02x".format(_)).mkString}"
         )
         logger.debug(
-          s"🧂 Salt (hex): ${salt.getBytes("UTF-8").map("%02x".format(_)).mkString}"
+          s"Salt (hex): ${salt.getBytes("UTF-8").map("%02x".format(_)).mkString}"
         )
         println(
-          s"📝 Stored hash (hex): ${storedHash.getBytes("UTF-8").map("%02x".format(_)).mkString}"
+          s"Stored hash (hex): ${storedHash.getBytes("UTF-8").map("%02x".format(_)).mkString}"
         )
         println(
-          s"🧂 Salt (hex): ${salt.getBytes("UTF-8").map("%02x".format(_)).mkString}"
+          s"Salt (hex): ${salt.getBytes("UTF-8").map("%02x".format(_)).mkString}"
         )
 
         val result = if (storedHash.startsWith("b;")) {
           // Lift MegaProtoUser BCrypt format: "b;" + BCrypt.hashpw(password, salt).substring(0, 44)
           val hashWithoutPrefix = storedHash.substring(2) // Remove "b;" prefix
-          println(s"🔍 Detected Lift MegaProtoUser BCrypt format")
-          println(s"🔍 Hash without prefix: '$hashWithoutPrefix'")
+          println(s"Detected Lift MegaProtoUser BCrypt format")
+          println(s"Hash without prefix: '$hashWithoutPrefix'")
 
           try {
             // Use the BCrypt.hashpw approach that OBP-API uses
             // Import the jBCrypt library that OBP-API uses (org.mindrot.jbcrypt.BCrypt)
             import org.mindrot.jbcrypt.{BCrypt => JBCrypt}
 
-            println(s"🔧 About to call JBCrypt.hashpw with:")
+            println(s"About to call JBCrypt.hashpw with:")
             println(
               s"   - password: [REDACTED] (length: ${plainPassword.length})"
             )
@@ -1190,23 +1210,23 @@ class HybridAuthService(
             // Generate hash using the same method as OBP-API: BCrypt.hashpw(password, salt).substring(0, 44)
             val fullGeneratedHash = JBCrypt.hashpw(plainPassword, salt)
             println(
-              s"🔨 Full generated hash: '$fullGeneratedHash' (length: ${fullGeneratedHash.length})"
+              s"Full generated hash: '$fullGeneratedHash' (length: ${fullGeneratedHash.length})"
             )
 
             val generatedHash = fullGeneratedHash.substring(0, 44)
             println(
-              s"🔨 Truncated hash: '$generatedHash' (length: ${generatedHash.length})"
+              s"Truncated hash: '$generatedHash' (length: ${generatedHash.length})"
             )
             println(
-              s"🔍 Expected hash:  '$hashWithoutPrefix' (length: ${hashWithoutPrefix.length})"
+              s"Expected hash:  '$hashWithoutPrefix' (length: ${hashWithoutPrefix.length})"
             )
 
             val isMatch = generatedHash == hashWithoutPrefix
-            println(s"🧪 Hash comparison result: $isMatch")
+            println(s"Hash comparison result: $isMatch")
 
             // Log character-by-character comparison for debugging
             if (!isMatch) {
-              println(s"🔍 Character comparison:")
+              println(s"Character comparison:")
               val minLength =
                 math.min(generatedHash.length, hashWithoutPrefix.length)
               var firstDifference = -1
@@ -1230,14 +1250,14 @@ class HybridAuthService(
             isMatch
           } catch {
             case e: Exception =>
-              println(s"🧪 JBCrypt verification failed: ${e.getMessage}")
+              println(s"JBCrypt verification failed: ${e.getMessage}")
 
               // Fallback to the at.favre.lib BCrypt library
               try {
                 // Try direct verification with reconstructed hash
                 val reconstructedHash = hashWithoutPrefix + salt
                 println(
-                  s"🔨 Fallback: trying reconstructed hash '$reconstructedHash'"
+                  s"Fallback: trying reconstructed hash '$reconstructedHash'"
                 )
 
                 val fallbackResult = BCrypt
@@ -1247,17 +1267,17 @@ class HybridAuthService(
                     reconstructedHash.toCharArray
                   )
                   .verified
-                println(s"🧪 Fallback verification result: $fallbackResult")
+                println(s"Fallback verification result: $fallbackResult")
                 fallbackResult
               } catch {
                 case e2: Exception =>
-                  println(s"🧪 Fallback also failed: ${e2.getMessage}")
+                  println(s"Fallback also failed: ${e2.getMessage}")
                   false
               }
           }
         } else {
           // Standard BCrypt hash format
-          println(s"🔍 Standard BCrypt format detected")
+          println(s"Standard BCrypt format detected")
           try {
             BCrypt
               .verifyer()
@@ -1266,26 +1286,26 @@ class HybridAuthService(
           } catch {
             case e: Exception =>
               println(
-                s"🧪 Standard BCrypt verification failed: ${e.getMessage}"
+                s"Standard BCrypt verification failed: ${e.getMessage}"
               )
               false
           }
         }
 
         if (result) {
-          println(s"✅ Password verification SUCCESSFUL")
-          logger.info(s"✅ Password verification SUCCESSFUL")
+          println(s"Password verification SUCCESSFUL")
+          logger.info(s"Password verification SUCCESSFUL")
         } else {
-          println(s"❌ Password verification FAILED")
-          logger.warn(s"❌ Password verification FAILED")
+          println(s"Password verification FAILED")
+          logger.warn(s"Password verification FAILED")
         }
 
         result
       } catch {
         case e: Exception =>
-          println(s"💥 Error during password verification: ${e.getMessage}")
+          println(s"Error during password verification: ${e.getMessage}")
           logger.error(
-            s"💥 Error during password verification: ${e.getMessage}",
+            s"Error during password verification: ${e.getMessage}",
             e
           )
           e.printStackTrace()
@@ -1466,7 +1486,7 @@ object HybridAuthService {
       _ <- Resource.eval(
         IO(
           logger.info(
-            "🔧 Creating HybridAuthService"
+            "Creating HybridAuthService"
           )
         )
       )
@@ -1504,10 +1524,10 @@ object HybridAuthService {
           s"   Read DB: ${config.database.username}@${config.database.host}:${config.database.port}/${config.database.database}"
         ))) *>
         createTransactor(config.database, config.dbVendor).map(Some(_)).flatTap(_ =>
-          Resource.eval(IO(logger.info("✅ Read transactor created successfully")))
+          Resource.eval(IO(logger.info("Read transactor created successfully")))
         )
       } else {
-        Resource.eval(IO(logger.info("⏭️  Skipping database connection (all methods use API endpoints)"))) *>
+        Resource.eval(IO(logger.info("Skipping database connection (all methods use API endpoints)"))) *>
         Resource.pure[IO, Option[HikariTransactor[IO]]](None)
       }
       adminTransactor <- if (config.needsDatabase) {
@@ -1515,7 +1535,7 @@ object HybridAuthService {
           s"   Admin DB: ${config.adminDatabase.username}@${config.adminDatabase.host}:${config.adminDatabase.port}/${config.adminDatabase.database}"
         ))) *>
         createTransactor(config.adminDatabase, config.dbVendor).map(Some(_)).flatTap(_ =>
-          Resource.eval(IO(logger.info("✅ Admin transactor created successfully")))
+          Resource.eval(IO(logger.info("Admin transactor created successfully")))
         )
       } else {
         Resource.pure[IO, Option[HikariTransactor[IO]]](None)
@@ -1528,7 +1548,7 @@ object HybridAuthService {
           Resource.eval(
             IO(
               logger.info(
-                "🌐 Creating ObpApiCredentialsService for API-based operations"
+                "Creating ObpApiCredentialsService for API-based operations"
               )
             )
           ) *>
@@ -1537,7 +1557,7 @@ object HybridAuthService {
           Resource.eval(
             IO(
               logger.info(
-                "🗄️ Using database view (v_oidc_users) for credential verification and provider listing"
+                "Using database view (v_oidc_users) for credential verification and provider listing"
               )
             )
           ) *>
@@ -1550,7 +1570,7 @@ object HybridAuthService {
           Resource.eval(
             IO(
               logger.info(
-                "🌐 Creating ObpApiClientService for API-based client verification"
+                "Creating ObpApiClientService for API-based client verification"
               )
             )
           ) *>
@@ -1559,7 +1579,7 @@ object HybridAuthService {
           Resource.eval(
             IO(
               logger.info(
-                "🗄️ Using database view (v_oidc_clients) for client verification"
+                "Using database view (v_oidc_clients) for client verification"
               )
             )
           ) *>
@@ -1573,7 +1593,7 @@ object HybridAuthService {
         obpApiClientService
       )
       _ <- Resource.eval(
-        IO(logger.info("✅ HybridAuthService created successfully"))
+        IO(logger.info("HybridAuthService created successfully"))
       )
     } yield service
   }

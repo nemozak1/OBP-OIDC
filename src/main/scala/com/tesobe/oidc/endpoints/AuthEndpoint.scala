@@ -41,8 +41,8 @@ class AuthEndpoint(
   private val logger = LoggerFactory.getLogger(getClass)
 
   // Test logging immediately when class is created
-  logger.info("🚀 AuthEndpoint created - logging is working!")
-  println("🚀 AuthEndpoint created - logging is working!")
+  logger.info("AuthEndpoint created - logging is working!")
+  println("AuthEndpoint created - logging is working!")
 
   val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
     // Standalone testing page that does not require query parameters
@@ -99,18 +99,18 @@ class AuthEndpoint(
 
     IO(
       logger.info(
-        s"🔍 handleAuthorizationRequest called - responseType: $responseType, clientId: $clientId, redirectUri: $redirectUri, scope: $scope"
+        s"handleAuthorizationRequest called - responseType: $responseType, clientId: $clientId, redirectUri: $redirectUri, scope: $scope"
       )
     ) *>
       IO(
         println(
-          s"🔍 handleAuthorizationRequest called - responseType: $responseType, clientId: $clientId, redirectUri: $redirectUri, scope: $scope"
+          s"handleAuthorizationRequest called - responseType: $responseType, clientId: $clientId, redirectUri: $redirectUri, scope: $scope"
         )
       ) *>
       // Validate request parameters
       (if (responseType != "code") {
-         IO(logger.warn(s"❌ Unsupported response_type: $responseType")) *>
-           IO(println(s"❌ Unsupported response_type: $responseType")) *> {
+         IO(logger.warn(s"Unsupported response_type: $responseType")) *>
+           IO(println(s"Unsupported response_type: $responseType")) *> {
              val error = OidcError(
                "unsupported_response_type",
                Some("Only 'code' response type is supported"),
@@ -119,8 +119,8 @@ class AuthEndpoint(
              redirectWithError(redirectUri, error)
            }
        } else if (!scope.contains("openid")) {
-         IO(logger.warn(s"❌ Missing 'openid' scope: $scope")) *>
-           IO(println(s"❌ Missing 'openid' scope: $scope")) *> {
+         IO(logger.warn(s"Missing 'openid' scope: $scope")) *>
+           IO(println(s"Missing 'openid' scope: $scope")) *> {
              val error = OidcError(
                "invalid_scope",
                Some("'openid' scope is required"),
@@ -131,22 +131,22 @@ class AuthEndpoint(
        } else {
          // Validate client and redirect URI
          IO(
-           logger.info(s"✅ Response type and scope valid, validating client...")
+           logger.info(s"Response type and scope valid, validating client...")
          ) *>
            IO(
-             println(s"✅ Response type and scope valid, validating client...")
+             println(s"Response type and scope valid, validating client...")
            ) *>
            authService.validateClient(clientId, redirectUri).flatMap {
              isValid =>
                if (!isValid) {
                  IO(
                    logger.warn(
-                     s"❌ Client validation failed for clientId: $clientId, redirectUri: $redirectUri"
+                     s"Client validation failed for clientId: $clientId, redirectUri: $redirectUri"
                    )
                  ) *>
                    IO(
                      println(
-                       s"❌ Client validation failed for clientId: $clientId, redirectUri: $redirectUri"
+                       s"Client validation failed for clientId: $clientId, redirectUri: $redirectUri"
                      )
                    ) *> {
                      val error = OidcError(
@@ -159,9 +159,9 @@ class AuthEndpoint(
                } else {
                  // Show login form
                  IO(
-                   logger.info(s"✅ Client validated, showing login form...")
+                   logger.info(s"Client validated, showing login form...")
                  ) *>
-                   IO(println(s"✅ Client validated, showing login form...")) *>
+                   IO(println(s"Client validated, showing login form...")) *>
                    showLoginForm(clientId, redirectUri, scope, state, nonce)
                }
            }
@@ -248,8 +248,8 @@ class AuthEndpoint(
           )
         )
         .handleErrorWith { error =>
-          IO(logger.warn(s"⚠️ Input validation failed: ${error.getMessage}")) *>
-            IO(println(s"⚠️ Input validation failed: ${error.getMessage}")) *>
+          IO(logger.warn(s"Input validation failed: ${error.getMessage}")) *>
+            IO(println(s"Input validation failed: ${error.getMessage}")) *>
             IO.raiseError(error)
         }
       validUsername = validatedInput._1
@@ -361,8 +361,8 @@ class AuthEndpoint(
       errorMessage: Option[String] = None
   ): IO[Response[IO]] = {
 
-    IO(logger.info(s"🔍 showLoginForm called for clientId: $clientId")) *>
-      IO(println(s"🔍 showLoginForm called for clientId: $clientId")) *>
+    IO(logger.info(s"showLoginForm called for clientId: $clientId")) *>
+      IO(println(s"showLoginForm called for clientId: $clientId")) *>
       (for {
         providers <- authService.getAvailableProviders()
         clientOpt <- authService.findClientByClientIdThatIsKey(clientId)
@@ -507,11 +507,11 @@ class AuthEndpoint(
             org.http4s.headers.`Content-Type`(MediaType.text.html)
           )
         )
-        _ <- IO(logger.info(s"✅ Login form HTML generated successfully"))
-        _ <- IO(println(s"✅ Login form HTML generated successfully"))
+        _ <- IO(logger.info(s"Login form HTML generated successfully"))
+        _ <- IO(println(s"Login form HTML generated successfully"))
       } yield response).flatTap { resp =>
-        IO(logger.info(s"✅ Login form response status: ${resp.status}")) *>
-          IO(println(s"✅ Login form response status: ${resp.status}"))
+        IO(logger.info(s"Login form response status: ${resp.status}")) *>
+          IO(println(s"Login form response status: ${resp.status}"))
       }
   }
 
@@ -618,7 +618,7 @@ class AuthEndpoint(
   ): IO[Response[IO]] = {
     val stateParam = state.map(s => s"&state=${java.net.URLEncoder.encode(s, "UTF-8")}").getOrElse("") // Code URL-encoding
     val location = s"$redirectUri?code=$code$stateParam"
-    IO(println(s"🔄 Redirecting with code to: $location")) *>
+    IO(println(s"Redirecting with code to: $location")) *>
     SeeOther(Location(Uri.unsafeFromString(location)))
   }
 

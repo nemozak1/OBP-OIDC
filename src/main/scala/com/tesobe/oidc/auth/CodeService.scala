@@ -80,10 +80,10 @@ class InMemoryCodeService(
 
       _ <- codesRef.update(_ + (code -> authCode))
       _ = logger.info(
-        s"✅ Generated authorization code: ${code.take(8)}... for clientId: $clientId, redirectUri: $redirectUri, sub: $sub, expires in ${config.codeExpirationSeconds}s"
+        s"Generated authorization code: ${code.take(8)}... for clientId: $clientId, redirectUri: $redirectUri, sub: $sub, expires in ${config.codeExpirationSeconds}s"
       )
       totalCodes <- codesRef.get.map(_.size)
-      _ = logger.info(s"🔍 Total codes in memory: $totalCodes")
+      _ = logger.info(s"Total codes in memory: $totalCodes")
     } yield code
   }
 
@@ -96,24 +96,24 @@ class InMemoryCodeService(
       s"validateAndConsumeCode ENTRY - code: ${code.take(8)}..., clientId: $clientId"
     )
     logger.info(
-      s"🔍 DEBUG: validateAndConsumeCode called with code: ${code.take(8)}..., clientId: $clientId"
+      s"DEBUG: validateAndConsumeCode called with code: ${code.take(8)}..., clientId: $clientId"
     )
     for {
       codes <- codesRef.get
       _ = logger.trace(
         s"Found ${codes.size} stored codes in memory"
       )
-      _ = logger.info(s"🔍 DEBUG: Found ${codes.size} stored codes")
+      _ = logger.info(s"DEBUG: Found ${codes.size} stored codes")
       result <- codes.get(code) match {
         case Some(authCode) =>
           logger.trace(
             s"FOUND authorization code for client: ${authCode.client_id}, sub: ${authCode.sub}"
           )
           logger.info(
-            s"🔍 DEBUG: Found authorization code for client: ${authCode.client_id}, sub: ${authCode.sub}"
+            s"DEBUG: Found authorization code for client: ${authCode.client_id}, sub: ${authCode.sub}"
           )
           logger.info(
-            s"🔍 DEBUG: Code expires at: ${authCode.exp}, current time: ${Instant.now().getEpochSecond}"
+            s"DEBUG: Code expires at: ${authCode.exp}, current time: ${Instant.now().getEpochSecond}"
           )
           validateCode(authCode, clientId, redirectUri).flatMap {
             case Right(validCode) =>
@@ -121,7 +121,7 @@ class InMemoryCodeService(
                 s"Authorization code validation SUCCESS for sub: ${validCode.sub}"
               )
               logger.info(
-                s"✅ DEBUG: Authorization code validated successfully for sub: ${validCode.sub}"
+                s"DEBUG: Authorization code validated successfully for sub: ${validCode.sub}"
               )
               // Consume the code (remove it after use)
               codesRef.update(_ - code).as(validCode.asRight[OidcError])
@@ -131,7 +131,7 @@ class InMemoryCodeService(
                     .getOrElse("No description")}"
               )
               logger.warn(
-                s"❌ DEBUG: Authorization code validation failed: ${error.error} - ${error.error_description
+                s"DEBUG: Authorization code validation failed: ${error.error} - ${error.error_description
                     .getOrElse("No description")}"
               )
               // Remove invalid code
@@ -142,13 +142,13 @@ class InMemoryCodeService(
             s"Authorization code NOT FOUND: ${code.take(8)}..."
           )
           logger.warn(
-            s"❌ DEBUG: Authorization code not found: ${code.take(8)}..."
+            s"DEBUG: Authorization code not found: ${code.take(8)}..."
           )
           logger.warn(
-            s"❌ DEBUG: Available codes in memory: ${codes.keys.map(_.take(8)).mkString(", ")}"
+            s"DEBUG: Available codes in memory: ${codes.keys.map(_.take(8)).mkString(", ")}"
           )
           logger.warn(
-            s"❌ DEBUG: Looking for exact code match for clientId: $clientId, redirectUri: $redirectUri"
+            s"DEBUG: Looking for exact code match for clientId: $clientId, redirectUri: $redirectUri"
           )
           IO.pure(
             OidcError("invalid_grant", Some("Authorization code not found"))
@@ -167,32 +167,32 @@ class InMemoryCodeService(
       val now = Instant.now().getEpochSecond
 
       logger.info(
-        s"🔍 DEBUG: Validating code - Expected clientId: ${authCode.client_id}, Provided: $clientId"
+        s"DEBUG: Validating code - Expected clientId: ${authCode.client_id}, Provided: $clientId"
       )
       logger.info(
-        s"🔍 DEBUG: Validating code - Expected redirectUri: ${authCode.redirect_uri}, Provided: $redirectUri"
+        s"DEBUG: Validating code - Expected redirectUri: ${authCode.redirect_uri}, Provided: $redirectUri"
       )
 
       if (authCode.exp < now) {
         logger.warn(
-          s"❌ DEBUG: Authorization code expired (exp: ${authCode.exp}, now: $now)"
+          s"DEBUG: Authorization code expired (exp: ${authCode.exp}, now: $now)"
         )
         OidcError("invalid_grant", Some("Authorization code expired"))
           .asLeft[AuthorizationCode]
       } else if (authCode.client_id != clientId) {
         logger.warn(
-          s"❌ DEBUG: Client ID mismatch (expected: ${authCode.client_id}, got: $clientId)"
+          s"DEBUG: Client ID mismatch (expected: ${authCode.client_id}, got: $clientId)"
         )
         OidcError("invalid_grant", Some("Client ID mismatch"))
           .asLeft[AuthorizationCode]
       } else if (authCode.redirect_uri != redirectUri) {
         logger.warn(
-          s"❌ DEBUG: Redirect URI mismatch (expected: ${authCode.redirect_uri}, got: $redirectUri)"
+          s"DEBUG: Redirect URI mismatch (expected: ${authCode.redirect_uri}, got: $redirectUri)"
         )
         OidcError("invalid_grant", Some("Redirect URI mismatch"))
           .asLeft[AuthorizationCode]
       } else {
-        logger.info(s"✅ DEBUG: All validations passed for code")
+        logger.info(s"DEBUG: All validations passed for code")
         authCode.asRight[OidcError]
       }
     }

@@ -107,9 +107,9 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
         s"Setting azp (Authorized Party) claim to: $clientId"
       )
       _ = logger.info(
-        s"🎫 Generating ID token for user: ${user.sub}, client: $clientId"
+        s"Generating ID token for user: ${user.sub}, client: $clientId"
       )
-      _ = logger.info(s"🏢 Setting azp (Authorized Party) claim to: $clientId")
+      _ = logger.info(s"Setting azp (Authorized Party) claim to: $clientId")
 
       // Create Identity token (to identify the user at the resource server)
       token = JWT
@@ -136,7 +136,7 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
         s"ID token generated successfully with azp: $clientId"
       )
       _ = logger.trace(s"ID Token JWT: $signedToken")
-      _ = logger.info(s"✅ ID token generated successfully with azp: $clientId")
+      _ = logger.info(s"ID token generated successfully with azp: $clientId")
     } yield signedToken
   }
 
@@ -165,9 +165,9 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
         s"Setting azp (Authorized Party) claim to: $clientId"
       )
       _ = logger.info(
-        s"🎫 Generating Access token for user: ${user.sub}, client: $clientId"
+        s"Generating Access token for user: ${user.sub}, client: $clientId"
       )
-      _ = logger.info(s"🏢 Setting azp (Authorized Party) claim to: $clientId")
+      _ = logger.info(s"Setting azp (Authorized Party) claim to: $clientId")
 
       // Create Access token (to access a resource)
       token = JWT
@@ -192,7 +192,7 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
       )
       _ = logger.trace(s"Access Token JWT: $signedToken")
       _ = logger.info(
-        s"✅ Access token generated successfully with azp: $clientId"
+        s"Access token generated successfully with azp: $clientId"
       )
     } yield signedToken
   }
@@ -209,7 +209,7 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
       issuer = config.issuer
 
       _ = logger.info(
-        s"🔑 Generating client credentials token for client: $clientId"
+        s"Generating client credentials token for client: $clientId"
       )
 
       // Create Access token for client credentials (no user context)
@@ -230,7 +230,7 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
       signedToken = token.sign(algorithm)
 
       _ = logger.info(
-        s"✅ Client credentials token generated successfully for client: $clientId"
+        s"Client credentials token generated successfully for client: $clientId"
       )
     } yield signedToken
   }
@@ -254,7 +254,7 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
       issuer = config.issuer
 
       _ = logger.info(
-        s"🔄 Generating refresh token for user: ${user.sub}, client: $clientId"
+        s"Generating refresh token for user: ${user.sub}, client: $clientId"
       )
 
       // Create Refresh token
@@ -273,7 +273,7 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
       signedToken = token.sign(algorithm)
 
       _ = logger.info(
-        s"✅ Refresh token generated successfully for user: ${user.sub}, client: $clientId"
+        s"Refresh token generated successfully for user: ${user.sub}, client: $clientId"
       )
     } yield signedToken
   }
@@ -310,7 +310,7 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
 
           val azpClaim = Option(decodedJWT.getClaim("azp")).map(_.asString())
           logger.info(
-            s"🔍 Validating access token with azp: ${azpClaim.getOrElse("NONE")}"
+            s"Validating access token with azp: ${azpClaim.getOrElse("NONE")}"
           )
 
           AccessTokenClaims(
@@ -364,7 +364,7 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
           }
 
           logger.info(
-            s"🔍 Validating refresh token for user: ${decodedJWT.getSubject}, client: ${decodedJWT.getClaim("client_id").asString()}"
+            s"Validating refresh token for user: ${decodedJWT.getSubject}, client: ${decodedJWT.getClaim("client_id").asString()}"
           )
 
           RefreshTokenClaims(

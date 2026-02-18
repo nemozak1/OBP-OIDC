@@ -459,12 +459,14 @@ class ObpApiCredentialsService(
     config.obpApiUrl match {
       case None =>
         logger.error("OBP_API_URL is not configured for fetching providers")
+        println("Cannot fetch providers: OBP_API_URL is not configured")
         IO.pure(List.empty)
 
       case Some(baseUrl) =>
         getValidToken().flatMap {
           case Left(error) =>
             logger.error(s"Failed to get token for providers endpoint: ${error.error}")
+            println(s"Cannot fetch providers: failed to obtain DirectLogin token: ${error.error_description.getOrElse(error.error)}")
             IO.pure(List.empty)
           case Right(token) =>
             val endpoint = s"${baseUrl.stripSuffix("/")}/obp/v6.0.0/providers"
@@ -495,12 +497,16 @@ class ObpApiCredentialsService(
                   case status =>
                     response.as[String].flatMap { body =>
                       logger.error(s"Failed to fetch providers from OBP API ($status): $body")
+                      println(s"OBP API GET /obp/v6.0.0/providers returned $status: $body")
+                      println(s"   This error originates from the OBP-API server at ${config.obpApiUrl.getOrElse("unknown")}.")
+                      println(s"   The login page will show no providers. Please check the OBP-API logs for more details.")
                       IO.pure(List.empty)
                     }
                 }
               }
               .handleErrorWith { error =>
                 logger.error(s"Error calling OBP API providers endpoint: ${error.getMessage}", error)
+                println(s"Error calling OBP API GET /obp/v6.0.0/providers: ${error.getMessage}")
                 IO.pure(List.empty)
               }
         }
