@@ -39,6 +39,13 @@ trait AuthService[F[_]] {
     */
   def getUserById(sub: String): F[Option[User]]
 
+  /** Get user information by subject ID and provider.
+    * When a provider is available, this can use the OBP API
+    * (GET /obp/v6.0.0/users/provider/PROVIDER/username/USERNAME)
+    * instead of requiring a database connection.
+    */
+  def getUserBySubAndProvider(sub: String, provider: String): F[Option[User]]
+
   /** Get available authentication providers
     */
   def getAvailableProviders(): F[List[String]]

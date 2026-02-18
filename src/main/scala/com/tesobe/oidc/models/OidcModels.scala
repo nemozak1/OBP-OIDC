@@ -157,6 +157,7 @@ case class AuthorizationCode(
     scope: String,
     state: Option[String] = None,
     nonce: Option[String] = None,
+    provider: Option[String] = None,
     exp: Long // Expiration time
 )
 

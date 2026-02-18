@@ -512,6 +512,85 @@ class ObpApiCredentialsService(
         }
     }
   }
+
+  /** Get user by provider and username via OBP API.
+    * Calls GET /obp/v6.0.0/users/provider/{PROVIDER}/username/{USERNAME}
+    * Requires CanGetAnyUser role.
+    */
+  def getUserByProviderAndUsername(
+      provider: String,
+      username: String
+  ): IO[Option[User]] = {
+    config.obpApiUrl match {
+      case None =>
+        logger.error("OBP_API_URL is not configured for user lookup")
+        IO.pure(None)
+
+      case Some(baseUrl) =>
+        getValidToken().flatMap {
+          case Left(error) =>
+            logger.error(s"Failed to get token for user lookup: ${error.error}")
+            IO.pure(None)
+          case Right(token) =>
+            // Use http4s URI `/` operator to properly percent-encode path segments
+            // (provider can be a URL like "http://127.0.0.1:8080" which contains slashes)
+            val uri = Uri.unsafeFromString(s"${baseUrl.stripSuffix("/")}/obp/v6.0.0/users/provider") / provider / "username" / username
+            logger.info(s"Looking up user via OBP API: $uri")
+
+            val request = Request[IO](
+              method = Method.GET,
+              uri = uri
+            ).putHeaders(
+              Header.Raw(ci"DirectLogin", s"token=$token")
+            )
+
+            client
+              .run(request)
+              .use { response =>
+                response.status match {
+                  case Status.Ok =>
+                    response.as[Json].flatMap { json =>
+                      val cursor = json.hcursor
+                      val user = for {
+                        userId <- cursor.get[String]("user_id")
+                        uname <- cursor.get[String]("username")
+                        email = cursor.get[String]("email").toOption
+                        prov <- cursor.get[String]("provider")
+                      } yield User(
+                        sub = uname,
+                        username = uname,
+                        password = "",
+                        name = None,
+                        email = email,
+                        email_verified = Some(true),
+                        provider = Some(prov)
+                      )
+                      user match {
+                        case Right(u) =>
+                          logger.info(s"User found via OBP API: ${u.username}")
+                          IO.pure(Some(u))
+                        case Left(err) =>
+                          logger.error(s"Failed to parse user response: ${err.getMessage}")
+                          IO.pure(None)
+                      }
+                    }
+                  case status =>
+                    response.as[String].flatMap { body =>
+                      logger.warn(s"User lookup via OBP API returned $status: $body")
+                      IO.pure(None)
+                    }
+                }
+              }
+              .handleErrorWith { error =>
+                logger.error(
+                  s"Error calling OBP API user lookup: ${error.getMessage}",
+                  error
+                )
+                IO.pure(None)
+              }
+        }
+    }
+  }
 }
 
 /** Response structure for entitlements check */
@@ -536,6 +615,78 @@ object ObpApiCredentialsService {
 
   private val logger = LoggerFactory.getLogger(getClass)
   private val RequiredRole = "CanVerifyUserCredentials"
+
+  /** Check that the OBP API user has all the specified required roles.
+    * Returns Right with success message if all roles are present,
+    * or Left with error message listing missing roles.
+    * This is intended as a hard startup check - callers should abort on Left.
+    */
+  def checkRequiredRoles(
+      config: OidcConfig,
+      requiredRoles: List[String]
+  ): IO[Either[String, String]] = {
+    val username = config.obpApiUsername.getOrElse("unknown")
+    val baseUrl = config.obpApiUrl.getOrElse("unknown")
+
+    EmberClientBuilder.default[IO].build.use { httpClient =>
+      for {
+        tokenRefLocal <- Ref.of[IO, Option[CachedToken]](None)
+        service = new ObpApiCredentialsService(httpClient, config, tokenRefLocal)
+        tokenResult <- service.obtainDirectLoginToken()
+        result <- tokenResult match {
+          case Left(error) =>
+            IO.pure(Left(
+              s"Cannot check roles: OBP API connection failed: ${error.error_description.getOrElse(error.error)}"
+            ))
+          case Right(token) =>
+            val endpoint = s"${baseUrl.stripSuffix("/")}/obp/v6.0.0/my/entitlements"
+            logger.info(s"Checking required roles at: $endpoint")
+
+            val request = Request[IO](
+              method = Method.GET,
+              uri = Uri.unsafeFromString(endpoint)
+            ).putHeaders(
+              Header.Raw(ci"DirectLogin", s"token=$token")
+            )
+
+            httpClient
+              .run(request)
+              .use { response =>
+                response.status match {
+                  case Status.Ok =>
+                    response.as[Json].map { json =>
+                      val userRoles = json.hcursor.get[List[EntitlementInfo]]("list") match {
+                        case Right(entitlements) => entitlements.map(_.role_name).toSet
+                        case Left(_) => Set.empty[String]
+                      }
+                      val present = requiredRoles.filter(userRoles.contains)
+                      val missing = requiredRoles.filterNot(userRoles.contains)
+                      if (missing.isEmpty) {
+                        Right(
+                          s"Role check passed: OBP API user '$username' has all ${requiredRoles.size} required roles: ${requiredRoles.mkString(", ")}"
+                        )
+                      } else {
+                        Left(
+                          s"STARTUP ABORTED: OBP API user '$username' is missing required role(s): ${missing.mkString(", ")}. " +
+                          s"Please grant these roles to user '$username' at $baseUrl and restart. " +
+                          s"Roles present: ${if (present.nonEmpty) present.mkString(", ") else "none"}. " +
+                          s"All required roles: ${requiredRoles.mkString(", ")}"
+                        )
+                      }
+                    }
+                  case status =>
+                    response.as[String].map { body =>
+                      Left(s"Failed to check entitlements (HTTP $status): $body")
+                    }
+                }
+              }
+              .handleErrorWith { error =>
+                IO.pure(Left(s"Error checking entitlements: ${error.getMessage}"))
+              }
+        }
+      } yield result
+    }
+  }
 
   /** Create an ObpApiCredentialsService with http4s Ember client
     */

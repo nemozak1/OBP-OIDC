@@ -224,7 +224,7 @@ OBP-OIDC supports two modes for verifying users, clients, and listing providers,
 - Verifies clients via `GET /obp/v6.0.0/oidc/clients/CLIENT_ID`
 - Lists providers via `GET /obp/v6.0.0/providers`
 - Useful when you don't want to grant direct database access to OBP-OIDC
-- Requires `OBP_API_USERNAME` to have `CanVerifyUserCredentials`, `CanGetOidcClient` and `CanGetConsumers` roles
+- Requires `OBP_API_USERNAME` to have `CanVerifyUserCredentials`, `CanGetAnyUser`, `CanGetOidcClient` and `CanGetConsumers` roles
 - When combined with `OIDC_SKIP_CLIENT_BOOTSTRAP=true`, no database connection is needed at all
 
 **Configuration:**
@@ -236,7 +236,7 @@ USE_VERIFY_ENDPOINTS=false
 # Alternative: Use OBP API endpoints
 USE_VERIFY_ENDPOINTS=true
 OBP_API_URL=http://localhost:8080
-OBP_API_USERNAME=admin_user          # Needs CanVerifyUserCredentials + CanGetOidcClient + CanGetConsumers roles
+OBP_API_USERNAME=admin_user          # Needs CanVerifyUserCredentials + CanGetAnyUser + CanGetOidcClient + CanGetConsumers roles
 OBP_API_PASSWORD=admin_password
 OBP_API_CONSUMER_KEY=your_consumer_key
 ```

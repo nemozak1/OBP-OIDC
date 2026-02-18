@@ -19,7 +19,7 @@
 
 package com.tesobe.oidc.auth
 
-import cats.effect.{IO, Resource}
+import cats.effect.{IO, Ref, Resource}
 import cats.implicits._
 import com.tesobe.oidc.config.{DatabaseConfig, DbVendor, ListProvidersMethod, OidcConfig, VerifyCredentialsMethod, VerifyClientMethod}
 import com.tesobe.oidc.models.{User, UserInfo, OidcError, OidcClient}
@@ -50,7 +50,8 @@ class HybridAuthService(
     adminTransactor: Option[Transactor[IO]] = None,
     config: OidcConfig,
     obpApiCredentialsService: Option[ObpApiCredentialsService] = None,
-    obpApiClientService: Option[ObpApiClientService] = None
+    obpApiClientService: Option[ObpApiClientService] = None,
+    userCacheRef: Option[Ref[IO, Map[String, User]]] = None
 ) extends AuthService[IO] {
 
   private val logger = LoggerFactory.getLogger(getClass)
@@ -150,7 +151,7 @@ class HybridAuthService(
     )
 
     // Check which credential validation method to use
-    config.verifyCredentialsMethod match {
+    val result = config.verifyCredentialsMethod match {
       case VerifyCredentialsMethod.ViaApiEndpoint =>
         logger.info(
           s"Using OBP API endpoint for credential verification (verify_credentials_endpoint)"
@@ -185,6 +186,20 @@ class HybridAuthService(
           s"Using v_oidc_users database view for credential verification (v_oidc_users)"
         )
         authenticateViaDatabase(username, password, provider)
+    }
+
+    // Cache the user on successful authentication (for getUserById in API-only mode)
+    result.flatMap {
+      case Right(user) =>
+        userCacheRef match {
+          case Some(ref) =>
+            ref.update(_ + (user.sub -> user)) *>
+              IO(logger.info(s"Cached authenticated user: ${user.sub}")) *>
+              IO.pure(Right(user))
+          case None =>
+            IO.pure(Right(user))
+        }
+      case left => IO.pure(left)
     }
   }
 
@@ -323,7 +338,42 @@ class HybridAuthService(
   /** Get user by ID (for UserInfo endpoint) - required by AuthService interface
     */
   def getUserById(sub: String): IO[Option[User]] = {
-    findUserByUserId(sub).map(_.map(_.toUser))
+    // When database is available, query it directly
+    if (transactor.isDefined) {
+      findUserByUserId(sub).map(_.map(_.toUser))
+    } else {
+      // In API-only mode, use the user cache populated during authentication
+      userCacheRef match {
+        case Some(ref) =>
+          ref.get.map(_.get(sub)).flatTap {
+            case Some(_) => IO(logger.info(s"getUserById: Found user '$sub' in cache"))
+            case None => IO(logger.warn(s"getUserById: User '$sub' not found in cache"))
+          }
+        case None =>
+          IO(logger.warn(s"getUserById: No database and no user cache available for '$sub'")) *>
+            IO.pure(None)
+      }
+    }
+  }
+
+  /** Get user by subject ID and provider.
+    * Uses OBP API when in API-only mode, falls back to database otherwise.
+    */
+  def getUserBySubAndProvider(sub: String, provider: String): IO[Option[User]] = {
+    if (transactor.isDefined) {
+      // Database mode: query directly
+      findUserByUserId(sub).map(_.map(_.toUser))
+    } else {
+      // API-only mode: call OBP API GET /obp/v6.0.0/users/provider/PROVIDER/username/USERNAME
+      obpApiCredentialsService match {
+        case Some(service) =>
+          logger.info(s"getUserBySubAndProvider: Looking up user '$sub' with provider '$provider' via OBP API")
+          service.getUserByProviderAndUsername(provider, sub)
+        case None =>
+          logger.warn(s"getUserBySubAndProvider: No OBP API credentials service available for user '$sub'")
+          IO.pure(None)
+      }
+    }
   }
 
   /** Get user information by username (for UserInfo endpoint)
@@ -1585,12 +1635,14 @@ object HybridAuthService {
           ) *>
             Resource.pure[IO, Option[ObpApiClientService]](None)
       }
+      userCache <- Resource.eval(Ref.of[IO, Map[String, User]](Map.empty))
       service = new HybridAuthService(
         readTransactor,
         adminTransactor,
         config,
         obpApiService,
-        obpApiClientService
+        obpApiClientService,
+        Some(userCache)
       )
       _ <- Resource.eval(
         IO(logger.info("HybridAuthService created successfully"))

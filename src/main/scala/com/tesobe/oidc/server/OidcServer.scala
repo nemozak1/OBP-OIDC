@@ -128,6 +128,7 @@ object OidcServer extends IOApp {
           println(s"   OIDC_SKIP_CLIENT_BOOTSTRAP=true")
           println(s"   USE_VERIFY_ENDPOINTS=true")
           println(s"     -> Credentials verified via OBP API (requires OBP_API_USERNAME '$username' to have role CanVerifyUserCredentials)")
+          println(s"     -> User lookup via OBP API (requires OBP_API_USERNAME '$username' to have role CanGetAnyUser)")
           println(s"     -> Clients verified via OBP API (requires OBP_API_USERNAME '$username' to have role CanGetOidcClient)")
           println(s"     -> Consumers listed via OBP API (requires OBP_API_USERNAME '$username' to have role CanGetConsumers)")
           println(s"     -> Providers listed via OBP API (GET /obp/v6.0.0/providers - no special role required, just authentication)")
@@ -156,30 +157,34 @@ object OidcServer extends IOApp {
         }
       } else IO.unit
 
-      // Test OBP API connection if using verify_credentials_endpoint method
-      _ <- config.verifyCredentialsMethod match {
-        case VerifyCredentialsMethod.ViaApiEndpoint =>
+      // Test OBP API connection and verify all required roles
+      _ <- {
+        val requiredRoles = List.empty[String] ++
+          (config.verifyCredentialsMethod match {
+            case VerifyCredentialsMethod.ViaApiEndpoint => List("CanVerifyUserCredentials", "CanGetAnyUser")
+            case _ => List.empty
+          }) ++
+          (config.verifyClientMethod match {
+            case VerifyClientMethod.ViaApiEndpoint => List("CanGetOidcClient", "CanGetConsumers")
+            case _ => List.empty
+          })
+
+        if (requiredRoles.nonEmpty) {
+          // Step 1: Verify OBP API connectivity (with retry/backoff for when OBP-API is starting up)
           retryWithBackoff(
             ObpApiCredentialsService.testConnection(config),
-            "credential verification",
+            "OBP API connection",
             config.obpApiRetryMaxAttempts,
             config.obpApiRetryDelaySeconds.seconds
-          ).flatMap(msg => IO(println(msg)))
-        case VerifyCredentialsMethod.ViaOidcUsersView =>
-          IO.unit // Database connection already tested above
-      }
-
-      // Test OBP API connection if using verify_client_endpoint method
-      _ <- config.verifyClientMethod match {
-        case VerifyClientMethod.ViaApiEndpoint =>
-          retryWithBackoff(
-            ObpApiClientService.testConnection(config),
-            "client verification",
-            config.obpApiRetryMaxAttempts,
-            config.obpApiRetryDelaySeconds.seconds
-          ).flatMap(msg => IO(println(msg)))
-        case VerifyClientMethod.ViaDatabase =>
-          IO.unit // Database connection already tested above
+          ).flatMap(msg => IO(println(msg))) *>
+          // Step 2: Check all required roles (abort immediately if any are missing)
+          ObpApiCredentialsService.checkRequiredRoles(config, requiredRoles).flatMap {
+            case Right(msg) => IO(println(msg))
+            case Left(error) => IO.raiseError(new RuntimeException(error))
+          }
+        } else {
+          IO.unit
+        }
       }
 
       exitCode <- HybridAuthService.create(config).use { authService =>
@@ -950,6 +955,7 @@ object OidcServer extends IOApp {
                   IO(println(s"  OBP API Username: $username")) *>
                   IO(println(s"  Required roles for OBP_API_USERNAME '$username':")) *>
                   IO(println(s"    - CanVerifyUserCredentials (for POST /obp/v6.0.0/users/verify-credentials)")) *>
+                  IO(println(s"    - CanGetAnyUser (for GET /obp/v6.0.0/users/provider/PROVIDER/username/USERNAME)")) *>
                   IO(println(s"    - CanGetOidcClient (for GET /obp/v6.0.0/oidc/clients/CLIENT_ID)")) *>
                   IO(println(s"    - CanGetConsumers (for GET /obp/v6.0.0/management/consumers)")) *>
                   IO(println(s"  No special role required for GET /obp/v6.0.0/providers (just authentication)"))

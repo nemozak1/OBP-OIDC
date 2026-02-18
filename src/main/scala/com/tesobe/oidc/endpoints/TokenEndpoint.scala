@@ -126,13 +126,19 @@ class TokenEndpoint(
     val clientSecretFromForm = formData.get("client_secret")
     // Prefer Basic credentials if present; fall back to form client_id
     val resolvedClientId = clientIdFromBasic.orElse(clientIdFromForm)
+    val credentialSource = if (clientIdFromBasic.isDefined) "Basic auth header" else if (clientIdFromForm.isDefined) "form data" else "NONE"
     val refreshToken = formData.get("refresh_token")
 
     println(s"DEBUG: Grant type extracted: ${grantType}")
     logger.info(s"Grant type: ${grantType.getOrElse("MISSING")}")
     logger.info(s"Code: ${code.map(_ => "PROVIDED").getOrElse("MISSING")}")
     logger.info(s"Redirect URI: ${redirectUri.getOrElse("MISSING")}")
-    logger.info(s"Client ID: ${resolvedClientId.getOrElse("MISSING")}")
+    logger.info(s"Client ID: ${resolvedClientId.getOrElse("MISSING")} (source: $credentialSource)")
+    clientSecretFromBasic.foreach { secret =>
+      val masked = if (secret.length <= 4) "****"
+        else secret.take(2) + "*" * (secret.length - 4) + secret.takeRight(2)
+      logger.info(s"Client secret from Basic auth: length=${secret.length}, masked=$masked")
+    }
 
     println(s"DEBUG: About to match on parameters")
     grantType match {
@@ -309,11 +315,16 @@ class TokenEndpoint(
         logger.info(
           s"DEBUG: AuthCode details - scope: ${authCode.scope}, nonce: ${authCode.nonce}"
         )
-        // Get user information
-        logger.trace(
-          s"About to call getUserById for sub: ${authCode.sub}"
+        // Get user information - use provider from auth code when available (API mode)
+        logger.info(
+          s"Looking up user: sub=${authCode.sub}, provider=${authCode.provider.getOrElse("none")}"
         )
-        authService.getUserById(authCode.sub).flatMap {
+        (authCode.provider match {
+          case Some(provider) =>
+            authService.getUserBySubAndProvider(authCode.sub, provider)
+          case None =>
+            authService.getUserById(authCode.sub)
+        }).flatMap {
           case Some(user) =>
             logger.trace(s"User FOUND: ${user.username}")
             logger.info(s"User found: ${user.username}, generating tokens...")

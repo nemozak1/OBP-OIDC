@@ -21,7 +21,7 @@ package com.tesobe.oidc.endpoints
 
 import cats.effect.IO
 import com.tesobe.oidc.auth.{AuthService, CodeService}
-import com.tesobe.oidc.models.{OidcError}
+import com.tesobe.oidc.models.{OidcError, User}
 import com.tesobe.oidc.ratelimit.RateLimitService
 import com.tesobe.oidc.config.OidcConfig
 import org.http4s._
@@ -288,10 +288,8 @@ class AuthEndpoint(
             IO(
               logger.info(s"Authentication successful for user: ${user.sub}")
             ) *>
-            authenticateAndGenerateCode(
-              validUsername,
-              validPassword,
-              validProvider,
+            generateCodeForUser(
+              user,
               clientId,
               redirectUri,
               scope,
@@ -303,7 +301,12 @@ class AuthEndpoint(
           rateLimitService.checkAndRecordFailedAttempt(ip, validUsername) *>
             IO(
               logger.warn(
-                s"Authentication failed for username: '$validUsername', error: ${error.error}"
+                s"Authentication failed for username: '$validUsername', provider: '$validProvider', error: ${error.error}, description: ${error.error_description.getOrElse("none")}"
+              )
+            ) *>
+            IO(
+              println(
+                s"Authentication failed for username: '$validUsername', provider: '$validProvider', error: ${error.error}, description: ${error.error_description.getOrElse("none")}"
               )
             ) *>
             showLoginForm(
@@ -324,32 +327,20 @@ class AuthEndpoint(
     BadRequest(s"Invalid form data: ${error.getMessage}")
   }
 
-  private def authenticateAndGenerateCode(
-      username: String,
-      password: String,
-      provider: String,
+  private def generateCodeForUser(
+      user: User,
       clientId: String,
       redirectUri: String,
       scope: String,
       state: Option[String],
       nonce: Option[String]
   ): IO[Response[IO]] = {
-
-    authService.authenticate(username, password, provider).flatMap {
-      case Right(user) =>
-        for {
-          _ <- statsService.incrementLoginSuccess(username)
-          code <- codeService
-            .generateCode(clientId, redirectUri, user.sub, scope, state, nonce)
-          response <- redirectWithCode(redirectUri, code, state)
-        } yield response
-
-      case Left(error) =>
-        for {
-          _ <- statsService.incrementLoginFailure(username, error.error)
-          response <- redirectWithError(redirectUri, error.copy(state = state))
-        } yield response
-    }
+    for {
+      _ <- statsService.incrementLoginSuccess(user.username)
+      code <- codeService
+        .generateCode(clientId, redirectUri, user.sub, scope, state, nonce, user.provider)
+      response <- redirectWithCode(redirectUri, code, state)
+    } yield response
   }
 
   private def showLoginForm(

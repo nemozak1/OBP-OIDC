@@ -305,8 +305,13 @@ class ObpApiClientService(
           case Right(token) =>
             val endpoint =
               s"${baseUrl.stripSuffix("/")}/obp/v6.0.0/oidc/clients/verify"
+            val maskedSecret = if (clientSecret.length <= 4) "****"
+              else clientSecret.take(2) + "*" * (clientSecret.length - 4) + clientSecret.takeRight(2)
             logger.info(
               s"Verifying client via OBP API: $endpoint for client_id: $clientId"
+            )
+            logger.info(
+              s"Client secret being sent: length=${clientSecret.length}, masked=$maskedSecret"
             )
 
             val requestBody = VerifyClientRequest(
@@ -512,28 +517,35 @@ class ObpApiClientService(
               .use { response =>
                 response.status match {
                   case Status.Ok =>
-                    response.as[Json].flatMap { json =>
-                      json.as[ConsumersResponse] match {
-                        case Right(consumersResp) =>
-                          val clients = consumersResp.consumers.map { c =>
-                            OidcClient(
-                              client_id = c.consumer_key,
-                              client_secret = None,
-                              consumer_id = c.consumer_id,
-                              client_name = c.app_name,
-                              redirect_uris = c.redirect_url.split("[,\\s]+").map(_.trim).filter(_.nonEmpty).toList,
-                              grant_types = List("authorization_code", "refresh_token"),
-                              response_types = List("code"),
-                              scopes = List("openid", "profile", "email"),
-                              token_endpoint_auth_method = "client_secret_basic",
-                              created_at = c.created
-                            )
+                    response.as[String].flatMap { rawBody =>
+                      logger.info(s"OBP API consumers response (raw): $rawBody")
+                      io.circe.parser.parse(rawBody) match {
+                        case Right(json) =>
+                          json.as[ConsumersResponse] match {
+                            case Right(consumersResp) =>
+                              val clients = consumersResp.consumers.map { c =>
+                                OidcClient(
+                                  client_id = c.consumer_key,
+                                  client_secret = None,
+                                  consumer_id = c.consumer_id,
+                                  client_name = c.app_name,
+                                  redirect_uris = c.redirect_url.split("[,\\s]+").map(_.trim).filter(_.nonEmpty).toList,
+                                  grant_types = List("authorization_code", "refresh_token"),
+                                  response_types = List("code"),
+                                  scopes = List("openid", "profile", "email"),
+                                  token_endpoint_auth_method = "client_secret_basic",
+                                  created_at = c.created
+                                )
+                              }
+                              logger.info(s"Found ${clients.size} consumers via OBP API")
+                              IO.pure(Right(clients))
+                            case Left(error) =>
+                              logger.error(s"Failed to parse consumers response: ${error.getMessage}. Raw body: $rawBody")
+                              IO.pure(Left(OidcError("server_error", Some(s"Failed to parse OBP API response: $rawBody"))))
                           }
-                          logger.info(s"Found ${clients.size} consumers via OBP API")
-                          IO.pure(Right(clients))
-                        case Left(error) =>
-                          logger.error(s"Failed to parse consumers response: ${error.getMessage}")
-                          IO.pure(Left(OidcError("server_error", Some(s"Failed to parse response: ${error.getMessage}"))))
+                        case Left(parseError) =>
+                          logger.error(s"OBP API returned non-JSON response: $rawBody")
+                          IO.pure(Left(OidcError("server_error", Some(s"OBP API returned non-JSON: $rawBody"))))
                       }
                     }
 

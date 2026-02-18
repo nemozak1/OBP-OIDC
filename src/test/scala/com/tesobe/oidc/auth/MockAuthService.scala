@@ -81,6 +81,10 @@ class MockAuthService extends AuthService[IO] {
     users.values.find(_.sub == sub)
   }
 
+  def getUserBySubAndProvider(sub: String, provider: String): IO[Option[User]] = IO {
+    users.values.find(u => u.sub == sub && u.provider.contains(provider))
+  }
+
   def getAvailableProviders(): IO[List[String]] = IO {
     List("obp-test", "test-provider")
   }
