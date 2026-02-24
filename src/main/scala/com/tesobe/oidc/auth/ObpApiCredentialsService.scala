@@ -576,7 +576,7 @@ class ObpApiCredentialsService(
                     }
                   case status =>
                     response.as[String].flatMap { body =>
-                      logger.warn(s"User lookup via OBP API returned $status: $body")
+                      logger.warn(s"User lookup via OBP API: GET $uri returned $status: $body")
                       IO.pure(None)
                     }
                 }
@@ -616,15 +616,26 @@ object ObpApiCredentialsService {
   private val logger = LoggerFactory.getLogger(getClass)
   private val RequiredRole = "CanVerifyUserCredentials"
 
+  /** Result of checking required roles, including per-role status. */
+  case class RoleCheckResult(
+      userRoles: Set[String],
+      requiredRoles: List[String]
+  ) {
+    def roleStatus(role: String): Boolean = userRoles.contains(role)
+    def missing: List[String] = requiredRoles.filterNot(userRoles.contains)
+    def allPresent: Boolean = missing.isEmpty
+  }
+
   /** Check that the OBP API user has all the specified required roles.
-    * Returns Right with success message if all roles are present,
-    * or Left with error message listing missing roles.
-    * This is intended as a hard startup check - callers should abort on Left.
+    * Returns Right with RoleCheckResult if entitlements could be fetched
+    * (even if some roles are missing), or Left with error message if
+    * the check itself failed.
+    * Callers should inspect RoleCheckResult.allPresent to decide whether to abort.
     */
   def checkRequiredRoles(
       config: OidcConfig,
       requiredRoles: List[String]
-  ): IO[Either[String, String]] = {
+  ): IO[Either[String, RoleCheckResult]] = {
     val username = config.obpApiUsername.getOrElse("unknown")
     val baseUrl = config.obpApiUrl.getOrElse("unknown")
 
@@ -659,20 +670,7 @@ object ObpApiCredentialsService {
                         case Right(entitlements) => entitlements.map(_.role_name).toSet
                         case Left(_) => Set.empty[String]
                       }
-                      val present = requiredRoles.filter(userRoles.contains)
-                      val missing = requiredRoles.filterNot(userRoles.contains)
-                      if (missing.isEmpty) {
-                        Right(
-                          s"Role check passed: OBP API user '$username' has all ${requiredRoles.size} required roles: ${requiredRoles.mkString(", ")}"
-                        )
-                      } else {
-                        Left(
-                          s"STARTUP ABORTED: OBP API user '$username' is missing required role(s): ${missing.mkString(", ")}. " +
-                          s"Please grant these roles to user '$username' at $baseUrl and restart. " +
-                          s"Roles present: ${if (present.nonEmpty) present.mkString(", ") else "none"}. " +
-                          s"All required roles: ${requiredRoles.mkString(", ")}"
-                        )
-                      }
+                      Right(RoleCheckResult(userRoles, requiredRoles))
                     }
                   case status =>
                     response.as[String].map { body =>

@@ -158,6 +158,7 @@ object OidcServer extends IOApp {
       } else IO.unit
 
       // Test OBP API connection and verify all required roles
+      roleCheckRef <- cats.effect.Ref.of[IO, Option[ObpApiCredentialsService.RoleCheckResult]](None)
       _ <- {
         val requiredRoles = List.empty[String] ++
           (config.verifyCredentialsMethod match {
@@ -179,7 +180,18 @@ object OidcServer extends IOApp {
           ).flatMap(msg => IO(println(msg))) *>
           // Step 2: Check all required roles (abort immediately if any are missing)
           ObpApiCredentialsService.checkRequiredRoles(config, requiredRoles).flatMap {
-            case Right(msg) => IO(println(msg))
+            case Right(roleCheck) =>
+              val username = config.obpApiUsername.getOrElse("unknown")
+              val baseUrl = config.obpApiUrl.getOrElse("unknown")
+              roleCheckRef.set(Some(roleCheck)) *>
+              (if (roleCheck.allPresent) {
+                IO(println(s"Role check passed: OBP API user '$username' has all ${requiredRoles.size} required roles"))
+              } else {
+                IO.raiseError(new RuntimeException(
+                  s"STARTUP ABORTED: OBP API user '$username' is missing required role(s): ${roleCheck.missing.mkString(", ")}. " +
+                  s"Please grant these roles to user '$username' at $baseUrl and restart."
+                ))
+              })
             case Left(error) => IO.raiseError(new RuntimeException(error))
           }
         } else {
@@ -951,13 +963,24 @@ object OidcServer extends IOApp {
                 IO(println(s"USE_VERIFY_ENDPOINTS: ${config.useVerifyEndpoints}")) *>
                 (if (config.useVerifyEndpoints) {
                   val username = config.obpApiUsername.getOrElse("unknown")
+                  val roleEndpoints = List(
+                    ("CanVerifyUserCredentials", "POST /obp/v6.0.0/users/verify-credentials"),
+                    ("CanGetAnyUser", "GET /obp/v6.0.0/users/provider/PROVIDER/username/USERNAME"),
+                    ("CanGetOidcClient", "GET /obp/v6.0.0/oidc/clients/CLIENT_ID"),
+                    ("CanGetConsumers", "GET /obp/v6.0.0/management/consumers")
+                  )
                   IO(println("  All verification methods use OBP API endpoints")) *>
                   IO(println(s"  OBP API Username: $username")) *>
                   IO(println(s"  Required roles for OBP_API_USERNAME '$username':")) *>
-                  IO(println(s"    - CanVerifyUserCredentials (for POST /obp/v6.0.0/users/verify-credentials)")) *>
-                  IO(println(s"    - CanGetAnyUser (for GET /obp/v6.0.0/users/provider/PROVIDER/username/USERNAME)")) *>
-                  IO(println(s"    - CanGetOidcClient (for GET /obp/v6.0.0/oidc/clients/CLIENT_ID)")) *>
-                  IO(println(s"    - CanGetConsumers (for GET /obp/v6.0.0/management/consumers)")) *>
+                  roleCheckRef.get.flatMap { roleCheckOpt =>
+                    roleEndpoints.foldLeft(IO.unit) { case (acc, (role, endpoint)) =>
+                      val status = roleCheckOpt match {
+                        case Some(rc) => if (rc.roleStatus(role)) "OK" else "NOT OK"
+                        case None => "UNKNOWN"
+                      }
+                      acc *> IO(println(s"    - $role (for $endpoint) ... $status"))
+                    }
+                  } *>
                   IO(println(s"  No special role required for GET /obp/v6.0.0/providers (just authentication)"))
                 } else {
                   IO(println("  Credential verification: v_oidc_users (database view)")) *>
