@@ -175,7 +175,7 @@ class RegistrationEndpoint(
             InternalServerError(
               ClientRegistrationError(
                 "server_error",
-                Some(s"Failed to register client: ${error.error_description.getOrElse("Unknown error")}")
+                Some("Registration failed. Please try again later.")
               ).asJson
             ).map(addNoCacheHeaders)
         }

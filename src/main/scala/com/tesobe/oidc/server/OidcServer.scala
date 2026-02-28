@@ -42,6 +42,10 @@ import scala.concurrent.duration._
 
 object OidcServer extends IOApp {
 
+  private def htmlEncode(s: String): String =
+    s.replace("&", "&amp;").replace("<", "&lt;")
+     .replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#x27;")
+
   private def retryWithBackoff(
       action: IO[Either[String, String]],
       description: String,
@@ -540,10 +544,10 @@ object OidcServer extends IOApp {
                                 }
                                 .distinct
                                 .map(url =>
-                                  s"""<a href="$url" target="_blank">$url</a>"""
+                                  s"""<a href="${htmlEncode(url)}" target="_blank">${htmlEncode(url)}</a>"""
                                 )
                                 .mkString(", ")
-                            s"""<div class="app">${client.client_name}: $redirectUrlsList</div>"""
+                            s"""<div class="app">${htmlEncode(client.client_name)}: $redirectUrlsList</div>"""
                           }
                           .mkString("")
                         s"""

@@ -40,6 +40,10 @@ class AuthEndpoint(
 
   private val logger = LoggerFactory.getLogger(getClass)
 
+  private def htmlEncode(s: String): String =
+    s.replace("&", "&amp;").replace("<", "&lt;")
+     .replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#x27;")
+
   // Test logging immediately when class is created
   logger.info("AuthEndpoint created - logging is working!")
   println("AuthEndpoint created - logging is working!")
@@ -375,7 +379,7 @@ class AuthEndpoint(
         consumerId = clientOpt.map(_.consumer_id).getOrElse("Unknown Consumer")
 
         // Format client name for production display: replace dashes with spaces and convert to proper case
-        formattedClientName = clientName
+        formattedClientName = htmlEncode(clientName
           .replace("-", " ")
           .split(" ")
           .map(word =>
@@ -383,7 +387,7 @@ class AuthEndpoint(
             else word.charAt(0).toUpper + word.substring(1).toLowerCase
           )
           .mkString(" ")
-          .replace("Obp ", "OBP ")
+          .replace("Obp ", "OBP "))
 
         errorHtml = errorMessage
           .map(msg => s"""<div class="error">$msg</div>""")
@@ -434,10 +438,10 @@ class AuthEndpoint(
           $errorHtml
           ${if (config.localDevelopmentMode) {
             s"""<div class="info">
-            <strong>Consumer ID:</strong> $consumerId<br>
-            <strong>Client Name:</strong> $clientName<br>
-            <strong>Client ID:</strong> $clientId<br>
-            <strong>Requested Scopes:</strong> $scope
+            <strong>Consumer ID:</strong> ${htmlEncode(consumerId)}<br>
+            <strong>Client Name:</strong> ${htmlEncode(clientName)}<br>
+            <strong>Client ID:</strong> ${htmlEncode(clientId)}<br>
+            <strong>Requested Scopes:</strong> ${htmlEncode(scope)}
           </div>"""
           } else {
             ""
@@ -617,7 +621,7 @@ class AuthEndpoint(
       redirectUri: String,
       error: OidcError
   ): IO[Response[IO]] = {
-    val stateParam = error.state.map(s => s"&state=$s").getOrElse("")
+    val stateParam = error.state.map(s => s"&state=${java.net.URLEncoder.encode(s, "UTF-8")}").getOrElse("")
     val descriptionParam = error.error_description
       .map(d => s"&error_description=${java.net.URLEncoder.encode(d, "UTF-8")}")
       .getOrElse("")
