@@ -21,15 +21,12 @@ package com.tesobe.oidc.endpoints
 
 import cats.effect.IO
 import com.tesobe.oidc.auth.HybridAuthService
+import com.tesobe.oidc.endpoints.HtmlUtils.htmlEncode
 import com.tesobe.oidc.models.OidcClient
 import org.http4s._
 import org.http4s.dsl.io._
 
 class ClientsEndpoint(authService: HybridAuthService) {
-
-  private def htmlEncode(s: String): String =
-    s.replace("&", "&amp;").replace("<", "&lt;")
-     .replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#x27;")
 
   val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
     case GET -> Root / "clients" =>
