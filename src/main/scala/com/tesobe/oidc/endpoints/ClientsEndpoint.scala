@@ -27,6 +27,10 @@ import org.http4s.dsl.io._
 
 class ClientsEndpoint(authService: HybridAuthService) {
 
+  private def htmlEncode(s: String): String =
+    s.replace("&", "&amp;").replace("<", "&lt;")
+     .replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#x27;")
+
   val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
     case GET -> Root / "clients" =>
       handleClientsListRequest()
@@ -205,30 +209,30 @@ class ClientsEndpoint(authService: HybridAuthService) {
       "<em>None</em>"
     } else {
       "<ul>" + client.redirect_uris
-        .map(uri => s"<li>$uri</li>")
+        .map(uri => s"<li>${htmlEncode(uri)}</li>")
         .mkString("") + "</ul>"
     }
 
     val scopesList = client.scopes
-      .map(scope => s"""<span class="scope">$scope</span>""")
+      .map(scope => s"""<span class="scope">${htmlEncode(scope)}</span>""")
       .mkString(" ")
 
     val clientSecretDisplay = client.client_secret match {
-      case Some(secret) => s"""<span class="client-secret">$secret</span>"""
+      case Some(secret) => s"""<span class="client-secret">${htmlEncode(secret)}</span>"""
       case None         => "<em>Not set</em>"
     }
 
     s"""<tr>
-       |    <td><span class="consumer-id">${client.consumer_id}</span></td>
-       |    <td><span class="client-name">${client.client_name}</span></td>
-       |    <td><span class="client-id">${client.client_id}</span></td>
+       |    <td><span class="consumer-id">${htmlEncode(client.consumer_id)}</span></td>
+       |    <td><span class="client-name">${htmlEncode(client.client_name)}</span></td>
+       |    <td><span class="client-id">${htmlEncode(client.client_id)}</span></td>
        |    <td>$clientSecretDisplay</td>
        |    <td class="redirect-uris">$redirectUrisList</td>
        |    <td class="scopes">$scopesList</td>
-       |    <td>${client.token_endpoint_auth_method}</td>
-       |    <td class="created-at">${client.created_at.getOrElse(
+       |    <td>${htmlEncode(client.token_endpoint_auth_method)}</td>
+       |    <td class="created-at">${htmlEncode(client.created_at.getOrElse(
         "Unknown"
-      )}</td>
+      ))}</td>
        |</tr>""".stripMargin
   }
 }
