@@ -23,9 +23,12 @@ import cats.effect.IO
 import org.http4s._
 import org.http4s.dsl.io._
 import org.http4s.headers.`Content-Type`
+import org.slf4j.LoggerFactory
 import scala.io.Source
 
 class StaticFilesEndpoint {
+
+  private val logger = LoggerFactory.getLogger(getClass)
 
   val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
     case GET -> Root / "static" / "css" / fileName if fileName.endsWith(".css") =>
@@ -50,7 +53,8 @@ class StaticFilesEndpoint {
       case None =>
         NotFound(s"Static file not found: $resourcePath")
     }.handleErrorWith { error =>
-      InternalServerError(s"Error serving static file: ${error.getMessage}")
+      logger.error(s"Error serving static file $resourcePath: ${error.getMessage}", error)
+      InternalServerError("Error serving static file.")
     }
   }
 }
