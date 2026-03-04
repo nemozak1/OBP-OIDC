@@ -21,6 +21,7 @@ package com.tesobe.oidc.endpoints
 
 import cats.effect.IO
 import com.tesobe.oidc.auth.{AuthService, CodeService}
+import com.tesobe.oidc.endpoints.HtmlUtils.htmlEncode
 import com.tesobe.oidc.models.{OidcError, User}
 import com.tesobe.oidc.ratelimit.RateLimitService
 import com.tesobe.oidc.config.OidcConfig
@@ -39,10 +40,6 @@ class AuthEndpoint(
 ) {
 
   private val logger = LoggerFactory.getLogger(getClass)
-
-  private def htmlEncode(s: String): String =
-    s.replace("&", "&amp;").replace("<", "&lt;")
-     .replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#x27;")
 
   // Test logging immediately when class is created
   logger.info("AuthEndpoint created - logging is working!")
@@ -328,7 +325,7 @@ class AuthEndpoint(
       s"Error handling login submission: ${error.getMessage}",
       error
     )
-    BadRequest(s"Invalid form data: ${error.getMessage}")
+    BadRequest("Invalid form data. Please try again.")
   }
 
   private def generateCodeForUser(
@@ -363,15 +360,15 @@ class AuthEndpoint(
         clientOpt <- authService.findClientByClientIdThatIsKey(clientId)
 
         stateParam = state
-          .map(s => s"""<input type="hidden" name="state" value="$s">""")
+          .map(s => s"""<input type="hidden" name="state" value="${htmlEncode(s)}">""")
           .getOrElse("")
         nonceParam = nonce
-          .map(n => s"""<input type="hidden" name="nonce" value="$n">""")
+          .map(n => s"""<input type="hidden" name="nonce" value="${htmlEncode(n)}">""")
           .getOrElse("")
 
         providerOptions = providers
           .map { provider =>
-            s"""<option value="$provider">$provider</option>"""
+            s"""<option value="${htmlEncode(provider)}">${htmlEncode(provider)}</option>"""
           }
           .mkString("\n            ")
 
@@ -473,7 +470,7 @@ class AuthEndpoint(
             </div>"""
           } else if (providers.length == 1) {
             // Single provider in production: use hidden field
-            s"""<input type="hidden" name="provider" value="${providers.head}">"""
+            s"""<input type="hidden" name="provider" value="${htmlEncode(providers.head)}">"""
           } else {
             // No providers - shouldn't happen but handle gracefully
             s"""<div class="form-group">
@@ -484,9 +481,9 @@ class AuthEndpoint(
             </div>"""
           }}
 
-            <input type="hidden" name="client_id" value="$clientId">
-            <input type="hidden" name="redirect_uri" value="$redirectUri">
-            <input type="hidden" name="scope" value="$scope">
+            <input type="hidden" name="client_id" value="${htmlEncode(clientId)}">
+            <input type="hidden" name="redirect_uri" value="${htmlEncode(redirectUri)}">
+            <input type="hidden" name="scope" value="${htmlEncode(scope)}">
             $stateParam
             $nonceParam
 

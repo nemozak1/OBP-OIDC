@@ -97,7 +97,7 @@ class RegistrationEndpoint(
           BadRequest(
             ClientRegistrationError(
               ClientRegistrationError.INVALID_CLIENT_METADATA,
-              Some(s"Invalid JSON request body: ${error.getMessage}")
+              Some("Invalid JSON request body. Please check the request format.")
             ).asJson
           ).map(addNoCacheHeaders)
       }
