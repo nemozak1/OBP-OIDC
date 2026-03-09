@@ -118,7 +118,7 @@ class ObpApiClientService(
   private[auth] def obtainDirectLoginToken(): IO[Either[OidcError, String]] = {
     (config.obpApiUrl, config.obpApiUsername, config.obpApiPassword, config.obpApiConsumerKey) match {
       case (Some(baseUrl), Some(username), Some(password), Some(consumerKey)) =>
-        val endpoint = s"${baseUrl.stripSuffix("/")}/my/logins/direct"
+        val endpoint = s"${baseUrl.stripSuffix("/")}/obp/v6.0.0/my/logins/direct"
         logger.info(s"Obtaining DirectLogin token from: $endpoint")
 
         val request = Request[IO](
