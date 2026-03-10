@@ -75,7 +75,8 @@ case class AccessTokenClaims(
     iat: Long,
     scope: String,
     client_id: String,
-    azp: Option[String] = None // Authorized Party (client ID)
+    azp: Option[String] = None, // Authorized Party (client ID)
+    provider: Option[String] = None // Identity provider name
 )
 
 object AccessTokenClaims {

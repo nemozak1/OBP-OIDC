@@ -181,6 +181,10 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
         .withClaim("azp", clientId)
         .withClaim("scope", scope)
         .withClaim("client_id", clientId)
+        .withClaim(
+          "provider",
+          user.provider.getOrElse(config.issuer)
+        )
 
       _ = logger.trace(
         s"Added azp claim to access token with value: $clientId"
