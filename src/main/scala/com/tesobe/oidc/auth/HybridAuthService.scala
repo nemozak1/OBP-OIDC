@@ -1007,9 +1007,7 @@ class HybridAuthService(
               Left(
                 OidcError(
                   "server_error",
-                  Some(
-                    s"Database error: ${error.getMessage}. Client may already exist or database constraint violation."
-                  )
+                  Some("Failed to create client. Please try again later.")
                 )
               )
             )

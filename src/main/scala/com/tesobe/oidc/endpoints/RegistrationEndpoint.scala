@@ -97,7 +97,7 @@ class RegistrationEndpoint(
           BadRequest(
             ClientRegistrationError(
               ClientRegistrationError.INVALID_CLIENT_METADATA,
-              Some(s"Invalid JSON request body: ${error.getMessage}")
+              Some("Invalid JSON request body. Please check the request format.")
             ).asJson
           ).map(addNoCacheHeaders)
       }
@@ -175,7 +175,7 @@ class RegistrationEndpoint(
             InternalServerError(
               ClientRegistrationError(
                 "server_error",
-                Some(s"Failed to register client: ${error.error_description.getOrElse("Unknown error")}")
+                Some("Registration failed. Please try again later.")
               ).asJson
             ).map(addNoCacheHeaders)
         }
