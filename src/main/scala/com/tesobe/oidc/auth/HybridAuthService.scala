@@ -75,18 +75,27 @@ class HybridAuthService(
     *   (when USE_VERIFY_ENDPOINTS=true)
     */
   def getAvailableProviders(): IO[List[String]] = {
+    logger.info(s"getAvailableProviders called, listProvidersMethod=${config.listProvidersMethod}")
+    println(s"getAvailableProviders called, listProvidersMethod=${config.listProvidersMethod}")
     config.listProvidersMethod match {
       case ListProvidersMethod.ViaApiEndpoint =>
         logger.info("Fetching providers via OBP API endpoint (GET /obp/v6.0.0/providers)")
         obpApiCredentialsService match {
-          case Some(service) => service.getProviders()
+          case Some(service) =>
+            service.getProviders().map { providers =>
+              logger.info(s"getAvailableProviders (ViaApiEndpoint) returning ${providers.size} providers: ${providers.mkString(", ")}")
+              println(s"getAvailableProviders (ViaApiEndpoint) returning ${providers.size} providers: ${providers.mkString(", ")}")
+              providers
+            }
           case None =>
             logger.error("OBP API Credentials Service not initialized but get_providers_endpoint is configured")
+            println("getAvailableProviders ERROR: OBP API Credentials Service not initialized but get_providers_endpoint is configured")
             IO.pure(List.empty[String])
         }
 
       case ListProvidersMethod.ViaOidcUsersView =>
-        logger.debug("Fetching available providers from database")
+        logger.info("Fetching available providers from database via v_oidc_users view")
+        println("Fetching available providers from database via v_oidc_users view")
         getAvailableProvidersViaDatabase()
     }
   }
@@ -106,14 +115,19 @@ class HybridAuthService(
       .to[List]
       .transact(requireTransactor)
       .map { providers =>
+        logger.info(s"Database returned ${providers.size} raw providers from v_oidc_users: ${providers.mkString(", ")}")
+        println(s"Database returned ${providers.size} raw providers from v_oidc_users: ${providers.mkString(", ")}")
         logger.info(
           s"Filtering out excluded providers: ${excludedProviders.mkString(", ")}"
         )
-        providers.filterNot { provider =>
+        val filtered = providers.filterNot { provider =>
           excludedProviders.exists(excluded =>
             provider.toLowerCase.contains(excluded.toLowerCase)
           )
         }
+        logger.info(s"After filtering, returning ${filtered.size} providers: ${filtered.mkString(", ")}")
+        println(s"After filtering, returning ${filtered.size} providers: ${filtered.mkString(", ")}")
+        filtered
       }
       .handleErrorWith { error =>
         logger.error("Database error while fetching providers", error)

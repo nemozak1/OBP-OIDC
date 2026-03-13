@@ -485,12 +485,16 @@ class ObpApiCredentialsService(
                 response.status match {
                   case Status.Ok =>
                     response.as[Json].map { json =>
+                      logger.info(s"OBP API providers response JSON: $json")
+                      println(s"OBP API providers response JSON: $json")
                       json.hcursor.get[List[String]]("providers") match {
                         case Right(providers) =>
-                          logger.info(s"Got ${providers.size} providers from OBP API")
+                          logger.info(s"Got ${providers.size} providers from OBP API: ${providers.mkString(", ")}")
+                          println(s"Got ${providers.size} providers from OBP API: ${providers.mkString(", ")}")
                           providers
-                        case Left(_) =>
-                          logger.warn(s"Unexpected providers response format: $json")
+                        case Left(decodingFailure) =>
+                          logger.warn(s"Unexpected providers response format (decode error: $decodingFailure): $json")
+                          println(s"WARNING: Unexpected providers response format (decode error: $decodingFailure): $json")
                           List.empty
                       }
                     }
