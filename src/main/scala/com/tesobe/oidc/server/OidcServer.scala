@@ -1128,7 +1128,7 @@ object OidcServer extends IOApp {
           _ <- IO(println(s"CONSUMER_ID: ${c.consumer_id}"))
           _ <- IO(println(s"CLIENT_ID (KEY): ${c.client_id}"))
           _ <- IO(
-            println(s"CLIENT_SECRET: ${c.client_secret.getOrElse("NOT_SET")}")
+            println(s"CLIENT_SECRET: ${c.client_secret.getOrElse("Not Revealed")}")
           )
           _ <- IO(println(s"REDIRECT_URIS: ${c.redirect_uris.mkString(",")}"))
           _ <- IO(println("-" * 50))

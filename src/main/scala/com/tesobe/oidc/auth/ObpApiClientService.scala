@@ -99,6 +99,41 @@ object ConsumersResponse {
   implicit val decoder: Decoder[ConsumersResponse] = deriveDecoder
 }
 
+/** Request body for POST /obp/v5.1.0/management/consumers
+  */
+case class CreateConsumerRequest(
+    app_name: String,
+    app_type: String,
+    description: String,
+    developer_email: String,
+    redirect_url: String,
+    enabled: Boolean,
+    company: String
+)
+
+object CreateConsumerRequest {
+  implicit val encoder: Encoder[CreateConsumerRequest] = deriveEncoder
+}
+
+/** Response from POST /obp/v5.1.0/management/consumers
+  */
+case class CreateConsumerResponse(
+    consumer_id: String,
+    consumer_key: String,
+    consumer_secret: String,
+    app_name: String,
+    app_type: String,
+    description: String,
+    developer_email: String,
+    redirect_url: String,
+    enabled: Boolean,
+    company: String
+)
+
+object CreateConsumerResponse {
+  implicit val decoder: Decoder[CreateConsumerResponse] = deriveDecoder
+}
+
 /** Service for verifying OIDC clients via OBP API endpoint
   *
   * This service calls POST /obp/v6.0.0/oidc/clients/verify to verify
@@ -564,6 +599,122 @@ class ObpApiClientService(
     }
   }
 
+  /** Create a consumer via OBP API
+    * Calls POST /obp/v5.1.0/management/consumers
+    * Requires CanCreateConsumer role on the DirectLogin user
+    */
+  def createConsumer(oidcClient: OidcClient): IO[Either[OidcError, OidcClient]] = {
+    config.obpApiUrl match {
+      case None =>
+        logger.error("OBP_API_URL is not configured")
+        IO.pure(Left(OidcError("server_error", Some("OBP_API_URL is not configured"))))
+
+      case Some(baseUrl) =>
+        getValidToken().flatMap {
+          case Left(error) => IO.pure(Left(error))
+          case Right(token) =>
+            val endpoint = s"${baseUrl.stripSuffix("/")}/obp/v5.1.0/management/consumers"
+            logger.info(s"Creating consumer via OBP API: $endpoint for app_name: ${oidcClient.client_name}")
+
+            val requestBody = CreateConsumerRequest(
+              app_name = oidcClient.client_name,
+              app_type = "Confidential",
+              description = s"OIDC client for ${oidcClient.client_name}",
+              developer_email = "admin@tesobe.com",
+              redirect_url = oidcClient.redirect_uris.mkString(","),
+              enabled = true,
+              company = "TESOBE"
+            )
+
+            val request = Request[IO](
+              method = Method.POST,
+              uri = Uri.unsafeFromString(endpoint)
+            ).withEntity(requestBody.asJson)
+              .putHeaders(
+                Header.Raw(ci"DirectLogin", s"token=$token"),
+                `Content-Type`(MediaType.application.json)
+              )
+
+            client.run(request)
+              .use { response =>
+                response.status match {
+                  case Status.Created | Status.Ok =>
+                    response.as[String].flatMap { rawBody =>
+                      logger.info(s"OBP API create consumer response: $rawBody")
+                      io.circe.parser.parse(rawBody) match {
+                        case Right(json) =>
+                          json.as[CreateConsumerResponse] match {
+                            case Right(consumerResp) =>
+                              logger.info(s"Successfully created consumer via OBP API: ${consumerResp.app_name} (consumer_id: ${consumerResp.consumer_id})")
+                              val createdClient = OidcClient(
+                                client_id = consumerResp.consumer_key,
+                                client_secret = Some(consumerResp.consumer_secret),
+                                consumer_id = consumerResp.consumer_id,
+                                client_name = consumerResp.app_name,
+                                redirect_uris = consumerResp.redirect_url.split("[,\\s]+").map(_.trim).filter(_.nonEmpty).toList,
+                                grant_types = List("authorization_code", "refresh_token"),
+                                response_types = List("code"),
+                                scopes = List("openid", "profile", "email"),
+                                token_endpoint_auth_method = "client_secret_basic",
+                                created_at = None
+                              )
+                              IO.pure(Right(createdClient))
+                            case Left(error) =>
+                              logger.error(s"Failed to parse create consumer response: ${error.getMessage}. Raw body: $rawBody")
+                              IO.pure(Left(OidcError("server_error", Some(s"Failed to parse OBP API response: $rawBody"))))
+                          }
+                        case Left(parseError) =>
+                          logger.error(s"OBP API returned non-JSON response: $rawBody")
+                          IO.pure(Left(OidcError("server_error", Some(s"OBP API returned non-JSON: $rawBody"))))
+                      }
+                    }
+
+                  case Status.Unauthorized =>
+                    response.as[String].flatMap { body =>
+                      if (body.contains("token") || body.contains("Token")) {
+                        tokenRef.set(None).map { _ =>
+                          Left(OidcError("server_error", Some("OBP API token expired, please retry")))
+                        }
+                      } else {
+                        logger.error(s"OBP API returned 401 for consumer creation: $body")
+                        IO.pure(Left(OidcError("server_error", Some(body))))
+                      }
+                    }
+
+                  case Status.Forbidden =>
+                    response.as[String].flatMap { body =>
+                      logger.error(s"OBP API returned 403 Forbidden for consumer creation: $body. Ensure the DirectLogin user has the CanCreateConsumer role.")
+                      IO.pure(Left(OidcError("server_error", Some(body))))
+                    }
+
+                  case status =>
+                    response.as[String].flatMap { body =>
+                      logger.error(s"OBP API returned ${status} for consumer creation: $body")
+                      IO.pure(Left(OidcError("server_error", Some(body))))
+                    }
+                }
+              }
+              .handleErrorWith { error =>
+                logger.error(s"Error creating consumer via OBP API: ${error.getMessage}", error)
+                IO.pure(Left(OidcError("server_error", Some(s"Failed to connect to OBP API: ${error.getMessage}"))))
+              }
+        }
+    }
+  }
+
+  /** Find a consumer by app_name via OBP API
+    * Uses listClients() and filters by app_name
+    */
+  def findConsumerByName(name: String): IO[Option[OidcClient]] = {
+    listClients().map {
+      case Right(clients) =>
+        clients.find(_.client_name == name)
+      case Left(error) =>
+        logger.error(s"Failed to list clients when searching for '$name': ${error.error_description.getOrElse(error.error)}")
+        None
+    }
+  }
+
   def findClient(clientId: String): IO[Option[OidcClient]] = {
     config.obpApiUrl match {
       case None =>
@@ -658,6 +809,7 @@ object ObpApiClientService {
 
   private val logger = LoggerFactory.getLogger(getClass)
   private val RequiredRole = "CanGetOidcClient"
+  private val CreateConsumerRole = "CanCreateConsumer"
 
   /** Create an ObpApiClientService with http4s Ember client
     */
@@ -684,23 +836,18 @@ object ObpApiClientService {
           case Left(error) =>
             IO.pure(Left(s"OBP API connection failed for client verification: ${error.error_description.getOrElse(error.error)}"))
           case Right(token) =>
-            // Check for CanGetOidcClient role
-            checkUserRole(client, baseUrl, token).map {
-              case Right(hasRole) =>
-                val roleStatus = if (hasRole) {
-                  s"User has $RequiredRole role"
-                } else {
-                  s"WARNING: User does NOT have $RequiredRole role"
-                }
+            // Check for CanGetOidcClient and CanCreateConsumer roles
+            checkUserRoles(client, baseUrl, token).map {
+              case Right(roleStatuses) =>
                 Right(
                   s"OBP API client verification connection successful. " +
-                    s"Connected to $baseUrl as $username. $roleStatus"
+                    s"Connected to $baseUrl as $username. $roleStatuses"
                 )
               case Left(roleError) =>
                 Right(
                   s"OBP API client verification connection successful. " +
                     s"Connected to $baseUrl as $username. " +
-                    s"WARNING: Could not verify $RequiredRole role: $roleError"
+                    s"WARNING: Could not verify roles: $roleError"
                 )
             }
         }
@@ -708,13 +855,13 @@ object ObpApiClientService {
     }
   }
 
-  /** Check if the current user has the CanGetOidcClient role
+  /** Check if the current user has the required roles (CanGetOidcClient, CanCreateConsumer)
     */
-  private def checkUserRole(
+  private def checkUserRoles(
       client: Client[IO],
       baseUrl: String,
       token: String
-  ): IO[Either[String, Boolean]] = {
+  ): IO[Either[String, String]] = {
     val endpoint = s"${baseUrl.stripSuffix("/")}/obp/v6.0.0/my/entitlements"
     logger.debug(s"Checking user entitlements at: $endpoint")
 
@@ -725,20 +872,21 @@ object ObpApiClientService {
       Header.Raw(ci"DirectLogin", s"token=$token")
     )
 
+    val rolesToCheck = List(RequiredRole, CreateConsumerRole)
+
     client
       .run(request)
       .use { response =>
         response.status match {
           case Status.Ok =>
             response.as[Json].map { json =>
-              val hasRole = json.hcursor.get[List[EntitlementInfo]]("list") match {
-                case Right(entitlements) =>
-                  entitlements.exists(_.role_name == RequiredRole)
-                case Left(_) =>
-                  // Try alternative structure - just look for the role name in the JSON
-                  json.toString.contains(RequiredRole)
+              val entitlements = json.hcursor.get[List[EntitlementInfo]]("list").getOrElse(List.empty)
+              val statuses = rolesToCheck.map { role =>
+                val hasRole = entitlements.exists(_.role_name == role) || json.toString.contains(role)
+                if (hasRole) s"User has $role role"
+                else s"WARNING: User does NOT have $role role"
               }
-              Right(hasRole)
+              Right(statuses.mkString(". "))
             }
           case status =>
             response.as[String].map { body =>

@@ -845,6 +845,22 @@ class HybridAuthService(
   /** Find OIDC client by client_name to prevent duplicates
     */
   def findClientByName(clientName: String): IO[Option[OidcClient]] = {
+    config.verifyClientMethod match {
+      case VerifyClientMethod.ViaApiEndpoint =>
+        logger.info(s"Finding client by name via OBP API: $clientName")
+        obpApiClientService match {
+          case Some(service) => service.findConsumerByName(clientName)
+          case None =>
+            logger.error("OBP API Client Service not initialized but ViaApiEndpoint is configured")
+            IO.pure(None)
+        }
+
+      case VerifyClientMethod.ViaDatabase =>
+        findClientByNameViaDatabase(clientName)
+    }
+  }
+
+  private def findClientByNameViaDatabase(clientName: String): IO[Option[OidcClient]] = {
     println(s"DEBUG: findClientByName() called for clientName: $clientName")
     println(s"   Looking in v_oidc_clients view with column 'client_name'")
     val query = sql"""
@@ -956,6 +972,22 @@ class HybridAuthService(
     logger.info(
       s"createClient() called for: ${client.client_name} (${client.client_id})"
     )
+    config.verifyClientMethod match {
+      case VerifyClientMethod.ViaApiEndpoint =>
+        logger.info(s"Creating consumer via OBP API for: ${client.client_name}")
+        obpApiClientService match {
+          case Some(service) => service.createConsumer(client)
+          case None =>
+            logger.error("OBP API Client Service not initialized but ViaApiEndpoint is configured")
+            IO.pure(Left(OidcError("server_error", Some("Client service not properly configured"))))
+        }
+
+      case VerifyClientMethod.ViaDatabase =>
+        createClientViaDatabase(client)
+    }
+  }
+
+  private def createClientViaDatabase(client: OidcClient): IO[Either[OidcError, OidcClient]] = {
     adminTransactor match {
       case Some(adminTx) =>
         logger.info(
