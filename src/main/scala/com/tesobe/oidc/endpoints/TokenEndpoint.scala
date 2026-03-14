@@ -440,7 +440,7 @@ class TokenEndpoint(
               )
               response <- Ok(tokenResponse.asJson)
                 .map(
-                  _.withHeaders(
+                  _.putHeaders(
                     Header.Raw(CIString("Cache-Control"), "no-store"),
                     Header.Raw(CIString("Pragma"), "no-cache")
                   )
@@ -581,7 +581,7 @@ class TokenEndpoint(
 
                 response <- Ok(tokenResponse.asJson)
                   .map(
-                    _.withHeaders(
+                    _.putHeaders(
                       Header.Raw(CIString("Cache-Control"), "no-store"),
                       Header.Raw(CIString("Pragma"), "no-cache")
                     )
@@ -652,7 +652,7 @@ class TokenEndpoint(
 
           response <- Ok(tokenResponse.asJson)
             .map(
-              _.withHeaders(
+              _.putHeaders(
                 Header.Raw(CIString("Cache-Control"), "no-store"),
                 Header.Raw(CIString("Pragma"), "no-cache")
               )
