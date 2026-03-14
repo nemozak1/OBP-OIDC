@@ -66,7 +66,8 @@ class OidcProviderIntegrationTest extends AnyFlatSpec with Matchers {
         codeService,
         statsService,
         rateLimitService,
-        testConfig
+        testConfig,
+        jwtService
       )
       tokenEndpoint = TokenEndpoint(
         authService,

@@ -25,6 +25,7 @@ import com.tesobe.oidc.endpoints.HtmlUtils.htmlEncode
 import com.tesobe.oidc.models.{OidcError, User}
 import com.tesobe.oidc.ratelimit.RateLimitService
 import com.tesobe.oidc.config.OidcConfig
+import com.tesobe.oidc.tokens.JwtService
 import org.http4s._
 import org.http4s.dsl.io._
 import org.http4s.headers.Location
@@ -36,7 +37,8 @@ class AuthEndpoint(
     codeService: CodeService[IO],
     statsService: StatsService[IO],
     rateLimitService: RateLimitService[IO],
-    config: OidcConfig
+    config: OidcConfig,
+    jwtService: JwtService[IO]
 ) {
 
   private val logger = LoggerFactory.getLogger(getClass)
@@ -109,12 +111,12 @@ class AuthEndpoint(
         )
       ) *>
       // Validate request parameters
-      (if (responseType != "code") {
+      (if (responseType != "code" && responseType != "code id_token") {
          IO(logger.warn(s"Unsupported response_type: $responseType")) *>
            IO(println(s"Unsupported response_type: $responseType")) *> {
              val error = OidcError(
                "unsupported_response_type",
-               Some("Only 'code' response type is supported"),
+               Some("Supported response types: 'code', 'code id_token'"),
                state = state
              )
              redirectWithError(redirectUri, error)
@@ -163,7 +165,7 @@ class AuthEndpoint(
                    logger.info(s"Client validated, showing login form...")
                  ) *>
                    IO(println(s"Client validated, showing login form...")) *>
-                   showLoginForm(clientId, redirectUri, scope, state, nonce)
+                   showLoginForm(clientId, redirectUri, scope, state, nonce, responseType = responseType)
                }
            }
        })
@@ -268,6 +270,7 @@ class AuthEndpoint(
       )
       state = formData.get("state")
       nonce = formData.get("nonce")
+      responseType = formData.get("response_type").getOrElse("code")
 
       _ <- IO(
         logger.info(
@@ -295,7 +298,8 @@ class AuthEndpoint(
               redirectUri,
               scope,
               state,
-              nonce
+              nonce,
+              responseType
             )
         case Left(error) =>
           // Authentication failed - record failed attempt for rate limiting
@@ -316,7 +320,8 @@ class AuthEndpoint(
               scope,
               state,
               nonce,
-              Some("Incorrect username/password")
+              Some("Incorrect username/password"),
+              responseType
             )
       }
     } yield response
@@ -334,13 +339,22 @@ class AuthEndpoint(
       redirectUri: String,
       scope: String,
       state: Option[String],
-      nonce: Option[String]
+      nonce: Option[String],
+      responseType: String = "code"
   ): IO[Response[IO]] = {
     for {
       _ <- statsService.incrementLoginSuccess(user.username)
       code <- codeService
         .generateCode(clientId, redirectUri, user.sub, scope, state, nonce, user.provider)
-      response <- redirectWithCode(redirectUri, code, state)
+      response <- responseType match {
+        case "code id_token" =>
+          for {
+            idToken <- jwtService.generateHybridIdToken(user, clientId, code, state, nonce)
+            resp <- redirectWithCodeAndIdToken(redirectUri, code, idToken, state)
+          } yield resp
+        case _ =>
+          redirectWithCode(redirectUri, code, state)
+      }
     } yield response
   }
 
@@ -350,7 +364,8 @@ class AuthEndpoint(
       scope: String,
       state: Option[String],
       nonce: Option[String],
-      errorMessage: Option[String] = None
+      errorMessage: Option[String] = None,
+      responseType: String = "code"
   ): IO[Response[IO]] = {
 
     IO(logger.info(s"showLoginForm called for clientId: $clientId")) *>
@@ -484,6 +499,7 @@ class AuthEndpoint(
             <input type="hidden" name="client_id" value="${htmlEncode(clientId)}">
             <input type="hidden" name="redirect_uri" value="${htmlEncode(redirectUri)}">
             <input type="hidden" name="scope" value="${htmlEncode(scope)}">
+            <input type="hidden" name="response_type" value="${htmlEncode(responseType)}">
             $stateParam
             $nonceParam
 
@@ -614,6 +630,23 @@ class AuthEndpoint(
     SeeOther(Location(Uri.unsafeFromString(location)))
   }
 
+  /** Redirect with both code and id_token in the fragment (hybrid flow).
+    * Per OIDC Core 3.3.2.5, when response_type includes a token or id_token,
+    * parameters MUST be returned in the URI fragment.
+    */
+  private def redirectWithCodeAndIdToken(
+      redirectUri: String,
+      code: String,
+      idToken: String,
+      state: Option[String]
+  ): IO[Response[IO]] = {
+    val stateParam = state.map(s => s"&state=${java.net.URLEncoder.encode(s, "UTF-8")}").getOrElse("")
+    val location = s"$redirectUri#code=$code&id_token=$idToken$stateParam"
+    IO(logger.info(s"Redirecting with code and id_token (hybrid flow) to: ${redirectUri}#code=...&id_token=...")) *>
+    IO(println(s"Redirecting with code and id_token (hybrid flow)")) *>
+    SeeOther(Location(Uri.unsafeFromString(location)))
+  }
+
   private def redirectWithError(
       redirectUri: String,
       error: OidcError
@@ -634,13 +667,15 @@ object AuthEndpoint {
       codeService: CodeService[IO],
       statsService: StatsService[IO],
       rateLimitService: RateLimitService[IO],
-      config: OidcConfig
+      config: OidcConfig,
+      jwtService: JwtService[IO]
   ): AuthEndpoint =
     new AuthEndpoint(
       authService,
       codeService,
       statsService,
       rateLimitService,
-      config
+      config,
+      jwtService
     )
 }

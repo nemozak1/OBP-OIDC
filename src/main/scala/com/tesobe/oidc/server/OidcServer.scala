@@ -276,7 +276,8 @@ object OidcServer extends IOApp {
             codeService,
             statsService,
             rateLimitService,
-            config
+            config,
+            jwtService
           )
           tokenEndpoint = TokenEndpoint(
             authService,

@@ -37,7 +37,7 @@ import com.tesobe.oidc.models.{
 import com.tesobe.oidc.config.OidcConfig
 
 import java.security.interfaces.{RSAPrivateKey, RSAPublicKey}
-import java.security.{KeyPair, KeyPairGenerator, SecureRandom}
+import java.security.{KeyPair, KeyPairGenerator, MessageDigest, SecureRandom}
 import java.time.Instant
 import java.util.{Base64, Date}
 import scala.util.{Failure, Success, Try}
@@ -47,6 +47,13 @@ trait JwtService[F[_]] {
   def generateIdToken(
       user: User,
       clientId: String,
+      nonce: Option[String] = None
+  ): F[String]
+  def generateHybridIdToken(
+      user: User,
+      clientId: String,
+      code: String,
+      state: Option[String] = None,
       nonce: Option[String] = None
   ): F[String]
   def generateAccessToken(
@@ -137,6 +144,59 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
       )
       _ = logger.trace(s"ID Token JWT: $signedToken")
       _ = logger.info(s"ID token generated successfully with azp: $clientId")
+    } yield signedToken
+  }
+
+  /** Compute the left-half hash for OIDC hybrid flow claims (c_hash, at_hash, s_hash).
+    * Per OIDC Core 3.3.2.11: SHA-256 the input, take the left half, base64url-encode.
+    */
+  private def computeHalfHash(value: String): String = {
+    val digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes("ASCII"))
+    val leftHalf = digest.take(digest.length / 2)
+    Base64.getUrlEncoder.withoutPadding().encodeToString(leftHalf)
+  }
+
+  /** Generate an ID token for the hybrid flow (response_type=code id_token).
+    * Includes c_hash (code hash) and optionally s_hash (state hash).
+    * at_hash is not included because no access token is returned from the authorization endpoint.
+    */
+  def generateHybridIdToken(
+      user: User,
+      clientId: String,
+      code: String,
+      state: Option[String] = None,
+      nonce: Option[String] = None
+  ): IO[String] = {
+    for {
+      algorithm <- getAlgorithm
+      now = Instant.now()
+      exp = now.plusSeconds(config.tokenExpirationSeconds)
+      issuer = config.issuer
+
+      _ = logger.info(s"Generating hybrid ID token for user: ${user.sub}, client: $clientId")
+
+      cHash = computeHalfHash(code)
+      _ = logger.info(s"Computed c_hash for hybrid ID token: $cHash")
+
+      token = JWT
+        .create()
+        .withIssuer(issuer)
+        .withSubject(user.sub)
+        .withAudience(user.provider.get)
+        .withIssuedAt(Date.from(now))
+        .withExpiresAt(Date.from(exp))
+        .withKeyId(config.keyId)
+        .withClaim("azp", clientId)
+        .withClaim("name", user.name.orNull)
+        .withClaim("email", user.email.getOrElse(s"${user.sub}@noemail.local"))
+        .withClaim("provider", user.provider.getOrElse(config.issuer))
+        .withClaim("c_hash", cHash)
+
+      tokenWithState = state.fold(token)(s => token.withClaim("s_hash", computeHalfHash(s)))
+      tokenWithNonce = nonce.fold(tokenWithState)(n => tokenWithState.withClaim("nonce", n))
+      signedToken = tokenWithNonce.sign(algorithm)
+
+      _ = logger.info(s"Hybrid ID token generated successfully with azp: $clientId, c_hash: $cHash")
     } yield signedToken
   }
 
