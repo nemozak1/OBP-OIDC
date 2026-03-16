@@ -213,19 +213,19 @@ object RefreshTokenClaims {
   implicit val decoder: Decoder[RefreshTokenClaims] = deriveDecoder
 }
 
-// Consent challenge: holds paused authorization state while user approves consent in Portal
+// Consent challenge: holds paused authorization state while user approves consent in Portal.
+// No user identity at creation time — the user authenticates on Portal, not here.
+// Portal passes back user_id on the callback so we can generate the auth code.
 case class ConsentChallenge(
     challenge: String,          // Unique ID for this challenge
     clientId: String,           // Hola's client_id
     redirectUri: String,        // Hola's redirect_uri
-    sub: String,                // Authenticated user's subject ID
     scope: String,              // Requested scopes
     state: Option[String],      // Hola's OAuth state
     nonce: Option[String],      // Hola's OAuth nonce
     responseType: String,       // "code" or "code id_token"
     consentRequestId: String,   // OBP consent_request_id
     bankId: String,             // OBP bank_id
-    provider: Option[String],   // Auth provider used
     exp: Long                   // Expiration time
 )
 
