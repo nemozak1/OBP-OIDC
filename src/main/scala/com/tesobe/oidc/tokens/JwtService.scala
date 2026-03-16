@@ -47,14 +47,16 @@ trait JwtService[F[_]] {
   def generateIdToken(
       user: User,
       clientId: String,
-      nonce: Option[String] = None
+      nonce: Option[String] = None,
+      consentId: Option[String] = None
   ): F[String]
   def generateHybridIdToken(
       user: User,
       clientId: String,
       code: String,
       state: Option[String] = None,
-      nonce: Option[String] = None
+      nonce: Option[String] = None,
+      consentId: Option[String] = None
   ): F[String]
   def generateAccessToken(
       user: User,
@@ -96,7 +98,8 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
   def generateIdToken(
       user: User,
       clientId: String,
-      nonce: Option[String] = None
+      nonce: Option[String] = None,
+      consentId: Option[String] = None
   ): IO[String] = {
     for {
       algorithm <- getAlgorithm
@@ -137,7 +140,8 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
 
       _ = logger.trace(s"Added azp claim with value: $clientId")
       tokenWithNonce = nonce.fold(token)(n => token.withClaim("nonce", n))
-      signedToken = tokenWithNonce.sign(algorithm)
+      tokenWithConsent = consentId.fold(tokenWithNonce)(cid => tokenWithNonce.withClaim("consent_id", cid))
+      signedToken = tokenWithConsent.sign(algorithm)
 
       _ = logger.trace(
         s"ID token generated successfully with azp: $clientId"
@@ -165,7 +169,8 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
       clientId: String,
       code: String,
       state: Option[String] = None,
-      nonce: Option[String] = None
+      nonce: Option[String] = None,
+      consentId: Option[String] = None
   ): IO[String] = {
     for {
       algorithm <- getAlgorithm
@@ -194,7 +199,8 @@ class JwtServiceImpl(config: OidcConfig, keyPairRef: Ref[IO, KeyPair])
 
       tokenWithState = state.fold(token)(s => token.withClaim("s_hash", computeHalfHash(s)))
       tokenWithNonce = nonce.fold(tokenWithState)(n => tokenWithState.withClaim("nonce", n))
-      signedToken = tokenWithNonce.sign(algorithm)
+      tokenWithConsent = consentId.fold(tokenWithNonce)(cid => tokenWithNonce.withClaim("consent_id", cid))
+      signedToken = tokenWithConsent.sign(algorithm)
 
       _ = logger.info(s"Hybrid ID token generated successfully with azp: $clientId, c_hash: $cHash")
     } yield signedToken

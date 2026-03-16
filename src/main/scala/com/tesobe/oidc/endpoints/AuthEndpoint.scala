@@ -19,10 +19,10 @@
 
 package com.tesobe.oidc.endpoints
 
-import cats.effect.IO
+import cats.effect.{IO, Ref}
 import com.tesobe.oidc.auth.{AuthService, CodeService}
 import com.tesobe.oidc.endpoints.HtmlUtils.htmlEncode
-import com.tesobe.oidc.models.{OidcError, User}
+import com.tesobe.oidc.models.{ConsentChallenge, OidcError, User}
 import com.tesobe.oidc.ratelimit.RateLimitService
 import com.tesobe.oidc.config.OidcConfig
 import com.tesobe.oidc.tokens.JwtService
@@ -32,13 +32,17 @@ import org.http4s.headers.Location
 import org.slf4j.LoggerFactory
 import com.tesobe.oidc.stats.StatsService
 
+import java.time.Instant
+import java.util.UUID
+
 class AuthEndpoint(
     authService: AuthService[IO],
     codeService: CodeService[IO],
     statsService: StatsService[IO],
     rateLimitService: RateLimitService[IO],
     config: OidcConfig,
-    jwtService: JwtService[IO]
+    jwtService: JwtService[IO],
+    consentChallengesRef: Ref[IO, Map[String, ConsentChallenge]]
 ) {
 
   private val logger = LoggerFactory.getLogger(getClass)
@@ -61,20 +65,31 @@ class AuthEndpoint(
         RedirectUriQueryParamMatcher(redirectUri) +&
         ScopeQueryParamMatcher(scope) +&
         StateQueryParamMatcher(state) +&
-        NonceQueryParamMatcher(nonce) =>
+        NonceQueryParamMatcher(nonce) +&
+        ConsentRequestIdQueryParamMatcher(consentRequestId) +&
+        BankIdQueryParamMatcher(bankId) =>
       handleAuthorizationRequest(
         responseType,
         clientId,
         redirectUri,
         scope,
         state,
-        nonce
+        nonce,
+        consentRequestId,
+        bankId
       )
 
     case req @ POST -> Root / "obp-oidc" / "auth" =>
       req
         .as[UrlForm]
         .flatMap(form => handleLoginSubmissionWithRequest(form, Some(req)))
+
+    // Consent callback: Portal redirects here after user approves/denies consent
+    case GET -> Root / "obp-oidc" / "consent-callback" :?
+        ChallengeQueryParamMatcher(challengeId) +&
+        ConsentIdCallbackQueryParamMatcher(consentId) +&
+        ConsentStatusQueryParamMatcher(consentStatus) =>
+      handleConsentCallback(challengeId, consentId, consentStatus)
   }
 
   // Query parameter matchers
@@ -90,6 +105,18 @@ class AuthEndpoint(
       extends OptionalQueryParamDecoderMatcher[String]("state")
   object NonceQueryParamMatcher
       extends OptionalQueryParamDecoderMatcher[String]("nonce")
+  object ConsentRequestIdQueryParamMatcher
+      extends OptionalQueryParamDecoderMatcher[String]("consent_request_id")
+  object BankIdQueryParamMatcher
+      extends OptionalQueryParamDecoderMatcher[String]("bank_id")
+
+  // Consent callback query parameter matchers
+  object ChallengeQueryParamMatcher
+      extends QueryParamDecoderMatcher[String]("challenge")
+  object ConsentIdCallbackQueryParamMatcher
+      extends OptionalQueryParamDecoderMatcher[String]("consent_id")
+  object ConsentStatusQueryParamMatcher
+      extends QueryParamDecoderMatcher[String]("consent_status")
 
   private def handleAuthorizationRequest(
       responseType: String,
@@ -97,12 +124,14 @@ class AuthEndpoint(
       redirectUri: String,
       scope: String,
       state: Option[String],
-      nonce: Option[String]
+      nonce: Option[String],
+      consentRequestId: Option[String] = None,
+      bankId: Option[String] = None
   ): IO[Response[IO]] = {
 
     IO(
       logger.info(
-        s"handleAuthorizationRequest called - responseType: $responseType, clientId: $clientId, redirectUri: $redirectUri, scope: $scope"
+        s"handleAuthorizationRequest called - responseType: $responseType, clientId: $clientId, redirectUri: $redirectUri, scope: $scope, consentRequestId: $consentRequestId, bankId: $bankId"
       )
     ) *>
       IO(
@@ -165,7 +194,7 @@ class AuthEndpoint(
                    logger.info(s"Client validated, showing login form...")
                  ) *>
                    IO(println(s"Client validated, showing login form...")) *>
-                   showLoginForm(clientId, redirectUri, scope, state, nonce, responseType = responseType)
+                   showLoginForm(clientId, redirectUri, scope, state, nonce, responseType = responseType, consentRequestId = consentRequestId, bankId = bankId)
                }
            }
        })
@@ -271,6 +300,8 @@ class AuthEndpoint(
       state = formData.get("state")
       nonce = formData.get("nonce")
       responseType = formData.get("response_type").getOrElse("code")
+      consentRequestId = formData.get("consent_request_id").filter(_.nonEmpty)
+      bankId = formData.get("bank_id").filter(_.nonEmpty)
 
       _ <- IO(
         logger.info(
@@ -292,15 +323,20 @@ class AuthEndpoint(
             IO(
               logger.info(s"Authentication successful for user: ${user.sub}")
             ) *>
-            generateCodeForUser(
-              user,
-              clientId,
-              redirectUri,
-              scope,
-              state,
-              nonce,
-              responseType
-            )
+            // If consent_request_id is present, redirect to Portal for consent approval
+            // instead of generating the auth code immediately
+            (consentRequestId match {
+              case Some(crId) =>
+                redirectToPortalForConsent(
+                  user, clientId, redirectUri, scope, state, nonce,
+                  responseType, crId, bankId.getOrElse(""), user.provider
+                )
+              case None =>
+                generateCodeForUser(
+                  user, clientId, redirectUri, scope, state, nonce,
+                  responseType, consentId = None
+                )
+            })
         case Left(error) =>
           // Authentication failed - record failed attempt for rate limiting
           rateLimitService.checkAndRecordFailedAttempt(ip, validUsername) *>
@@ -321,7 +357,9 @@ class AuthEndpoint(
               state,
               nonce,
               Some("Incorrect username/password"),
-              responseType
+              responseType,
+              consentRequestId,
+              bankId
             )
       }
     } yield response
@@ -333,6 +371,116 @@ class AuthEndpoint(
     BadRequest("Invalid form data. Please try again.")
   }
 
+  /** After successful authentication, if there's a consent_request_id,
+    * store the authorization state and redirect to Portal for consent approval.
+    */
+  private def redirectToPortalForConsent(
+      user: User,
+      clientId: String,
+      redirectUri: String,
+      scope: String,
+      state: Option[String],
+      nonce: Option[String],
+      responseType: String,
+      consentRequestId: String,
+      bankId: String,
+      provider: Option[String]
+  ): IO[Response[IO]] = {
+    for {
+      challengeId <- IO(UUID.randomUUID().toString)
+      exp = Instant.now().plusSeconds(config.codeExpirationSeconds).getEpochSecond
+
+      challenge = ConsentChallenge(
+        challenge = challengeId,
+        clientId = clientId,
+        redirectUri = redirectUri,
+        sub = user.sub,
+        scope = scope,
+        state = state,
+        nonce = nonce,
+        responseType = responseType,
+        consentRequestId = consentRequestId,
+        bankId = bankId,
+        provider = provider,
+        exp = exp
+      )
+
+      _ <- consentChallengesRef.update(_ + (challengeId -> challenge))
+      _ <- IO(logger.info(s"Created consent challenge: $challengeId for consent_request_id: $consentRequestId, redirecting to Portal"))
+
+      // Build the OBP-OIDC consent callback URL that Portal will redirect back to
+      oidcReturnUrl = s"${config.issuer}/consent-callback?challenge=${java.net.URLEncoder.encode(challengeId, "UTF-8")}"
+
+      // Redirect to Portal's login page with consent params
+      // Portal will authenticate the user (OBP-OIDC session may make this seamless),
+      // then show the consent approval page
+      portalUrl = s"${config.obpPortalBaseUrl}/login/obp-oidc" +
+        s"?consent_request_id=${java.net.URLEncoder.encode(consentRequestId, "UTF-8")}" +
+        s"&bank_id=${java.net.URLEncoder.encode(bankId, "UTF-8")}" +
+        s"&oidc_return_url=${java.net.URLEncoder.encode(oidcReturnUrl, "UTF-8")}"
+
+      _ <- IO(logger.info(s"Redirecting to Portal for consent: $portalUrl"))
+      response <- SeeOther(Location(Uri.unsafeFromString(portalUrl)))
+    } yield response
+  }
+
+  /** Handle the consent callback from Portal after user approves/denies consent.
+    * Look up the stored ConsentChallenge, generate the auth code, and redirect to Hola.
+    */
+  private def handleConsentCallback(
+      challengeId: String,
+      consentId: Option[String],
+      consentStatus: String
+  ): IO[Response[IO]] = {
+    for {
+      challenges <- consentChallengesRef.get
+      response <- challenges.get(challengeId) match {
+        case Some(challenge) =>
+          // Consume the challenge (one-time use)
+          consentChallengesRef.update(_ - challengeId) *> {
+            // Check expiration
+            val now = Instant.now().getEpochSecond
+            if (challenge.exp < now) {
+              IO(logger.warn(s"Consent challenge expired: $challengeId")) *> {
+                val error = OidcError("access_denied", Some("Consent challenge expired"), state = challenge.state)
+                redirectWithError(challenge.redirectUri, error)
+              }
+            } else if (consentStatus == "ACCEPTED" || consentStatus == "VALID") {
+              IO(logger.info(s"Consent approved for challenge: $challengeId, consent_id: $consentId")) *> {
+                // Look up the user and generate the auth code with consent_id
+                authService.getUserById(challenge.sub).flatMap {
+                  case Some(user) =>
+                    generateCodeForUser(
+                      user,
+                      challenge.clientId,
+                      challenge.redirectUri,
+                      challenge.scope,
+                      challenge.state,
+                      challenge.nonce,
+                      challenge.responseType,
+                      consentId
+                    )
+                  case None =>
+                    IO(logger.error(s"User not found for sub: ${challenge.sub}")) *> {
+                      val error = OidcError("server_error", Some("User not found"), state = challenge.state)
+                      redirectWithError(challenge.redirectUri, error)
+                    }
+                }
+              }
+            } else {
+              IO(logger.info(s"Consent denied for challenge: $challengeId, status: $consentStatus")) *> {
+                val error = OidcError("access_denied", Some(s"User denied consent (status: $consentStatus)"), state = challenge.state)
+                redirectWithError(challenge.redirectUri, error)
+              }
+            }
+          }
+        case None =>
+          IO(logger.warn(s"Consent challenge not found: $challengeId")) *>
+            BadRequest("Invalid or expired consent challenge.")
+      }
+    } yield response
+  }
+
   private def generateCodeForUser(
       user: User,
       clientId: String,
@@ -340,16 +488,17 @@ class AuthEndpoint(
       scope: String,
       state: Option[String],
       nonce: Option[String],
-      responseType: String = "code"
+      responseType: String = "code",
+      consentId: Option[String] = None
   ): IO[Response[IO]] = {
     for {
       _ <- statsService.incrementLoginSuccess(user.username)
       code <- codeService
-        .generateCode(clientId, redirectUri, user.sub, scope, state, nonce, user.provider)
+        .generateCode(clientId, redirectUri, user.sub, scope, state, nonce, user.provider, consentId)
       response <- responseType match {
         case "code id_token" =>
           for {
-            idToken <- jwtService.generateHybridIdToken(user, clientId, code, state, nonce)
+            idToken <- jwtService.generateHybridIdToken(user, clientId, code, state, nonce, consentId)
             resp <- redirectWithCodeAndIdToken(redirectUri, code, idToken, state)
           } yield resp
         case _ =>
@@ -365,7 +514,9 @@ class AuthEndpoint(
       state: Option[String],
       nonce: Option[String],
       errorMessage: Option[String] = None,
-      responseType: String = "code"
+      responseType: String = "code",
+      consentRequestId: Option[String] = None,
+      bankId: Option[String] = None
   ): IO[Response[IO]] = {
 
     IO(logger.info(s"showLoginForm called for clientId: $clientId")) *>
@@ -379,6 +530,12 @@ class AuthEndpoint(
           .getOrElse("")
         nonceParam = nonce
           .map(n => s"""<input type="hidden" name="nonce" value="${htmlEncode(n)}">""")
+          .getOrElse("")
+        consentRequestIdParam = consentRequestId
+          .map(c => s"""<input type="hidden" name="consent_request_id" value="${htmlEncode(c)}">""")
+          .getOrElse("")
+        bankIdParam = bankId
+          .map(b => s"""<input type="hidden" name="bank_id" value="${htmlEncode(b)}">""")
           .getOrElse("")
 
         providerOptions = providers
@@ -400,6 +557,16 @@ class AuthEndpoint(
           )
           .mkString(" ")
           .replace("Obp ", "OBP "))
+
+        // Show a colored banner so you can tell which login step you're on
+        consentBannerHtml = consentRequestId match {
+          case Some(crId) =>
+            s"""<div style="background: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; text-align: center;">
+              <strong style="color: #92400e;">Consent Authorization</strong><br>
+              <span style="color: #78350f; font-size: 0.9rem;">Sign in to authorize a consent request${bankId.map(b => s" for bank <strong>${htmlEncode(b)}</strong>").getOrElse("")}</span>
+            </div>"""
+          case None => ""
+        }
 
         errorHtml = errorMessage
           .map(msg => s"""<div class="error">$msg</div>""")
@@ -447,6 +614,7 @@ class AuthEndpoint(
           $logoHtml
           <h2>Sign In</h2>
           <p class="subtitle">$formattedClientName is asking you to login</p>
+          $consentBannerHtml
           $errorHtml
           ${if (config.localDevelopmentMode) {
             s"""<div class="info">
@@ -502,6 +670,8 @@ class AuthEndpoint(
             <input type="hidden" name="response_type" value="${htmlEncode(responseType)}">
             $stateParam
             $nonceParam
+            $consentRequestIdParam
+            $bankIdParam
 
             <button type="submit">Sign In</button>
           </form>
@@ -668,7 +838,8 @@ object AuthEndpoint {
       statsService: StatsService[IO],
       rateLimitService: RateLimitService[IO],
       config: OidcConfig,
-      jwtService: JwtService[IO]
+      jwtService: JwtService[IO],
+      consentChallengesRef: Ref[IO, Map[String, ConsentChallenge]]
   ): AuthEndpoint =
     new AuthEndpoint(
       authService,
@@ -676,6 +847,7 @@ object AuthEndpoint {
       statsService,
       rateLimitService,
       config,
-      jwtService
+      jwtService,
+      consentChallengesRef
     )
 }

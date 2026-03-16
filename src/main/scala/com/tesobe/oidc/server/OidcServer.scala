@@ -24,8 +24,9 @@ import scala.io.Source
 import cats.effect.{ExitCode, IO, IOApp}
 import cats.syntax.all._
 import com.comcast.ip4s.{Host, Port}
+import cats.effect.Ref
 import com.tesobe.oidc.auth.{CodeService, HybridAuthService, DatabaseClient, ObpApiCredentialsService, ObpApiClientService}
-import com.tesobe.oidc.models.OidcClient
+import com.tesobe.oidc.models.{ConsentChallenge, OidcClient}
 import com.tesobe.oidc.bootstrap.ClientBootstrap
 import com.tesobe.oidc.config.{Config, OidcConfig, VerifyCredentialsMethod, VerifyClientMethod}
 import com.tesobe.oidc.endpoints._
@@ -269,6 +270,7 @@ object OidcServer extends IOApp {
           _ <- IO(println("Token revocation service initialized"))
 
           // Initialize endpoints
+          consentChallengesRef <- Ref.of[IO, Map[String, ConsentChallenge]](Map.empty)
           discoveryEndpoint = DiscoveryEndpoint(config)
           jwksEndpoint = JwksEndpoint(jwtService)
           authEndpoint = AuthEndpoint(
@@ -277,7 +279,8 @@ object OidcServer extends IOApp {
             statsService,
             rateLimitService,
             config,
-            jwtService
+            jwtService,
+            consentChallengesRef
           )
           tokenEndpoint = TokenEndpoint(
             authService,

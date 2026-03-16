@@ -345,7 +345,7 @@ class TokenEndpoint(
                 )
               )
               idToken <- jwtService
-                .generateIdToken(user, clientId, authCode.nonce)
+                .generateIdToken(user, clientId, authCode.nonce, authCode.consent_id)
               _ <- IO.pure(
                 logger.trace(s"ID token generated successfully")
               )

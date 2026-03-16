@@ -159,7 +159,8 @@ case class AuthorizationCode(
     state: Option[String] = None,
     nonce: Option[String] = None,
     provider: Option[String] = None,
-    exp: Long // Expiration time
+    exp: Long, // Expiration time
+    consent_id: Option[String] = None
 )
 
 object AuthorizationCode {
@@ -210,6 +211,27 @@ case class RefreshTokenClaims(
 object RefreshTokenClaims {
   implicit val encoder: Encoder[RefreshTokenClaims] = deriveEncoder
   implicit val decoder: Decoder[RefreshTokenClaims] = deriveDecoder
+}
+
+// Consent challenge: holds paused authorization state while user approves consent in Portal
+case class ConsentChallenge(
+    challenge: String,          // Unique ID for this challenge
+    clientId: String,           // Hola's client_id
+    redirectUri: String,        // Hola's redirect_uri
+    sub: String,                // Authenticated user's subject ID
+    scope: String,              // Requested scopes
+    state: Option[String],      // Hola's OAuth state
+    nonce: Option[String],      // Hola's OAuth nonce
+    responseType: String,       // "code" or "code id_token"
+    consentRequestId: String,   // OBP consent_request_id
+    bankId: String,             // OBP bank_id
+    provider: Option[String],   // Auth provider used
+    exp: Long                   // Expiration time
+)
+
+object ConsentChallenge {
+  implicit val encoder: Encoder[ConsentChallenge] = deriveEncoder
+  implicit val decoder: Decoder[ConsentChallenge] = deriveDecoder
 }
 
 // Error responses
