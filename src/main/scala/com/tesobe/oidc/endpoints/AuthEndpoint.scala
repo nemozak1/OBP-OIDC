@@ -635,6 +635,27 @@ class AuthEndpoint(
             <button type="submit">Sign In</button>
           </form>
         </div>
+        <script>
+          (function() {
+            var sel = document.getElementById('provider');
+            if (!sel) return;
+            var saved = document.cookie.replace(/(?:(?:^|.*;\\s*)lastProvider\\s*=\\s*([^;]*).*$$)|^.*$$/, '$$1');
+            if (saved) {
+              for (var i = 0; i < sel.options.length; i++) {
+                if (sel.options[i].value === decodeURIComponent(saved)) {
+                  sel.selectedIndex = i;
+                  break;
+                }
+              }
+            }
+            sel.addEventListener('change', function() {
+              document.cookie = 'lastProvider=' + encodeURIComponent(sel.value) + ';path=/;max-age=31536000;SameSite=Lax';
+            });
+            sel.form.addEventListener('submit', function() {
+              document.cookie = 'lastProvider=' + encodeURIComponent(sel.value) + ';path=/;max-age=31536000;SameSite=Lax';
+            });
+          })();
+        </script>
       </body>
       </html>
     """
@@ -736,6 +757,27 @@ class AuthEndpoint(
             <button type=\"submit\">Sign In</button>
           </form>
         </div>
+        <script>
+          (function() {
+            var sel = document.getElementById('provider');
+            if (!sel) return;
+            var saved = document.cookie.replace(/(?:(?:^|.*;\\s*)lastProvider\\s*=\\s*([^;]*).*$$)|^.*$$/, '$$1');
+            if (saved) {
+              for (var i = 0; i < sel.options.length; i++) {
+                if (sel.options[i].value === decodeURIComponent(saved)) {
+                  sel.selectedIndex = i;
+                  break;
+                }
+              }
+            }
+            sel.addEventListener('change', function() {
+              document.cookie = 'lastProvider=' + encodeURIComponent(sel.value) + ';path=/;max-age=31536000;SameSite=Lax';
+            });
+            sel.form.addEventListener('submit', function() {
+              document.cookie = 'lastProvider=' + encodeURIComponent(sel.value) + ';path=/;max-age=31536000;SameSite=Lax';
+            });
+          })();
+        </script>
       </body>
       </html>
       """
