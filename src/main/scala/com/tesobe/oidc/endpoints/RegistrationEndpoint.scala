@@ -148,13 +148,18 @@ class RegistrationEndpoint(
 
         // Persist the client
         authService.createClient(oidcClient).flatMap {
-          case Right(_) =>
-            logger.info(s"Successfully registered client: $clientId (${validatedRequest.client_name})")
+          case Right(createdClient) =>
+            // Use the client_id and secret from the created client.
+            // When created via OBP API, these come from the OBP consumer
+            // (consumer_key/consumer_secret) rather than the locally generated ones.
+            val effectiveClientId = createdClient.client_id
+            val effectiveClientSecret = createdClient.client_secret.getOrElse(clientSecret)
+            logger.info(s"Successfully registered client: $effectiveClientId (${validatedRequest.client_name})")
 
             // Build response
             val response = ClientRegistrationResponse(
-              client_id = clientId,
-              client_secret = Some(clientSecret),
+              client_id = effectiveClientId,
+              client_secret = Some(effectiveClientSecret),
               client_id_issued_at = issuedAt,
               client_secret_expires_at = 0, // Never expires
               client_name = validatedRequest.client_name,
